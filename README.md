@@ -59,6 +59,10 @@ Not finished:
 - bevel engagement: the position cannot be derived reliably, see
   `docs/findings.md`
 
+## Plan
+
+See [PLAN.md](PLAN.md) for the prioritized work queue and what is already done.
+
 ## Building
 
 Go 1.22 or newer for the engine, [uv](https://docs.astral.sh/uv/) for the

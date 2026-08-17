@@ -194,3 +194,76 @@ def test_bevel_pairs_are_not_center_distance_checked():
 def test_center_distance_check_runs_as_part_of_the_suite():
     checks = {f.check for f in spur_pair(8, 12).run_checks()}
     assert "center dist" in checks
+
+
+# --------------------------------------------------------------------------
+# facts recorded in PLAN.md and docs/findings.md, pinned as regressions
+# --------------------------------------------------------------------------
+
+STANDARD_TEETH = [8, 12, 16, 20, 24, 28, 36, 40]
+
+
+def triple_closes(t1: int, t2: int, t3: int) -> bool:
+    m = Mechanism("triple")
+    for s in ("a", "b", "c"):
+        m.shaft(s, bearings=2)
+    m.mesh("a", "b", t1, t2)
+    m.mesh("b", "c", t2, t3)
+    m.mesh("a", "c", t1, t3)
+    closure = [f for f in m.check_closure() if f.check == "loop closure"]
+    return bool(closure) and all(f.level == "OK" for f in closure)
+
+
+def test_exactly_seven_of_512_gear_triples_close():
+    """Documented in PLAN.md, and cheap to keep honest."""
+    import itertools
+    closing = [t for t in itertools.product(STANDARD_TEETH, repeat=3)
+               if triple_closes(*t)]
+    assert len(closing) == 7
+    assert {tuple(sorted(t)) for t in closing} == {
+        (8, 12, 40), (8, 16, 24), (12, 24, 36), (16, 24, 24)}
+
+
+def test_only_two_of_those_four_are_actually_buildable():
+    """
+    check_closure places the first shaft at the origin and the second at
+    (d, 0), then asks whether the THIRD lands on the lattice — it never checks
+    that the second one did. (8,12,40) and (12,24,36) each contain a pair whose
+    tooth counts do not sum to a multiple of 8, so a shaft sits on a quarter
+    stud and the triple cannot be built after all. check_center_distances is
+    what catches that.
+    """
+    buildable = []
+    for triple in ((8, 12, 40), (8, 16, 24), (12, 24, 36), (16, 24, 24)):
+        m = Mechanism("t")
+        for s in ("a", "b", "c"):
+            m.shaft(s, bearings=2)
+        a, b, c = triple
+        m.mesh("a", "b", a, b)
+        m.mesh("b", "c", b, c)
+        m.mesh("a", "c", a, c)
+        if all(f.level == "OK" for f in m.check_center_distances()):
+            buildable.append(triple)
+    assert buildable == [(8, 16, 24), (16, 24, 24)]
+
+
+def test_driving_both_tracks_together_turns_the_case_with_them():
+    """A subtractor rolling straight: both tracks the same way, and the
+    differential case follows at the same speed."""
+    m = subtractor()
+    m.drive("drive", 1.0)
+    m.drive("steer", 1.0)
+    sol = m.solve()
+    assert sol is not None
+    assert sol["case"] == pytest.approx(1.0)
+
+
+def test_driving_the_tracks_opposite_pivots_on_the_spot():
+    """Equal and opposite tracks: the machine spins in place, so the case —
+    the forward-motion port — stands still."""
+    m = subtractor()
+    m.drive("drive", 1.0)
+    m.drive("steer", -1.0)
+    sol = m.solve()
+    assert sol is not None
+    assert sol["case"] == pytest.approx(0.0)

@@ -29,7 +29,11 @@ _META = re.compile(r"!LDCAD\s+(SNAP_\w+)\s*(.*)")
 _ATTR = re.compile(r"\[(\w+)=([^\]]*)\]")
 
 
-def ensure_library(dest: str = SHADOW_DIR) -> str:
+def ensure_library(dest: str | None = None) -> str:
+    # Resolved at call time, not bound as a default: as a default argument
+    # SHADOW_DIR is captured at import and pointing the extractor at another
+    # directory silently has no effect.
+    dest = dest or SHADOW_DIR
     root = os.path.join(dest, "LDCadShadowLibrary-main")
     if os.path.isdir(root):
         return root

@@ -1,0 +1,8 @@
+0 Test Pair of Cubes
+0 Name: fixpair.dat
+0 Author: brickmesh test fixtures
+0 !LDRAW_ORG Unofficial_Part
+0 !LICENSE Apache-2.0, authored for brickmesh; NOT an LDraw part
+
+1 16 -40 0 0 1 0 0 0 1 0 0 0 1 fixcube.dat
+1 16 40 0 0 1 0 0 0 1 0 0 0 1 fixcube.dat

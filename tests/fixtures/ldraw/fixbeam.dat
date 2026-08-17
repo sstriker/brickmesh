@@ -1,0 +1,12 @@
+0 Test Beam 5 x 1 x 1
+0 Name: fixbeam.dat
+0 Author: brickmesh test fixtures
+0 !LDRAW_ORG Unofficial_Part
+0 !LICENSE Apache-2.0, authored for brickmesh; NOT an LDraw part
+
+4 16 50 -10 -10 50 10 -10 50 10 10 50 -10 10
+4 16 -50 -10 10 -50 10 10 -50 10 -10 -50 -10 -10
+4 16 -50 10 10 50 10 10 50 10 -10 -50 10 -10
+4 16 -50 -10 -10 50 -10 -10 50 -10 10 -50 -10 10
+4 16 -50 -10 10 50 -10 10 50 10 10 -50 10 10
+4 16 -50 10 -10 50 10 -10 50 -10 -10 -50 -10 -10
