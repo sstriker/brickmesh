@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"brickmesh/internal/geom"
-	"brickmesh/internal/synth"
+	"brickmesh/internal/part"
 )
 
 // A stand-in for the shadow library: every beam's holes run along Y, which is
@@ -18,17 +18,17 @@ func (holesAlongY) RotationAxis(string) (geom.Vec3, string, bool) {
 	return geom.Vec3{Y: 1}, "test", true
 }
 
-var inventory = []synth.Beam{{Part: "beam3", Holes: 3}, {Part: "beam5", Holes: 5}}
+var inventory = []part.Beam{{Part: "beam3", Holes: 3}, {Part: "beam5", Holes: 5}}
 
 // Rotation 0 is the identity, so a beam's holes run along Z, one stud apart,
 // centered on the origin.
-func beam(part string, origin geom.Vec3) synth.Placed {
-	return synth.Placed{Part: part, Rot: 0, Origin: origin}
+func beam(name string, origin geom.Vec3) part.Placed {
+	return part.Placed{Part: name, Rot: 0, Origin: origin}
 }
 
 func TestHoleOffsetsAreCenteredAndOneStudApart(t *testing.T) {
-	got := synth.HoleOffsets(3)
-	want := []float64{-synth.Stud, 0, synth.Stud}
+	got := part.HoleOffsets(3)
+	want := []float64{-part.Stud, 0, part.Stud}
 	if len(got) != 3 {
 		t.Fatalf("got %d offsets, want 3", len(got))
 	}
@@ -42,9 +42,9 @@ func TestHoleOffsetsAreCenteredAndOneStudApart(t *testing.T) {
 func TestTwoBeamsSharingOneHoleAreAHinge(t *testing.T) {
 	// Offset by two studs along Z: their end holes coincide at exactly one
 	// point.
-	parts := []synth.Placed{
+	parts := []part.Placed{
 		beam("beam3", geom.Vec3{}),
-		beam("beam3", geom.Vec3{Z: 2 * synth.Stud}),
+		beam("beam3", geom.Vec3{Z: 2 * part.Stud}),
 	}
 	joints, err := FindJoints(holesAlongY{}, parts, inventory)
 	if err != nil {
@@ -69,9 +69,9 @@ func TestTwoBeamsSharingOneHoleAreAHinge(t *testing.T) {
 
 func TestTwoBeamsSharingTwoHolesAreRigid(t *testing.T) {
 	// Overlapping by two holes: 3(2-1) - 2(2) = -1, overconstrained and rigid.
-	parts := []synth.Placed{
+	parts := []part.Placed{
 		beam("beam3", geom.Vec3{}),
-		beam("beam3", geom.Vec3{Z: synth.Stud}),
+		beam("beam3", geom.Vec3{Z: part.Stud}),
 	}
 	joints, _ := FindJoints(holesAlongY{}, parts, inventory)
 	if len(joints) != 2 {
@@ -88,7 +88,7 @@ func TestTwoBeamsSharingTwoHolesAreRigid(t *testing.T) {
 }
 
 func TestPartsThatTouchNowhereFallApart(t *testing.T) {
-	parts := []synth.Placed{
+	parts := []part.Placed{
 		beam("beam3", geom.Vec3{}),
 		beam("beam3", geom.Vec3{X: 500}),
 	}
@@ -111,10 +111,10 @@ func TestPartsThatTouchNowhereFallApart(t *testing.T) {
 }
 
 func TestComponentsMergeThroughAChain(t *testing.T) {
-	parts := []synth.Placed{
+	parts := []part.Placed{
 		beam("beam3", geom.Vec3{}),
-		beam("beam3", geom.Vec3{Z: 2 * synth.Stud}),
-		beam("beam3", geom.Vec3{Z: 4 * synth.Stud}),
+		beam("beam3", geom.Vec3{Z: 2 * part.Stud}),
+		beam("beam3", geom.Vec3{Z: 4 * part.Stud}),
 	}
 	joints, _ := FindJoints(holesAlongY{}, parts, inventory)
 	comps := Components(len(parts), joints)
@@ -154,10 +154,10 @@ func TestPlanarAndSpatialFormsDisagreeOnAFourBarLinkage(t *testing.T) {
 func TestSummarySeparatesHingesFromRigidPairs(t *testing.T) {
 	// Holes run -20/0/+20 from each origin. Part 1 overlaps part 0 by two
 	// holes; part 2 starts one stud further on and meets part 1 at exactly one.
-	parts := []synth.Placed{
+	parts := []part.Placed{
 		beam("beam3", geom.Vec3{}),
-		beam("beam3", geom.Vec3{Z: synth.Stud}),
-		beam("beam3", geom.Vec3{Z: 3 * synth.Stud}),
+		beam("beam3", geom.Vec3{Z: part.Stud}),
+		beam("beam3", geom.Vec3{Z: 3 * part.Stud}),
 	}
 	s, err := Summarize(holesAlongY{}, parts, inventory)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestSummarySeparatesHingesFromRigidPairs(t *testing.T) {
 }
 
 func TestUnknownPartIsAnError(t *testing.T) {
-	_, err := FindJoints(holesAlongY{}, []synth.Placed{beam("nosuch", geom.Vec3{})}, inventory)
+	_, err := FindJoints(holesAlongY{}, []part.Placed{beam("nosuch", geom.Vec3{})}, inventory)
 	if err == nil {
 		t.Error("expected an error for a part outside the inventory")
 	}
@@ -185,7 +185,7 @@ func (noAxis) RotationAxis(string) (geom.Vec3, string, bool) {
 }
 
 func TestMissingHoleAxisIsAnError(t *testing.T) {
-	_, err := FindJoints(noAxis{}, []synth.Placed{beam("beam3", geom.Vec3{})}, inventory)
+	_, err := FindJoints(noAxis{}, []part.Placed{beam("beam3", geom.Vec3{})}, inventory)
 	if err == nil {
 		t.Error("expected an error when the hole axis is unknown")
 	}

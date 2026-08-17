@@ -29,7 +29,7 @@ import (
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/mech"
-	"brickmesh/internal/synth"
+	"brickmesh/internal/part"
 )
 
 const tol = 1e-6
@@ -52,8 +52,8 @@ func abs3(v geom.Vec3) geom.Vec3 {
 
 // FindJoints finds coincident holes with parallel axes: a pin can go through
 // there.
-func FindJoints(src synth.AxisSource, parts []synth.Placed, inventory []synth.Beam) ([]Joint, error) {
-	counts := synth.HoleCounts(inventory)
+func FindJoints(src part.AxisSource, parts []part.Placed, inventory []part.Beam) ([]Joint, error) {
+	counts := part.HoleCounts(inventory)
 	type holes struct {
 		pts  []geom.Vec3
 		axis geom.Vec3
@@ -64,7 +64,7 @@ func FindJoints(src synth.AxisSource, parts []synth.Placed, inventory []synth.Be
 		if !ok {
 			return nil, fmt.Errorf("%s is not in the inventory", p.Part)
 		}
-		pts, axis, err := synth.WorldHoles(src, p, n)
+		pts, axis, err := part.WorldHoles(src, p, n)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +140,7 @@ func Mobility(nParts int, joints []Joint) (int, string) {
 }
 
 // Analyze reports whether the structure hangs together and whether it is rigid.
-func Analyze(src synth.AxisSource, parts []synth.Placed, inventory []synth.Beam) ([]mech.Finding, error) {
+func Analyze(src part.AxisSource, parts []part.Placed, inventory []part.Beam) ([]mech.Finding, error) {
 	joints, err := FindJoints(src, parts, inventory)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ type Summary struct {
 }
 
 // Summarize reports the joint structure of a set of placed parts.
-func Summarize(src synth.AxisSource, parts []synth.Placed, inventory []synth.Beam) (Summary, error) {
+func Summarize(src part.AxisSource, parts []part.Placed, inventory []part.Beam) (Summary, error) {
 	joints, err := FindJoints(src, parts, inventory)
 	if err != nil {
 		return Summary{}, err
