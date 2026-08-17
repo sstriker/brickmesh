@@ -20,7 +20,7 @@ import numpy as np
 
 from . import snap
 
-CACHE = os.path.expanduser("~/.cache/brickcheck-catalog.json")
+CACHE = os.path.expanduser("~/.cache/brickmesh-catalog.json")
 
 
 def parse_grid(spec: str) -> tuple[int, int, float, float, bool, bool]:
@@ -296,7 +296,7 @@ def infer_missing_holes(cat: dict) -> dict:
         size = g.size
         long_axis = int(np.argmax(size))
         length = float(size[long_axis])
-        expect = int(round(length / 20.0))
+        expect = round(length / 20.0)
         if expect >= 3 and len(holes) < expect and len(holes) >= 1:
             base = holes[0]
             axis = np.array(base[3:6], float)

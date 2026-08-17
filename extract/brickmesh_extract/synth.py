@@ -299,7 +299,7 @@ def _repair_connectivity(chosen, cells_of, holes_of, nholes, inventory):
                 break
         if placed is None:
             break
-        chosen = chosen + [placed]
+        chosen = [*chosen, placed]
     return chosen
 
 
@@ -322,7 +322,7 @@ def connectors_between(holes_a: set, holes_b: set, inventory=BEAMS) -> list[Plac
             k = L / STUD
             if abs(k - round(k)) > 1e-6:
                 continue                      # not on the hole pitch
-            k = int(round(k))
+            k = round(k)
             d = v / L
             if np.count_nonzero(np.abs(d) > 1e-6) != 1:
                 continue                      # straight directions only

@@ -121,3 +121,37 @@ def test_a_crowded_shaft_has_nowhere_for_a_bearing():
     # A gear wider than the reach leaves no free stretch at all, which is what
     # the bearing search keys off.
     assert free_intervals([station("a", 40, 0.0, 24.0)], "a", reach=8.0) == []
+
+
+def two_shaft_mech(ta: int, tb: int):
+    from brickmesh_extract.mech import Mechanism
+    m = Mechanism(f"{ta}t/{tb}t")
+    m.shaft("a", bearings=2)
+    m.shaft("b", bearings=2)
+    m.mesh("a", "b", ta, tb)
+    return m
+
+
+def test_realize_places_a_pair_that_fits_the_lattice():
+    from brickmesh_extract.layout import realize
+    # 8+24 = 32 -> 4 half studs, and 16 = 0^2+4^2, so positions exist.
+    sols = realize(two_shaft_mech(8, 24), max_solutions=3, span=1)
+    assert sols
+    lay = sols[0]
+    assert parallel_distance(lay.place["a"], lay.place["b"]) == pytest.approx(4.0)
+
+
+def test_realize_refuses_an_off_lattice_pair_rather_than_misplacing_it():
+    """8t+12t needs 2.5 half studs. Squaring and rounding that to 6 used to
+    invent candidates at sqrt(6); there is genuinely nowhere to put it."""
+    from brickmesh_extract.layout import realize
+    assert realize(two_shaft_mech(8, 12), max_solutions=3, span=1) == []
+
+
+def test_realize_does_not_place_the_9_5_pair_a_fraction_out():
+    """36t+40t needs 9.5 half studs. Rounding 90.25 to 90 would place the gear
+    at sqrt(90) = 9.487 — close enough to look right, and wrong."""
+    from brickmesh_extract.layout import realize
+    for lay in realize(two_shaft_mech(36, 40), max_solutions=3, span=1):
+        d = parallel_distance(lay.place["a"], lay.place["b"])
+        assert d == pytest.approx(9.5), f"placed at {d}, which does not mesh"

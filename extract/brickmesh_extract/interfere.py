@@ -81,28 +81,6 @@ def _verdict(n_free: int, total: int, min_dist: float) -> str:
     return "MESHES - free at some phases, jams at others"
 
 
-if __name__ == "__main__":
-    Z = np.eye(3)
-    RY = rot("y", 90)
-    RING = 23.5
-
-    print("12t against the 28t ring gear of the differential")
-    print("Diff sits at the origin, axis along Z, ring gear at Z=+20..+27\n")
-    print(f"  {'radial':>8}{'axial':>8}  {'free':>6}{'jam':>6}{'mindist':>9}   verdict")
-
-    for off in (30.0, 35.0, 40.0):
-        for z in (5.0, 8.0, 12.0, 38.0, 42.0, 46.0):
-            try:
-                r = engagement("62821.dat", Z, [0, 0, 0],
-                               "32270.dat", RY, [off, 0, z],
-                               phase_axis="x", pitch_deg=30.0, phase_steps=18)
-            except Exception as exc:
-                print(f"  {off:8.1f}{z:8.1f}  error: {exc}")
-                continue
-            print(f"  {off:8.1f}{z:8.1f}  {r['free_phases']:6d}"
-                  f"{r['colliding_phases']:6d}{r['min_distance']:9.2f}   {r['verdict']}")
-
-
 def mesh_lock_robust(part_a: str, orient_a, pos_a,
                      part_b: str, orient_b, pos_b,
                      teeth_b: int, teeth_a: int,
@@ -203,3 +181,25 @@ def mesh_lock(part_a: str, orient_a, pos_a,
         "backlash_deg": float(np.median([len(w) for w in windows]) * step),
         "free_fraction": len(free) / steps,
     }
+
+
+if __name__ == "__main__":
+    Z = np.eye(3)
+    RY = rot("y", 90)
+    RING = 23.5
+
+    print("12t against the 28t ring gear of the differential")
+    print("Diff sits at the origin, axis along Z, ring gear at Z=+20..+27\n")
+    print(f"  {'radial':>8}{'axial':>8}  {'free':>6}{'jam':>6}{'mindist':>9}   verdict")
+
+    for off in (30.0, 35.0, 40.0):
+        for z in (5.0, 8.0, 12.0, 38.0, 42.0, 46.0):
+            try:
+                r = engagement("62821.dat", Z, [0, 0, 0],
+                               "32270.dat", RY, [off, 0, z],
+                               phase_axis="x", pitch_deg=30.0, phase_steps=18)
+            except Exception as exc:
+                print(f"  {off:8.1f}{z:8.1f}  error: {exc}")
+                continue
+            print(f"  {off:8.1f}{z:8.1f}  {r['free_phases']:6d}"
+                  f"{r['colliding_phases']:6d}{r['min_distance']:9.2f}   {r['verdict']}")

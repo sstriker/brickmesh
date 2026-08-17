@@ -204,6 +204,34 @@ class Mechanism:
             out.append(Finding("OK", "grid", "one grid domain, no transitions"))
         return out
 
+    def check_center_distances(self) -> list[Finding]:
+        """
+        A spur pair sits (ta+tb)/8 half studs apart, and beams only offer whole
+        half studs. That works out exactly when the two tooth counts SUM to a
+        multiple of 8 — each being a multiple of 4 is not enough. 8t+12t lands
+        on 2.5 half studs and 36t+40t on 9.5, and neither can be placed on the
+        lattice. Caught here, because the geometric layer can only respond to
+        such a pair by finding no layout at all.
+        """
+        out = []
+        for l in self.links:
+            if not isinstance(l, Mesh) or l.kind != "spur":
+                continue
+            d = l.center_distance_halfstuds
+            if abs(d - round(d)) < 1e-9:
+                continue
+            out.append(Finding(
+                "FAIL", "center dist",
+                f"{l.a}/{l.b}: {l.teeth_a}t and {l.teeth_b}t mesh at {d} half "
+                f"studs, which is off the lattice. Tooth counts have to sum to "
+                f"a multiple of 8, and {l.teeth_a}+{l.teeth_b} = "
+                f"{l.teeth_a + l.teeth_b} does not. Pick another pair or put an "
+                f"idler between them."))
+        if not out:
+            out.append(Finding("OK", "center dist",
+                               "every spur pair lands on a whole half stud"))
+        return out
+
     def check_closure(self) -> list[Finding]:
         """
         Closure of gear loops. Three shafts driving each other in a ring fix
@@ -253,7 +281,7 @@ class Mechanism:
     def backlash(self, path: list[str]) -> float:
         """Accumulated backlash along a path of shafts, in degrees at the output."""
         total, ratio = 0.0, 1.0
-        for a, b in zip(path, path[1:]):
+        for a, b in itertools.pairwise(path):
             m = next((l for l in self.links if isinstance(l, Mesh)
                       and {l.a, l.b} == {a, b}), None)
             if m is None:
@@ -265,7 +293,8 @@ class Mechanism:
 
     def run_checks(self) -> list[Finding]:
         return (self.check_dof() + self.check_bearings()
-                + self.check_domains() + self.check_closure())
+                + self.check_domains() + self.check_center_distances()
+                + self.check_closure())
 
     def report(self):
         print("=" * 70)

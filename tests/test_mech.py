@@ -151,3 +151,46 @@ def test_backlash_accumulates_along_a_path():
     # the total is less than the naive sum of 8.
     total = m.backlash(["a", "b", "c"])
     assert 4.0 < total < 8.0
+
+
+def spur_pair(ta: int, tb: int) -> Mechanism:
+    m = Mechanism(f"{ta}t/{tb}t")
+    m.shaft("a", bearings=2)
+    m.shaft("b", bearings=2)
+    m.mesh("a", "b", ta, tb)
+    return m
+
+
+def test_center_distance_on_the_lattice_is_accepted():
+    # 8+24 = 32, a multiple of 8, so the pair sits 4 whole half studs apart.
+    findings = spur_pair(8, 24).check_center_distances()
+    assert [f.level for f in findings] == ["OK"]
+
+
+def test_center_distance_off_the_lattice_is_failed():
+    """Both counts are multiples of 4, but they sum to 20, not a multiple of 8,
+    so the pair lands on 2.5 half studs and cannot be built."""
+    findings = spur_pair(8, 12).check_center_distances()
+    assert [f.level for f in findings] == ["FAIL"]
+    assert "2.5 half studs" in findings[0].detail
+    assert "8+12 = 20" in findings[0].detail
+
+
+def test_the_other_off_lattice_pair_is_failed_too():
+    findings = spur_pair(36, 40).check_center_distances()
+    assert [f.level for f in findings] == ["FAIL"]
+    assert "9.5 half studs" in findings[0].detail
+
+
+def test_bevel_pairs_are_not_center_distance_checked():
+    # A bevel pair has no center distance to speak of; the shafts intersect.
+    m = Mechanism("bevel")
+    m.shaft("a", bearings=2)
+    m.shaft("b", bearings=2)
+    m.mesh("a", "b", 8, 12, kind="bevel")
+    assert [f.level for f in m.check_center_distances()] == ["OK"]
+
+
+def test_center_distance_check_runs_as_part_of_the_suite():
+    checks = {f.check for f in spur_pair(8, 12).run_checks()}
+    assert "center dist" in checks

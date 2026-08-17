@@ -20,7 +20,7 @@ import numpy as np
 
 MIRROR = "https://raw.githubusercontent.com/mpetrov/ldraw-parts/master"
 SEARCH_DIRS = ["parts", "p", "parts/s", "p/48", "p/8"]
-CACHE = os.path.expanduser("~/.cache/brickcheck")
+CACHE = os.path.expanduser("~/.cache/brickmesh-ldraw")
 
 LDU_STUD = 20.0
 LDU_BRICK = 24.0

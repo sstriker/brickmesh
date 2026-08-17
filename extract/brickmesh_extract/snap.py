@@ -23,7 +23,7 @@ from dataclasses import dataclass
 import numpy as np
 
 SHADOW_URL = "https://codeload.github.com/RolandMelkert/LDCadShadowLibrary/tar.gz/refs/heads/main"
-SHADOW_DIR = os.path.expanduser("~/.cache/brickcheck-shadow")
+SHADOW_DIR = os.path.expanduser("~/.cache/brickmesh-shadow")
 
 _META = re.compile(r"!LDCAD\s+(SNAP_\w+)\s*(.*)")
 _ATTR = re.compile(r"\[(\w+)=([^\]]*)\]")

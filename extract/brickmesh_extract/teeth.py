@@ -31,7 +31,7 @@ def tooth_angles(part: str, axis: np.ndarray, teeth: int,
     Returns `teeth` angles, ascending.
     """
     g = ldraw.geometry(part)
-    n, u, v = _axis_frame(axis)
+    _n, u, v = _axis_frame(axis)
     p = g.verts
     r = np.hypot(p @ u, p @ v)
     tip = r.max()
@@ -55,7 +55,7 @@ def tooth_sharpness(part: str, axis: np.ndarray, teeth: int) -> float:
     unreliable and the resulting phase should not be trusted.
     """
     g = ldraw.geometry(part)
-    n, u, v = _axis_frame(axis)
+    _n, u, v = _axis_frame(axis)
     p = g.verts
     r = np.hypot(p @ u, p @ v)
     sel = r > 0.93 * r.max()

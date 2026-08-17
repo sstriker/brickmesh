@@ -117,7 +117,7 @@ def buildable_azimuths(max_reach_studs: int = 8) -> list[tuple[float, int, int, 
             if a == 0 and b == 0:
                 continue
             c2 = a * a + b * b
-            c = int(round(np.sqrt(c2)))
+            c = round(np.sqrt(c2))
             if c * c == c2 and c <= max_reach_studs:
                 out.append((float(np.degrees(np.arctan2(b, a))), c, a, b))
     seen, uniq = set(), []
@@ -499,7 +499,7 @@ class Model:
 
     def to_ldr(self) -> str:
         lines = [f"0 {self.name}", "0 Name: model.ldr",
-                 "0 Author: brickcheck", "0 !LDRAW_ORG Model", ""]
+                 "0 Author: brickmesh", "0 !LDRAW_ORG Model", ""]
         for p in self.parts:
             m = p.orient.flatten()
             x, y, z = p.pos

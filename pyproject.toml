@@ -22,6 +22,9 @@ dependencies = [
     "numpy>=1.26",
 ]
 
+[project.scripts]
+brickmesh-extract = "brickmesh_extract.build:main"
+
 [project.optional-dependencies]
 geometry = [
     "scipy>=1.11",
@@ -73,12 +76,4 @@ ignore = [
     # `l` reads as a link in mech/layout, where it matches the maths being
     # transcribed. Renaming would obscure more than it clarifies.
     "E741",
-    # The four below are cosmetic, and ruff offers only `--unsafe-fixes` for
-    # them. They sit in the search code, which has no test coverage yet, so
-    # they are recorded rather than applied. Worth revisiting once the covering
-    # and connection searches are finished and tested.
-    "RUF005",  # `[*chosen, placed]` over `chosen + [placed]`
-    "RUF007",  # itertools.pairwise over zip(x, x[1:])
-    "RUF046",  # int(round(x)) — redundant, round() on a numpy scalar gives int
-    "RUF059",  # unpacked-but-unused loop variables
 ]

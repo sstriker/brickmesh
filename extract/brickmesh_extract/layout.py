@@ -43,7 +43,7 @@ def sum_of_two_squares(n: int) -> list[tuple[int, int]]:
         b2 = n - a * a
         if b2 < 0:
             continue
-        b = int(round(b2 ** 0.5))
+        b = round(b2 ** 0.5)
         if b * b == b2:
             out.append((a, b))
             if b:
@@ -217,12 +217,20 @@ def realize(mech: Mechanism, seed: str | None = None,
                     break
         out = []
         if link and link.kind == "spur":
-            d2 = int(round(link.center_distance_halfstuds ** 2))
-            u, v = _perp_basis(p.direction)
-            for a, b in sum_of_two_squares(d2):
-                for t in range(-span, span + 1):
-                    pt = p.point + a * u + b * v + t * p.direction
-                    out.append(Placement(pt, p.direction))
+            # The offsets a and b are whole half studs, so a lattice position
+            # exists only when the squared center distance is a whole number.
+            # It is not when the tooth counts fail to sum to a multiple of 8:
+            # 8t+12t needs 2.5 half studs and 36t+40t needs 9.5. Rounding the
+            # square would place the gear a fraction of a stud out, and the
+            # layout would then be rejected further down with no explanation.
+            # Mechanism.check_center_distances reports the pair up front.
+            d2 = link.center_distance_halfstuds ** 2
+            if abs(d2 - round(d2)) < 1e-9:
+                u, v = _perp_basis(p.direction)
+                for a, b in sum_of_two_squares(round(d2)):
+                    for t in range(-span, span + 1):
+                        pt = p.point + a * u + b * v + t * p.direction
+                        out.append(Placement(pt, p.direction))
         else:                                    # bevel or worm: perpendicular
             for d in dirs:
                 if abs(float(np.dot(d, p.direction))) > 1e-9:

@@ -4,6 +4,8 @@
 package catalog
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -180,5 +182,68 @@ func TestLookupOffLatticeYieldsNothing(t *testing.T) {
 	// 3 LDU is neither a stud nor a half stud, so no beam can reach it.
 	if got := c.Lookup(geom.Vec3{X: 3}, geom.Vec3{Y: 1}, Female, Round, nil); len(got) != 0 {
 		t.Errorf("got %d placements for an off-lattice point, want 0", len(got))
+	}
+}
+
+// The extractor and the engine meet at exactly one file, and they describe it
+// differently in memory: the Python side keys a dict by part id and calls the
+// field `part`, while this side decodes an array whose field is `id`.
+// build.to_records is the conversion, and testdata/catalog.json is its output
+// for a fixed sample. tests/test_build.py regenerates and compares the same
+// fixture, so a format change on either side breaks one of the two suites.
+func TestLoadsTheFixtureTheExtractorWrites(t *testing.T) {
+	f, err := os.Open(filepath.Join("testdata", "catalog.json"))
+	if err != nil {
+		t.Fatalf("opening fixture: %v", err)
+	}
+	defer f.Close()
+
+	c, err := Load(f)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(c.Parts) != 3 {
+		t.Fatalf("got %d parts, want 3", len(c.Parts))
+	}
+
+	beam, ok := c.Parts["32523"]
+	if !ok {
+		t.Fatal(`no part "32523": the extractor writes the id under "id"`)
+	}
+	if beam.Title != "Technic Beam 3" {
+		t.Errorf("title = %q", beam.Title)
+	}
+	if beam.Tier != 1 {
+		t.Errorf("tier = %d, want 1", beam.Tier)
+	}
+	if len(beam.Ports) != 2 {
+		t.Fatalf("got %d ports, want 2", len(beam.Ports))
+	}
+	// Holes land as female, pins as male, and the axis is normalized.
+	for _, p := range beam.Ports {
+		if p.Gender != Female || p.Kind != Round {
+			t.Errorf("port = %+v, want a female round hole", p)
+		}
+		if p.Axis != (geom.Vec3{Y: 1}) {
+			t.Errorf("axis = %+v, want {0 1 0}", p.Axis)
+		}
+	}
+	if got := c.Parts["3673"].Ports[0].Gender; got != Male {
+		t.Errorf("the pin loaded as gender %v, want male", got)
+	}
+	if got := c.Parts["3001"].Tier; got != 3 {
+		t.Errorf("plain brick tier = %d, want 3", got)
+	}
+
+	// And the whole point: it indexes and answers a query.
+	c.BuildIndex(1)
+	placements := c.Lookup(geom.Vec3{X: 40}, geom.Vec3{Y: 1}, Female, Round, nil)
+	if len(placements) == 0 {
+		t.Error("no placements from the fixture catalog")
+	}
+	for _, pl := range placements {
+		if pl.Part.ID == "3001" {
+			t.Error("tier 3 brick surfaced at maxTier 1")
+		}
 	}
 }

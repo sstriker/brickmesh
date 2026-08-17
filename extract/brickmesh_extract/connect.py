@@ -143,7 +143,7 @@ def connect(comp_a: list[Placed], comp_b: list[Placed], cat: dict,
     counter = 0
 
     while heap:
-        f, g, _, chain, frontier = heapq.heappop(heap)
+        _f, g, _, chain, frontier = heapq.heappop(heap)
         if frontier in seen:
             continue
         seen.add(frontier)
@@ -180,7 +180,7 @@ def connect(comp_a: list[Placed], comp_b: list[Placed], cat: dict,
             newkeys = {_port_key(r[:3], r[3:6]) for r in list(hh) + list(pn)}
             nf = tuple(sorted(set(frontier) | newkeys))
             counter += 1
-            heapq.heappush(heap, (ng + hv, ng, counter, chain + (pl,), nf))
+            heapq.heappush(heap, (ng + hv, ng, counter, (*chain, pl), nf))
 
     return None
 
