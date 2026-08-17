@@ -1,0 +1,360 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Sander Striker
+"""
+De constructieve laag: zoek balken die alle assen dragen.
+
+Invoer is een uitgewerkte layout - aslijnen met richting, tandwielstations, en
+per as de vrije stukken. Uitvoer is een verzameling geplaatste onderdelen zodat
+elke as minstens twee lagerpunten heeft, niets elkaar raakt, en het geheel zo
+klein mogelijk is.
+
+Wat het haalbaar maakt is dat er niets continu is. Een balk kan alleen in 24
+standen (waarvan er door symmetrie minder overblijven) en alleen op
+roosterposities. En het lagerpunt moet op de aslijn liggen, wat de kandidaten
+per eis terugbrengt tot een handvol.
+"""
+from __future__ import annotations
+
+import heapq
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from . import ldraw, snap
+from .voxel import ROTATIONS, Occupancy, voxels, axis_aligned_rotations
+from .layout import Layout, Station, free_intervals
+
+HALF_STUD = 10.0
+STUD = 20.0
+
+# Voorraad dragende onderdelen: (naam, aantal gaten)
+BEAMS = [("32523.dat", 3), ("32316.dat", 5), ("32524.dat", 7),
+         ("40490.dat", 9), ("32525.dat", 11), ("41239.dat", 13)]
+
+
+def hole_offsets(n_holes: int) -> np.ndarray:
+    """Lokale gatposities langs de lengterichting (Z), in LDU."""
+    k = np.arange(n_holes) - (n_holes - 1) / 2.0
+    return np.stack([np.zeros(n_holes), np.zeros(n_holes), k * STUD], axis=1)
+
+
+CONTACT_FRACTION = 0.12
+"""
+Twee onderdelen die met een pin verbonden zijn liggen vlak tegen elkaar; hun
+oppervlakken vallen samen. Op een raster van 5 LDU is dat niet te onderscheiden
+van doorsnijden. Daarom geen absolute eis van nul gedeelde cellen, maar een
+drempel: aanraking deelt een randje, doorsnijding deelt een substantieel deel
+van het kleinste onderdeel.
+"""
+
+
+def _compatible(a: frozenset, b: frozenset) -> bool:
+    shared = len(a & b)
+    if shared == 0:
+        return True
+    return shared <= CONTACT_FRACTION * min(len(a), len(b))
+
+
+@dataclass(frozen=True, order=True)
+class Placed:
+    part: str
+    rot: int
+    origin: tuple            # LDU
+
+    def holes(self, n_holes: int) -> np.ndarray:
+        R = ROTATIONS[self.rot]
+        return hole_offsets(n_holes) @ R.T + np.array(self.origin)
+
+    def hole_axis(self, local_axis: np.ndarray) -> np.ndarray:
+        return ROTATIONS[self.rot] @ local_axis
+
+
+_axis_cache: dict[str, np.ndarray] = {}
+_rot_cache: dict[str, list] = {}
+
+
+def _rots(part: str) -> list:
+    if part not in _rot_cache:
+        _rot_cache[part] = axis_aligned_rotations(part)
+    return _rot_cache[part]
+
+
+def _local_hole_axis(part: str) -> np.ndarray:
+    if part in _axis_cache:
+        return _axis_cache[part]
+    got = snap.rotation_axis(part)
+    if got is None:
+        raise ValueError(f"{part}: gat-as onbekend")
+    v = np.asarray(got[0], float)
+    _axis_cache[part] = v / np.linalg.norm(v)
+    return _axis_cache[part]
+
+
+def candidates_for(point: np.ndarray, direction: np.ndarray,
+                   inventory=BEAMS) -> list[tuple[Placed, int]]:
+    """
+    Alle manieren om een dragend onderdeel zo te leggen dat een van zijn gaten
+    op `point` valt met de gat-as langs `direction`.
+    """
+    out = []
+    d = np.asarray(direction, float); d = d / np.linalg.norm(d)
+    for part, n in inventory:
+        try:
+            local = _local_hole_axis(part)
+        except ValueError:
+            continue
+        rots = _rots(part)
+        offs = hole_offsets(n)
+        for ri in rots:
+            R = ROTATIONS[ri]
+            if abs(abs(float(np.dot(R @ local, d))) - 1.0) > 1e-6:
+                continue
+            for k in range(n):
+                origin = np.asarray(point, float) - R @ offs[k]
+                if np.any(np.abs(np.round(origin / HALF_STUD) * HALF_STUD - origin) > 1e-6):
+                    continue                    # niet op het rooster
+                out.append((Placed(part, ri, tuple(np.round(origin, 3))), n))
+    return out
+
+
+@dataclass
+class Requirement:
+    shaft: str
+    point: np.ndarray
+    direction: np.ndarray
+
+
+def bearing_requirements(layout: Layout, stations: list[Station],
+                         per_shaft: int = 2, reach: float = 8.0) -> list[Requirement]:
+    """
+    Twee lagerpunten per as, zo ver mogelijk uit elkaar binnen de vrije
+    stukken. Ver uit elkaar want een korte lagerbasis laat de as alsnog zwiepen.
+    """
+    reqs = []
+    for sid, pl in layout.place.items():
+        free = free_intervals(stations, sid, reach)
+        if not free:
+            continue
+        pts = []
+        for lo, hi in free:
+            for t in np.arange(np.ceil(lo), np.floor(hi) + 1):
+                w = pl.point * HALF_STUD + t * HALF_STUD * pl.direction
+                if np.all(np.abs(np.round(w / HALF_STUD) * HALF_STUD - w) < 1e-6):
+                    pts.append((t, w))
+        if len(pts) < per_shaft:
+            continue
+        pts.sort(key=lambda x: x[0])
+        chosen = [pts[0], pts[-1]] if per_shaft == 2 else pts[:per_shaft]
+        for _, w in chosen:
+            reqs.append(Requirement(sid, w, pl.direction))
+    # differentieelpoorten delen een lijn: hun lagereisen vallen samen
+    uniq, out = set(), []
+    for r in reqs:
+        k = (tuple(np.round(r.point, 3)), tuple(np.round(np.abs(r.direction), 3)))
+        if k in uniq:
+            continue
+        uniq.add(k); out.append(r)
+    return out
+
+
+def synthesise(layout: Layout, stations: list[Station],
+               max_parts: int = 10, restarts: int = 60,
+               inventory=BEAMS, seed: int = 0) -> list[dict]:
+    """
+    Gulzige verzamelingsdekking met herstarts.
+
+    Dit is geen zoektocht door een boom van deeloplossingen - dat ontploft,
+    want met tien eisen en bijna tweehonderd kandidaten per eis zijn er meer
+    combinaties dan zinvol. Het is een dekkingsprobleem: elke kandidaat-balk
+    dekt een deelverzameling van de lagereisen, en je zoekt de kleinste
+    dekking waarvan de onderdelen elkaar niet raken.
+
+    Gulzig kiezen op "meeste nog onbedekte eisen per stud^3" geeft snel een
+    goede oplossing. Met wat willekeurige herstarts kom je er meestal nog wat
+    onder.
+    """
+    rng = np.random.default_rng(seed)
+    reqs = bearing_requirements(layout, stations)
+    if not reqs:
+        return []
+    nholes = dict(inventory)
+
+    # alle kandidaten, en welke eisen elk dekt
+    pool: dict[Placed, set] = {}
+    for i, r in enumerate(reqs):
+        for cand, _ in candidates_for(r.point, r.direction, inventory):
+            pool.setdefault(cand, set()).add(i)
+
+    def satisfies(p: Placed, r: Requirement) -> bool:
+        n = nholes[p.part]
+        if abs(abs(float(np.dot(p.hole_axis(_local_hole_axis(p.part)),
+                                r.direction))) - 1.0) > 1e-6:
+            return False
+        return bool((np.linalg.norm(p.holes(n) - r.point, axis=1) < 1e-6).any())
+
+    # een balk kan meer eisen dekken dan die waarvoor hij gegenereerd is
+    for cand in pool:
+        for i, r in enumerate(reqs):
+            if satisfies(cand, r):
+                pool[cand].add(i)
+
+    cell_cache: dict[Placed, frozenset] = {}
+
+    def cells_of(p: Placed) -> frozenset:
+        if p not in cell_cache:
+            c = voxels(p.part, p.rot)
+            shift = np.round(np.asarray(p.origin, float) / 5.0).astype(int)
+            cell_cache[p] = frozenset(map(tuple, (c + shift).tolist()))
+        return cell_cache[p]
+
+    def volume(p: Placed) -> float:
+        g = ldraw.geometry(p.part)
+        return float(np.prod(g.size) / 8000.0)
+
+    def bbox_of(parts) -> float:
+        if not parts:
+            return 0.0
+        pts = []
+        for p in parts:
+            g = ldraw.geometry(p.part)
+            v = g.verts @ ROTATIONS[p.rot].T + np.array(p.origin)
+            pts.append(v.min(axis=0)); pts.append(v.max(axis=0))
+        pts = np.array(pts)
+        return float(np.prod(pts.max(axis=0) - pts.min(axis=0)) / 8000.0)
+
+    # gaten van elke kandidaat, om samenhang te kunnen toetsen
+    from .rigidity import world_holes
+    hole_cache: dict[Placed, frozenset] = {}
+
+    def holes_of(p: Placed) -> frozenset:
+        if p not in hole_cache:
+            pts, _ = world_holes(p, nholes[p.part])
+            hole_cache[p] = frozenset(tuple(np.round(q, 3)) for q in pts)
+        return hole_cache[p]
+
+    items = list(pool.items())
+    best = []
+
+    for attempt in range(restarts):
+        uncovered = set(range(len(reqs)))
+        chosen, occupied, placed_holes = [], set(), set()
+        jitter = attempt > 0
+        while uncovered and len(chosen) < max_parts:
+            scored = []
+            for cand, covers in items:
+                gain = len(covers & uncovered)
+                if gain == 0:
+                    continue
+                cells = cells_of(cand)
+                if not _compatible(cells, frozenset(occupied)):
+                    continue
+                # samenhang: na het eerste onderdeel moet elke toevoeging
+                # minstens een gat delen met wat er al ligt, anders zweeft hij
+                shared = len(holes_of(cand) & placed_holes) if chosen else 1
+                score = (gain + 0.5 * min(shared, 2)) / (volume(cand) ** 0.5)
+                if jitter:
+                    score *= rng.uniform(0.7, 1.3)
+                scored.append((score, cand, covers, cells))
+            if not scored:
+                break
+            scored.sort(key=lambda x: -x[0])
+            _, cand, covers, cells = scored[0]
+            chosen.append(cand)
+            occupied |= cells
+            placed_holes |= holes_of(cand)
+            uncovered -= covers
+        if uncovered:
+            continue
+        chosen = _repair_connectivity(chosen, cells_of, holes_of, nholes, inventory)
+        best.append({"parts": sorted(chosen, key=lambda p: (p.part, p.origin)),
+                     "count": len(chosen), "bbox_stud3": bbox_of(chosen)})
+
+    uniq = {}
+    for r in best:
+        uniq[tuple(r["parts"])] = r
+    out = sorted(uniq.values(), key=lambda r: (r["count"], r["bbox_stud3"]))
+    return out
+
+
+def _repair_connectivity(chosen, cells_of, holes_of, nholes, inventory):
+    """
+    Reparatiefase: de dekking is rond, maar de stukken hangen los. Voeg
+    verbindingsbalken toe tot alles een geheel is. Steeds het paar stukken
+    pakken dat het goedkoopst te overbruggen is.
+    """
+    from .rigidity import find_joints, components
+
+    for _ in range(12):
+        comps = components(len(chosen), find_joints(chosen, inventory))
+        if len(comps) <= 1:
+            break
+        comps.sort(key=len, reverse=True)
+        base, other = comps[0], comps[1]
+        ha = set().union(*(holes_of(chosen[i]) for i in base))
+        hb = set().union(*(holes_of(chosen[i]) for i in other))
+        occupied = set().union(*(cells_of(chosen[i]) for i in range(len(chosen))))
+        options = connectors_between(ha, hb, inventory)
+        placed = None
+        for cand in sorted(options, key=lambda p: nholes[p.part]):
+            if _compatible(cells_of(cand), frozenset(occupied)):
+                placed = cand
+                break
+        if placed is None:
+            break
+        chosen = chosen + [placed]
+    return chosen
+
+
+def connectors_between(holes_a: set, holes_b: set, inventory=BEAMS) -> list[Placed]:
+    """
+    Balken die twee losse stukken aan elkaar knopen.
+
+    Deze dragen geen enkele as; ze zijn er puur om samenhang te maken. Gericht
+    genereren in plaats van blind: neem een gat uit het ene stuk en een uit het
+    andere, en als die op een rechte lijn liggen met een veelvoud van 20 LDU
+    ertussen, dan overspant een balk van de juiste lengte ze allebei.
+    """
+    out = []
+    for ha in holes_a:
+        for hb in holes_b:
+            v = np.array(hb) - np.array(ha)
+            L = np.linalg.norm(v)
+            if L < 1e-6:
+                continue
+            k = L / STUD
+            if abs(k - round(k)) > 1e-6:
+                continue                      # niet op de gatensteek
+            k = int(round(k))
+            d = v / L
+            if np.count_nonzero(np.abs(d) > 1e-6) != 1:
+                continue                      # alleen rechte richtingen
+            for part, n in inventory:
+                if n < k + 1:
+                    continue
+                try:
+                    local = _local_hole_axis(part)
+                except ValueError:
+                    continue
+                offs = hole_offsets(n)
+                for ri in _rots(part):
+                    R = ROTATIONS[ri]
+                    # lengterichting van de balk moet langs d liggen
+                    if abs(abs(float(np.dot(R @ np.array([0, 0, 1.0]), d))) - 1.0) > 1e-6:
+                        continue
+                    if abs(float(np.dot(R @ local, d))) > 1e-6:
+                        continue              # gat-as moet dwars staan
+                    for idx in range(n):
+                        origin = np.array(ha) - R @ offs[idx]
+                        if np.any(np.abs(np.round(origin / HALF_STUD) * HALF_STUD
+                                         - origin) > 1e-6):
+                            continue
+                        p = Placed(part, ri, tuple(np.round(origin, 3)))
+                        hs = {tuple(np.round(q, 3))
+                              for q in (hole_offsets(n) @ R.T + origin)}
+                        if ha in hs and hb in hs:
+                            out.append(p)
+    seen, uniq = set(), []
+    for p in out:
+        if p not in seen:
+            seen.add(p); uniq.append(p)
+    return uniq

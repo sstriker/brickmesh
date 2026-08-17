@@ -1,29 +1,15 @@
-# Parts libraries do not belong in the repository; the extractor fetches them on
-# first use. See ATTRIBUTION.md: the LDCad shadow library is licensed CC BY-SA
-# 4.0, and that share-alike condition carries over to derived files such as the
-# generated catalog.
-/data/
-ldraw/
-ldcad/
-*.ldraw.zip
-*.shadow.zip
+# libraries are fetched, not shipped (see ATTRIBUTION.md)
+/data/ldraw/
+/data/shadow/
+/data/*.json
+/data/*.bin
 
-# Python
+# build
+/bin/
+# the built binary at the repo root; anchored so it does not swallow cmd/brickmesh/
+/brickmesh
+
+# python
 __pycache__/
-*.py[cod]
+*.pyc
 .venv/
-venv/
-*.egg-info/
-build/
-dist/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
-# Editor and OS
-.DS_Store
-*.swp
-.idea/
-.vscode/
