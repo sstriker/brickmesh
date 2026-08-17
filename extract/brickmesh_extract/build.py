@@ -61,7 +61,12 @@ def build(max_tier: int = 3, limit: int | None = None,
     log(f"  {len(cat)} parts with port data")
 
     log("dropping subparts and obsolete entries ...")
-    cat = catalog.usable(cat, parts_dir)
+    # Titles come from the shadow library, which quotes the LDraw title in its
+    # header. parts_dir here is the SHADOW parts directory, not an LDraw one:
+    # reading it as LDraw yields the shadow headers as titles, which match no
+    # tier pattern and no subpart prefix, so nothing gets filtered and
+    # everything lands in tier 3.
+    cat = catalog.usable(cat, titles_map=catalog.shadow_titles(parts_dir))
     log(f"  {len(cat)} usable parts")
 
     if infer_holes:

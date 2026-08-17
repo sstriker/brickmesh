@@ -41,7 +41,14 @@ def ensure_library(dest: str | None = None) -> str:
     tmp = os.path.join(dest, "shadow.tgz")
     urllib.request.urlretrieve(SHADOW_URL, tmp)
     with tarfile.open(tmp) as tf:
-        tf.extractall(dest)
+        # filter="data" refuses absolute paths, links pointing outside the
+        # destination and other archive tricks. It becomes the default in
+        # Python 3.14; naming it keeps behavior identical across versions
+        # instead of changing under us.
+        tf.extractall(dest, filter="data")
+    # The extracted tree is what every lookup reads; keeping the archive beside
+    # it just doubles what a cache has to carry.
+    os.remove(tmp)
     return root
 
 

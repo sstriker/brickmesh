@@ -82,6 +82,18 @@ which is the `geometry` extra:
 uv sync --extra geometry
 ```
 
+Most tests run offline against synthetic parts under `tests/fixtures/`, and the
+suite fails any test that reaches for the network. The handful that need real
+part geometry — gear meshing, tooth phase, the hole probe against a known
+part — are opt-in, because they download both libraries:
+
+```console
+BRICKMESH_LIBRARIES=1 uv run --extra geometry pytest -m libraries
+```
+
+CI runs those in a job that caches the libraries, so only a cold run fetches
+anything. Expect about a minute cold and thirty seconds warm.
+
 `prek run --all-files` runs the same hooks CI runs. Every source file carries an
 SPDX header, and a pre-commit hook adds one to files that do not.
 

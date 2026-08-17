@@ -9,6 +9,7 @@ hole positions, one axle hole, one pin, and one grouped snap that must not be
 mistaken for a port.
 """
 import numpy as np
+import pytest
 from brickmesh_extract import catalog, snap
 
 
@@ -135,3 +136,39 @@ def test_usable_drops_subparts_and_obsolete_titles(tmp_path):
     kept = catalog.usable(cat, str(parts_dir))
     assert set(kept) == {"real"}
     assert kept["real"]["title"] == "Technic Beam 3"
+
+
+# --------------------------------------------------------------------------
+# titles, which decide both the tier and what counts as a real part
+# --------------------------------------------------------------------------
+
+def test_titles_are_read_from_the_shadow_header(shadow):
+    """
+    Each shadow file quotes the LDraw title back, which is the only copy of it
+    on disk after ensure_library. Reading them from LDraw instead would mean
+    fetching a few thousand parts just to look at their first line.
+    """
+    titles = catalog.shadow_titles(str(shadow / "parts"))
+    assert titles["fixbeam"] == "Test Beam 5 x 1 x 1"
+    assert titles["fixcube"] == "Test Cube 40 LDU"
+    # The ~ prefix survives, which is what the subpart filter keys on.
+    assert titles["fixsub"] == "~Test Beam Subpart"
+
+
+def test_usable_filters_on_the_shadow_titles(shadow):
+    titles = catalog.shadow_titles(str(shadow / "parts"))
+    cat = {pid: {"part": pid, "holes": [[0] * 7], "pins": [], "axle_holes": 0}
+           for pid in ("fixbeam", "fixcube", "fixsub")}
+    kept = catalog.usable(cat, titles_map=titles)
+    assert set(kept) == {"fixbeam", "fixcube"}, "the subpart was not dropped"
+    assert kept["fixbeam"]["title"] == "Test Beam 5 x 1 x 1"
+
+
+def test_usable_needs_a_source_of_titles():
+    """
+    Passing neither used to be impossible; now that titles can come from two
+    places, silently filtering nothing would be the worst outcome — with no
+    titles nothing matches, so every part survives and lands in the last tier.
+    """
+    with pytest.raises(ValueError):
+        catalog.usable({}, )

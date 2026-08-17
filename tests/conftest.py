@@ -14,6 +14,7 @@ are not real ones.
 """
 from __future__ import annotations
 
+import os
 import urllib.request
 from pathlib import Path
 
@@ -24,14 +25,40 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 LDRAW_FIXTURES = FIXTURES / "ldraw"
 SHADOW_FIXTURES = FIXTURES / "shadow"
 
+#: Tests marked `libraries` fetch the real LDraw and LDCad libraries. They stay
+#: off by default so the suite runs offline and in a second; CI turns them on in
+#: a job that caches both libraries between runs.
+LIBRARIES_ENV = "BRICKMESH_LIBRARIES"
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        f"libraries: needs the real LDraw/LDCad libraries; set {LIBRARIES_ENV}=1")
+
+
+def pytest_collection_modifyitems(config, items):
+    if os.environ.get(LIBRARIES_ENV) == "1":
+        return
+    skip = pytest.mark.skip(
+        reason=f"set {LIBRARIES_ENV}=1 to run against the real libraries")
+    for item in items:
+        if "libraries" in item.keywords:
+            item.add_marker(skip)
+
 
 @pytest.fixture(autouse=True)
-def no_network(monkeypatch):
+def no_network(request, monkeypatch):
     """
     Nothing in the suite may reach the network. Without this a missing fixture
     would quietly fall through to a download: slow, flaky offline, and the
     failure would point at the wrong thing.
+
+    The `libraries` tests are the exception — downloading is the whole point.
     """
+    if request.node.get_closest_marker("libraries"):
+        return
+
     def forbidden(url, *a, **kw):
         raise AssertionError(
             f"a test tried to download {url}. Fixtures live in {FIXTURES}; "

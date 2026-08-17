@@ -130,3 +130,55 @@ jobs:
       # matrix job above. This is where they actually run.
       - name: Test, including the mesh-level tests
         run: uv run --frozen --extra geometry pytest -rs
+
+  libraries:
+    name: Real LDraw and LDCad libraries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      # The shadow library is ~17 MB extracted and the LDraw parts are fetched
+      # one file at a time from a third-party mirror, so a cold run is the only
+      # one that should ever hit the network.
+      #
+      # The key is content-addressed rather than run-scoped: what gets fetched
+      # is fully determined by the fetch code and by which parts the tests ask
+      # for, so an exact hit means the cache already holds everything needed and
+      # there is nothing to re-upload. restore-keys still gives a warm start
+      # when one of those does change, and the run afterwards saves the
+      # superset. Bump the version prefix to discard the cache deliberately.
+      - name: Cache the parts libraries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cache/brickmesh-ldraw
+            ~/.cache/brickmesh-shadow
+          key: >-
+            libraries-v1-${{ hashFiles(
+              'extract/brickmesh_extract/ldraw.py',
+              'extract/brickmesh_extract/snap.py',
+              'tests/test_real_libraries.py') }}
+          restore-keys: libraries-v1-
+
+      - name: Install with the geometry extra
+        run: uv sync --frozen --extra geometry
+
+      - name: Test against the real libraries
+        env:
+          BRICKMESH_LIBRARIES: '1'
+        run: uv run --frozen --extra geometry pytest -rs -m libraries
+
+      - name: Report cache footprint
+        if: always()
+        run: du -sh ~/.cache/brickmesh-* 2>/dev/null || true

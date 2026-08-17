@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import asdict, dataclass
 
 import numpy as np
@@ -135,6 +136,36 @@ def titles(parts_dir: str) -> dict:
     return out
 
 
+def shadow_titles(parts_dir: str) -> dict:
+    """
+    Part titles taken from the shadow library rather than from LDraw.
+
+    Every shadow file opens with the LDraw title quoted back:
+
+        0 LDCad shadow info for "Technic Beam  7 x  5 with Open Center  5 x  3"
+
+    That matters because the titles drive both the tier and the subpart filter,
+    and the shadow library is the one thing already on disk after
+    ensure_library(). Reading them from LDraw instead would mean fetching a few
+    thousand parts to look at their first line. The `~` and `=` prefixes are
+    carried through, so `usable` still sees what it needs.
+    """
+    out = {}
+    for fn in os.listdir(parts_dir):
+        if not fn.endswith(".dat"):
+            continue
+        try:
+            with open(os.path.join(parts_dir, fn), encoding="utf-8",
+                      errors="replace") as fh:
+                first = fh.readline()
+        except OSError:
+            continue
+        m = re.search(r'shadow info for\s+"(.*)"\s*$', first.strip())
+        if m:
+            out[fn[:-4]] = m.group(1).strip()
+    return out
+
+
 def by_family(cat: dict, parts_dir: str) -> dict:
     """Group the catalog by part family."""
     import re
@@ -208,7 +239,8 @@ if __name__ == "__main__":
 # usability and cost
 # --------------------------------------------------------------------------
 
-def usable(cat: dict, parts_dir: str) -> dict:
+def usable(cat: dict, parts_dir: str | None = None,
+           titles_map: dict | None = None) -> dict:
     """
     Filter out everything that is not a real orderable part.
 
@@ -216,8 +248,16 @@ def usable(cat: dict, parts_dir: str) -> dict:
     the body of a horse. Those exist only as a building block inside another
     file and cannot be ordered or used on their own. Leave them in and the
     search will invent structures out of parts that do not exist.
+
+    Titles come from `titles_map` when given, otherwise from the LDraw parts
+    directory. Pass the map when the titles come from somewhere else — the
+    extractor reads them out of the shadow library, which is already on disk.
+    Getting this wrong is quiet: with the wrong titles nothing matches, so
+    nothing is filtered and every part lands in the fallback tier.
     """
-    tt = titles(parts_dir)
+    if titles_map is None and parts_dir is None:
+        raise ValueError("usable needs either parts_dir or titles_map")
+    tt = titles_map if titles_map is not None else titles(parts_dir)
     out = {}
     for pid, e in cat.items():
         t = tt.get(pid, "")

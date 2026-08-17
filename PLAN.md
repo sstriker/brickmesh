@@ -35,26 +35,37 @@ Two rules that came out of a long and error-prone development:
       `internal/catalog/testdata/catalog.json` holds its output, and both
       suites read that same file, so a change on either side fails a test.
 
-Not yet exercised end to end: the full `build.py` run against the real
-libraries. Only its pure half is under test.
+Now exercised end to end, which immediately found the titles bug recorded under
+Corrections.
 
-## M1 — regression tests from the findings
+## M1 — regression tests from the findings — DONE
 
-- [ ] two 24t gears mesh at 60 LDU; jam at 58
+- [x] two 24t gears mesh at 60 LDU; jam at 58
 - [x] the `(t1+t2)/16` rule — tested, and corrected; see below
 - [x] exactly 7 of 512 gear triples close on the lattice
-- [ ] a 24t needs 7.5 degrees of phase against its partner (half a pitch)
-- [ ] the 5x7 frame yields holes at Z in {-40,0,+40} and X in {-20,0,+20}
+- [x] a 24t needs 7.5 degrees of phase against its partner (half a pitch)
+- [x] the 5x7 frame yields holes at Z in {-40,0,+40} and X in {-20,0,+20}
 - [x] subtractor graph: 2 degrees of freedom, tracks equal when driving
       straight, opposite when pivoting
 - [x] no catalog entry has a `~` title or a `[group=...]` snap
 
-The three unchecked items all need real part meshes, and the repository ships
-none: the fixtures under `tests/fixtures/` are synthetic boxes and a square
-tube, which cover parsing, grid expansion, the voxel grid and the hole probe,
-but cannot stand in for tooth geometry. Closing them means either committing
-measurements as constants or running against a fetched library in a job that is
-allowed to download.
+Every one of them holds. The last four need real part geometry, which synthetic
+fixtures cannot supply, so they live in `tests/test_real_libraries.py` behind
+the `libraries` marker: off by default, on with `BRICKMESH_LIBRARIES=1`, and run
+by a CI job that caches both libraries between runs. A cold run takes about a
+minute; a warm one, thirty seconds.
+
+Two caveats came out of writing them:
+
+- `mesh_lock` is sensitive to angular resolution. The free window either side of
+  a meshed tooth is a couple of degrees wide, so sampling every 5 degrees steps
+  over it and reports a confident "cannot be assembled" for a pair that meshes
+  perfectly. The default of 144 steps is fine; coarser is not, and the failure
+  does not look like a resolution problem.
+- The hole probe reports corner artifacts. Just outside a corner the thin probe
+  misses the part while the thick one still clips it, which has the same
+  signature as a hole. Every such hit lies outside the part, so position alone
+  separates them, but `find_holes` does not do it for you.
 
 ## M2 — finish structural synthesis
 
@@ -97,7 +108,17 @@ categories went with them, so anything matching on them by name needs updating:
 
 ## Corrections
 
-Two documented facts did not survive being tested.
+Three things did not survive being tested.
+
+**The extractor read the wrong titles.** `build.py` passed the shadow parts
+directory to `catalog.usable`, which expects an LDraw one, so every title came
+out as `LDCad shadow info for "..."`. That matches no tier pattern and no
+subpart prefix, so nothing was filtered and every part landed in tier 3 —
+silently, since the output was otherwise well-formed. Titles now come from
+`catalog.shadow_titles`, which reads the real title the shadow header quotes
+back; no LDraw fetch needed, and the `~` prefix is carried through. Over the
+first 400 parts that is 27 subparts dropped and a 12 / 17 / 300 tier spread
+where before it was 0 / 0 / everything.
 
 **The pitch rule does not always land on a half stud.** `(t1+t2)/16` studs is
 correct, but the claim that every standard pair therefore falls on the

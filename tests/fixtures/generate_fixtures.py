@@ -163,7 +163,7 @@ def shadow_files() -> dict[str, str]:
     axle hole, and one grouped snap that must NOT be treated as a plain port.
     """
     beam = [
-        "0 ~Shadow fixture for fixbeam.dat",
+        '0 LDCad shadow info for "Test Beam 5 x 1 x 1"',
         "0 !LDCAD SNAP_CYL [gender=F] [caps=one] [secs=R 6 8] "
         "[pos=0 0 0] [ori=1 0 0 0 0 -1 0 1 0] [grid=C 5 1 20 0]",
         "0 !LDCAD SNAP_CYL [gender=F] [caps=one] [secs=A 6 8] "
@@ -175,7 +175,7 @@ def shadow_files() -> dict[str, str]:
         "",
     ]
     cube = [
-        "0 ~Shadow fixture for fixcube.dat",
+        '0 LDCad shadow info for "Test Cube 40 LDU"',
         "0 !LDCAD SNAP_CYL [gender=F] [caps=one] [secs=R 6 8] "
         "[pos=0 0 0] [ori=1 0 0 0 0 -1 0 1 0]",
         "",
@@ -183,15 +183,24 @@ def shadow_files() -> dict[str, str]:
     # A part whose hole is only reachable through an include reference, which
     # is the fallback branch in snap.rotation_axis.
     incl = [
-        "0 ~Shadow fixture for fixincl.dat",
+        '0 LDCad shadow info for "Test Part with an Included Hole"',
         "0 !LDCAD SNAP_INCL [ref=confh-pinhole] [pos=0 0 0] "
         "[ori=1 0 0 0 0 -1 0 1 0]",
+        "",
+    ]
+    # A subpart. LDraw marks these with a ~ and they cannot be ordered on their
+    # own, so the catalog has to drop them however many ports they advertise.
+    sub = [
+        '0 LDCad shadow info for "~Test Beam Subpart"',
+        "0 !LDCAD SNAP_CYL [gender=F] [caps=one] [secs=R 6 8] "
+        "[pos=0 0 0] [ori=1 0 0 0 0 -1 0 1 0]",
         "",
     ]
     return {
         "fixbeam.dat": "\n".join(beam),
         "fixcube.dat": "\n".join(cube),
         "fixincl.dat": "\n".join(incl),
+        "fixsub.dat": "\n".join(sub),
     }
 
 
