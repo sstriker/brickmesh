@@ -34,6 +34,7 @@ fmt: py-fmt
 
 go-build:
 	$(GO) build -o $(BINARY) ./cmd/brickmesh
+	$(GO) build -o $(BINDIR)/brickmesh-extract ./cmd/brickmesh-extract
 
 go-test:
 	$(GO) test ./...

@@ -7,7 +7,13 @@ into individual positions. A Snap is plain data, so this needs no download.
 """
 import numpy as np
 import pytest
-from brickmesh_extract.catalog import CatalogEntry, expand, parse_grid, tier_of
+from brickmesh_extract.catalog import (
+    CatalogEntry,
+    expand,
+    grid_axes,
+    parse_grid,
+    tier_of,
+)
 from brickmesh_extract.snap import Snap
 
 
@@ -24,13 +30,44 @@ def snap(grid: str = "", pos=(0.0, 0.0, 0.0), ori=None, **kw) -> Snap:
 
 def test_parse_grid_reads_counts_spacings_and_centering():
     # 'C 3 1 20 0': three positions, centered, 20 LDU apart on the first axis.
-    assert parse_grid("C 3 1 20 0") == (3, 1, 20.0, 0.0, True, False)
-    assert parse_grid("2 2 20 20") == (2, 2, 20.0, 20.0, False, False)
-    assert parse_grid("3 C 2 20 10") == (3, 2, 20.0, 10.0, False, True)
+    assert parse_grid("C 3 1 20 0") == ([3, 1], [20.0, 0.0], [True, False])
+    assert parse_grid("2 2 20 20") == ([2, 2], [20.0, 20.0], [False, False])
+    assert parse_grid("3 C 2 20 10") == ([3, 2], [20.0, 10.0], [False, True])
 
 
 def test_parse_grid_defaults_to_a_single_position():
-    assert parse_grid("") == (1, 1, 0.0, 0.0, False, False)
+    assert parse_grid("") == ([1, 1], [0.0, 0.0], [False, False])
+
+
+def test_axis_count_is_read_from_the_structure_not_the_token_count():
+    """
+    Six tokens is two centered axes or three uncentered ones, so counting
+    tokens alone cannot tell them apart. Each axis brings a count, a spacing,
+    and a C when centered.
+    """
+    assert grid_axes("2 2 20 20") == 2
+    assert grid_axes("C 2 C 2 20 20") == 2
+    assert grid_axes("2 2 2 20 20 20") == 3
+    assert grid_axes("1 C 2 C 2 0 80 60") == 3
+    assert grid_axes("") == 0
+
+
+def test_a_three_axis_grid_keeps_only_the_position_the_file_states():
+    """
+    92 grids in the library declare a third axis and which local direction it
+    is has not been established. Guessing would place ports where there are
+    none, so the snap's own position is kept and the repeats dropped.
+    """
+    out = expand(snap(grid="1 C 2 C 2 0 80 60", pos=(0.0, 5.0, 0.0)))
+    assert len(out) == 1
+    assert np.allclose(out[0], [0.0, 5.0, 0.0])
+
+
+def test_a_three_axis_grid_does_not_crash_the_part():
+    """It used to raise, and build() swallowed the exception, so the whole part
+    vanished from the catalog along with its perfectly good snaps."""
+    assert grid_axes("1 C 2 C 2 0 214 60") == 3
+    parse_grid("1 C 2 C 2 0 214 60")
 
 
 def test_expand_without_a_grid_gives_one_position():

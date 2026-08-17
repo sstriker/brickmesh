@@ -24,21 +24,45 @@ from . import snap
 CACHE = os.path.expanduser("~/.cache/brickmesh-catalog.json")
 
 
-def parse_grid(spec: str) -> tuple[int, int, float, float, bool, bool]:
-    """'C 3 1 20 0' -> (3, 1, 20, 0, True, False)"""
-    if not spec:
-        return 1, 1, 0.0, 0.0, False, False
+def grid_axes(spec: str) -> int:
+    """
+    How many axes a grid spec describes.
+
+    Each axis contributes one count, one spacing, and a leading C when it is
+    centered, so with t tokens and c of them C the spec has (t - c) / 2 axes.
+    Counting tokens alone is ambiguous: six tokens is two centered axes, or
+    three uncentered ones.
+    """
     tok = spec.split()
+    if not tok:
+        return 0
+    c = sum(1 for t in tok if t.upper() == "C")
+    axes, remainder = divmod(len(tok) - c, 2)
+    return axes if remainder == 0 else 0
+
+
+def parse_grid(spec: str) -> tuple[list[int], list[float], list[bool]]:
+    """
+    'C 3 1 20 0' -> ([3, 1], [20.0, 0.0], [True, False])
+
+    Returns one entry per axis. Most grids have two, a handful have three; see
+    `expand` for what happens to those.
+    """
+    n = grid_axes(spec)
+    if n == 0:
+        return [1, 1], [0.0, 0.0], [False, False]
+    tok = spec.split()
+    counts: list[int] = []
+    centered: list[bool] = []
     i = 0
-    counts, centered = [], []
-    for _ in range(2):
+    for _ in range(n):
         if tok[i].upper() == "C":
             centered.append(True); i += 1
         else:
             centered.append(False)
         counts.append(int(tok[i])); i += 1
-    sa, sb = float(tok[i]), float(tok[i + 1])
-    return counts[0], counts[1], sa, sb, centered[0], centered[1]
+    spacings = [float(t) for t in tok[i:i + n]]
+    return counts, spacings, centered
 
 
 def _offsets(count: int, spacing: float, centered: bool) -> np.ndarray:
@@ -51,16 +75,28 @@ def _offsets(count: int, spacing: float, centered: bool) -> np.ndarray:
 
 
 def expand(s: snap.Snap) -> list[np.ndarray]:
-    """All concrete positions of a snap, with the grid expanded."""
-    ca, cb, sa, sb, cca, ccb = parse_grid(s.grid)
-    # The grid lies in the snap's LOCAL frame, not in some arbitrary
-    # perpendicular basis. The cylinder points along Y locally, so the grid
-    # directions are local X and Z, carried over by the orientation matrix.
+    """
+    All concrete positions of a snap, with the grid expanded.
+
+    The grid lies in the snap's LOCAL frame, not in some arbitrary
+    perpendicular basis. The cylinder points along Y locally, so the two grid
+    directions are local X and Z, carried over by the orientation matrix.
+
+    Ninety-two grids in the library declare a THIRD axis, and which local
+    direction that one is has not been established — see PLAN.md. Rather than
+    guess and place ports where there are none, those keep the one position the
+    file states outright, the snap's own, and drop the repeats. `grid_axes`
+    reports the count so a build can say how many it left alone.
+    """
+    counts, spacings, centered = parse_grid(s.grid)
+    if len(counts) > 2:
+        return [s.pos]
+
     u = s.ori @ np.array([1.0, 0.0, 0.0])
     v = s.ori @ np.array([0.0, 0.0, 1.0])
     out = []
-    for da in _offsets(ca, sa, cca):
-        for db in _offsets(cb, sb, ccb):
+    for da in _offsets(counts[0], spacings[0], centered[0]):
+        for db in _offsets(counts[1], spacings[1], centered[1]):
             out.append(s.pos + da * u + db * v)
     return out
 

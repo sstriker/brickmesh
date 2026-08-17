@@ -143,6 +143,13 @@ jobs:
         with:
           python-version: '3.12'
 
+      # The parity test runs the Go extractor against the Python one over the
+      # whole library, so this job needs both toolchains.
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
@@ -168,6 +175,8 @@ jobs:
             libraries-v1-${{ hashFiles(
               'extract/brickmesh_extract/ldraw.py',
               'extract/brickmesh_extract/snap.py',
+              'internal/ldraw/ldraw.go',
+              'internal/shadow/shadow.go',
               'tests/test_real_libraries.py') }}
           restore-keys: libraries-v1-
 

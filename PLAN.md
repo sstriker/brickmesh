@@ -82,20 +82,39 @@ together; the rigidity check correctly reports them as loose pieces.
 
 Acceptance: synthesized structures report `M <= 0` from `rigidity.analyze`.
 
-## M3 — port the hot path to Go
+## M3 — port to Go
 
 Profiling showed the bottleneck was never the language: it was a missing index
 and needless object creation. The Python version is now 55x faster. Go is for
-distribution and parallelism, not rescue.
+distribution and one language instead of two, not rescue.
 
-- [ ] `internal/voxel`: occupancy as bitsets
-- [ ] `internal/synth`: greedy set cover with restarts, parallel over restarts
-- [ ] A* connection search
-- [ ] drop the top-k truncation the Python version needs — it is a correctness
-      compromise forced by allocation cost, and Go does not need it
+The original plan said to keep extraction in Python because the parsing is full
+of edge cases that each had to be found. That reasoning has weakened: those edge
+cases are now executable tests rather than memory, and a port is checkable by
+running both extractors over the whole library and diffing. Which is how the
+three-axis grid bug surfaced within an hour of starting.
 
-Keep extraction in Python. The parsing is full of edge cases that each had to
-be found.
+- [x] step 1: reading. `internal/ldraw` (fetch, cache, resolve, the
+      repeated-subfile rule), `internal/shadow` (snap metadata, titles,
+      download and extract) and `internal/extract` (grid expansion, tiers, the
+      subpart filter, records). `cmd/brickmesh-extract` writes the same schema
+      to the same cache directories as the Python one.
+- [ ] step 2: `internal/mech`, `internal/layout`, `internal/rigidity` — pure
+      arithmetic, and the existing tests port directly
+- [ ] step 3: `internal/voxel` as bitsets, `internal/synth` greedy set cover
+      parallel over restarts, A* connection search, and drop the top-k
+      truncation — a correctness compromise forced by Python's allocation cost
+- [ ] step 4: triangle-triangle intersection to replace FCL, gated on
+      reproducing two 24t gears meshing at 60 LDU and jamming at 58
+
+Both extractors agree exactly: 2,649 parts and 21,675 ports, every field
+identical, enforced by `tests/test_go_parity.py` in the libraries job. The
+Python extractor stays until step 4 lands, as the reference to diff against.
+
+What is not being ported: `bevel.py` and `holes.py`. They are instruments whose
+output is a number destined for `docs/findings.md`, and they lean on trimesh,
+FCL and scipy, which Go has no equivalent of. Rewriting an uncalibrated
+instrument in another language does not make it trustworthy.
 
 ## M4 — translate the Python source — DONE
 
@@ -137,6 +156,24 @@ cannot actually be built. Both checks now run in `run_checks`, so the FAIL
 shows up alongside, but the wording of the closure finding is optimistic. Worth
 deciding whether closure should require every pairwise distance to be on the
 lattice, which would reduce the documented seven.
+
+## Open question: the third grid axis
+
+92 grid specs in the shadow library declare three axes rather than two. The
+count is unambiguous — each axis contributes a count, a spacing, and a leading
+C when centered, so `t` tokens of which `c` are C means `(t-c)/2` axes — but
+which local direction the third one is has not been established. For two axes
+it is local X and Z, the pair perpendicular to the cylinder; the third is
+presumably the cylinder's own axis, but presumably is not good enough to place
+a port on.
+
+72 of the 92 have a degenerate first axis (count 1, spacing 0), so the ordering
+only changes the answer for the other 20. Both extractors currently keep the
+one position the file states outright and drop the repeats, which is incomplete
+but never wrong.
+
+Settle it from the LDCad documentation, or by taking a part with such a grid and
+checking its holes against a physical one.
 
 ## Open question that code cannot settle
 
