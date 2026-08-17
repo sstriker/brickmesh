@@ -1,0 +1,273 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Sander Striker
+
+package layout
+
+import (
+	"math"
+	"testing"
+
+	"brickmesh/internal/geom"
+	"brickmesh/internal/mech"
+)
+
+// Mirrors tests/test_layout.py.
+
+var (
+	xAxis = geom.Vec3{X: 1}
+	yAxis = geom.Vec3{Y: 1}
+	zAxis = geom.Vec3{Z: 1}
+)
+
+func TestPlacementNormalizesItsDirection(t *testing.T) {
+	p := NewPlacement(geom.Vec3{}, geom.Vec3{Z: 5})
+	if math.Abs(p.Direction.Len()-1) > 1e-9 || p.Direction.Z != 1 {
+		t.Errorf("direction = %+v", p.Direction)
+	}
+}
+
+func TestPlacementKeyIsStable(t *testing.T) {
+	a := NewPlacement(geom.Vec3{X: 1, Y: 2, Z: 3}, zAxis).Key()
+	b := NewPlacement(geom.Vec3{X: 1, Y: 2, Z: 3}, geom.Vec3{Z: 2}).Key()
+	if a != b {
+		t.Errorf("%v != %v", a, b)
+	}
+}
+
+func TestParallelDistanceMeasuresPerpendicularOffset(t *testing.T) {
+	a := NewPlacement(geom.Vec3{}, zAxis)
+	b := NewPlacement(geom.Vec3{X: 4, Z: 100}, zAxis) // sideways, and along the shaft
+	d, ok := ParallelDistance(a, b)
+	if !ok || math.Abs(d-4) > 1e-9 {
+		t.Errorf("distance = %v, ok = %v; sliding along the shaft must not matter", d, ok)
+	}
+}
+
+func TestParallelDistanceIsUndefinedForSkewShafts(t *testing.T) {
+	if _, ok := ParallelDistance(NewPlacement(geom.Vec3{}, zAxis),
+		NewPlacement(geom.Vec3{}, xAxis)); ok {
+		t.Error("expected not-parallel")
+	}
+}
+
+func TestPerpendicularAndIntersecting(t *testing.T) {
+	a := NewPlacement(geom.Vec3{}, zAxis)
+	b := NewPlacement(geom.Vec3{}, xAxis)
+	if !Perpendicular(a, b) || !AxesIntersect(a, b) {
+		t.Error("a bevel pair needs both")
+	}
+	// Lifted apart in Y: still perpendicular, no longer intersecting.
+	c := NewPlacement(geom.Vec3{Y: 30}, xAxis)
+	if !Perpendicular(a, c) {
+		t.Error("still perpendicular")
+	}
+	if AxesIntersect(a, c) {
+		t.Error("lifted apart, they no longer meet")
+	}
+}
+
+func TestAxesIntersectIsFalseForParallelLines(t *testing.T) {
+	if AxesIntersect(NewPlacement(geom.Vec3{}, zAxis),
+		NewPlacement(geom.Vec3{X: 10}, zAxis)) {
+		t.Error("parallel lines never intersect")
+	}
+}
+
+func TestLineDistanceHandlesParallelAndSkew(t *testing.T) {
+	if got := LineDistance(NewPlacement(geom.Vec3{}, zAxis),
+		NewPlacement(geom.Vec3{X: 3, Y: 4, Z: 50}, zAxis)); math.Abs(got-5) > 1e-9 {
+		t.Errorf("parallel: %v, want 5", got)
+	}
+	if got := LineDistance(NewPlacement(geom.Vec3{}, xAxis),
+		NewPlacement(geom.Vec3{Z: 7}, yAxis)); math.Abs(got-7) > 1e-9 {
+		t.Errorf("skew: %v, want 7", got)
+	}
+	if got := LineDistance(NewPlacement(geom.Vec3{}, xAxis),
+		NewPlacement(geom.Vec3{}, yAxis)); math.Abs(got) > 1e-9 {
+		t.Errorf("intersecting: %v, want 0", got)
+	}
+}
+
+func TestSumOfTwoSquaresFindsLatticeOffsets(t *testing.T) {
+	got := map[[2]int]bool{}
+	for _, p := range SumOfTwoSquares(25) {
+		got[p] = true
+		if p[0]*p[0]+p[1]*p[1] != 25 {
+			t.Errorf("%v is not a solution", p)
+		}
+	}
+	// The classic buildable offsets.
+	for _, want := range [][2]int{{3, 4}, {4, 3}, {5, 0}, {0, 5}, {3, -4}, {-5, 0}} {
+		if !got[want] {
+			t.Errorf("missing %v", want)
+		}
+	}
+}
+
+func TestSumOfTwoSquaresIsEmptyWhenImpossible(t *testing.T) {
+	// 6 is not a sum of two squares, so a pair needing sqrt(6) half studs has
+	// nowhere on the lattice to go.
+	if got := SumOfTwoSquares(6); len(got) != 0 {
+		t.Errorf("got %v, want none", got)
+	}
+}
+
+func TestEffectiveRadiiSumToTheCenterDistance(t *testing.T) {
+	for _, p := range [][2]int{{8, 24}, {12, 20}} {
+		if got := EffectiveRadius(p[0]) + EffectiveRadius(p[1]); math.Abs(got-4) > 1e-9 {
+			t.Errorf("%dt+%dt radii sum to %v, want 4 half studs", p[0], p[1], got)
+		}
+	}
+}
+
+func twoShaftMech(ta, tb int) *mech.Mechanism {
+	m := mech.New("pair")
+	m.Shaft("a", 2)
+	m.Shaft("b", 2)
+	m.Mesh("a", "b", ta, tb)
+	return m
+}
+
+func TestRealizePlacesAPairThatFitsTheLattice(t *testing.T) {
+	// 8+24 = 32 -> 4 half studs, and 16 = 0^2+4^2, so positions exist.
+	sols := Realize(twoShaftMech(8, 24), Options{MaxSolutions: 3, Span: 1})
+	if len(sols) == 0 {
+		t.Fatal("no layout found")
+	}
+	d, ok := ParallelDistance(sols[0].Place["a"], sols[0].Place["b"])
+	if !ok || math.Abs(d-4) > 1e-9 {
+		t.Errorf("distance = %v, want 4 half studs", d)
+	}
+}
+
+// 8t+12t needs 2.5 half studs. Squaring and rounding that to 6 used to invent
+// candidates at sqrt(6); there is genuinely nowhere to put it.
+func TestRealizeRefusesAnOffLatticePairRatherThanMisplacingIt(t *testing.T) {
+	if sols := Realize(twoShaftMech(8, 12), Options{MaxSolutions: 3, Span: 1}); len(sols) != 0 {
+		t.Errorf("got %d layouts, want none", len(sols))
+	}
+}
+
+// 36t+40t needs 9.5. Rounding 90.25 to 90 would place the gear at sqrt(90) =
+// 9.487: close enough to look right, and wrong.
+func TestRealizeDoesNotPlaceTheNineAndAHalfPairAFractionOut(t *testing.T) {
+	for _, l := range Realize(twoShaftMech(36, 40), Options{MaxSolutions: 3, Span: 1}) {
+		d, _ := ParallelDistance(l.Place["a"], l.Place["b"])
+		if math.Abs(d-9.5) > 1e-9 {
+			t.Errorf("placed at %v, which does not mesh", d)
+		}
+	}
+}
+
+func TestRealizeSortsCompactFirst(t *testing.T) {
+	sols := Realize(twoShaftMech(8, 24), Options{MaxSolutions: 10, Span: 2})
+	for i := 1; i < len(sols); i++ {
+		if sols[i-1].BBoxVolume() > sols[i].BBoxVolume() {
+			t.Errorf("solution %d is bulkier than %d", i-1, i)
+		}
+	}
+}
+
+func TestRealizeKeepsDifferentialPortsOnOneLine(t *testing.T) {
+	m := mech.New("diff")
+	for _, s := range []string{"case", "left", "right"} {
+		m.Shaft(s, 2)
+	}
+	m.Differential("case", "left", "right")
+	sols := Realize(m, Options{MaxSolutions: 1, Span: 1})
+	if len(sols) == 0 {
+		t.Fatal("no layout")
+	}
+	p := sols[0].Place
+	if p["case"] != p["left"] || p["left"] != p["right"] {
+		t.Errorf("the three ports should share a line: %+v", p)
+	}
+}
+
+func station(shaft string, teeth int, axial, thickness float64) Station {
+	return Station{Shaft: shaft, Teeth: teeth, Axial: axial, Thickness: thickness}
+}
+
+func TestStationSpanIsCenteredOnItsAxialPosition(t *testing.T) {
+	lo, hi := station("a", 24, 4, 2).Span()
+	if lo != 3 || hi != 5 {
+		t.Errorf("span = %v..%v, want 3..5", lo, hi)
+	}
+}
+
+func TestFreeIntervalsLeavesRoomBesideAGear(t *testing.T) {
+	got := FreeIntervals([]Station{station("a", 24, 0, 2)}, "a", 12)
+	want := [][2]float64{{-12, -1}, {1, 12}}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestFreeIntervalsIgnoresOtherShafts(t *testing.T) {
+	stations := []Station{station("a", 24, 0, 2), station("b", 24, 5, 2)}
+	got := FreeIntervals(stations, "b", 8)
+	want := [][2]float64{{-8, 4}, {6, 8}}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestFreeIntervalsMergesOverlappingGears(t *testing.T) {
+	// Two gears side by side leave one gap each side, not three.
+	stations := []Station{station("a", 24, 0, 2), station("a", 24, 1, 2)}
+	got := FreeIntervals(stations, "a", 10)
+	want := [][2]float64{{-10, -1}, {2, 10}}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestACrowdedShaftHasNowhereForABearing(t *testing.T) {
+	if got := FreeIntervals([]Station{station("a", 40, 0, 24)}, "a", 8); len(got) != 0 {
+		t.Errorf("got %v, want none", got)
+	}
+}
+
+func TestSolveStationsPutsASpurPairInOnePlane(t *testing.T) {
+	m := twoShaftMech(8, 24)
+	sols := Realize(m, Options{MaxSolutions: 1, Span: 1})
+	if len(sols) == 0 {
+		t.Fatal("no layout")
+	}
+	stations, findings := SolveStations(m, sols[0])
+	if len(stations) != 2 {
+		t.Fatalf("got %d stations, want 2", len(stations))
+	}
+	if math.Abs(stations[0].Axial-stations[1].Axial) > 1e-9 {
+		t.Errorf("a spur pair has to share an axial plane: %v", stations)
+	}
+	for _, f := range findings {
+		if f.Level == "FAIL" {
+			t.Errorf("unexpected failure: %+v", f)
+		}
+	}
+}
+
+func TestSolveStationsFlagsOverlapOnAShaft(t *testing.T) {
+	// Two gears at the same station on one shaft, from two separate meshes.
+	m := mech.New("crowded")
+	for _, s := range []string{"a", "b", "c"} {
+		m.Shaft(s, 2)
+	}
+	m.Mesh("a", "b", 8, 24)
+	m.Mesh("a", "c", 20, 20)
+	sols := Realize(m, Options{MaxSolutions: 1, Span: 1})
+	if len(sols) == 0 {
+		t.Skip("no layout for this graph")
+	}
+	_, findings := SolveStations(m, sols[0])
+	found := false
+	for _, f := range findings {
+		if f.Check == "station" && f.Level == "FAIL" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected an overlap report, got %+v", findings)
+	}
+}

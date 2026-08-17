@@ -99,8 +99,24 @@ three-axis grid bug surfaced within an hour of starting.
       download and extract) and `internal/extract` (grid expansion, tiers, the
       subpart filter, records). `cmd/brickmesh-extract` writes the same schema
       to the same cache directories as the Python one.
-- [ ] step 2: `internal/mech`, `internal/layout`, `internal/rigidity` — pure
-      arithmetic, and the existing tests port directly
+- [x] step 2: `internal/mech` (degrees of freedom, speeds, the five checks,
+      backlash), `internal/layout` (shaft lines, the backtracking search, gear
+      stations, free intervals) and `internal/rigidity` (joints, components,
+      the mobility formula). `internal/synth` holds the vocabulary they share —
+      a placed part, hole offsets, the beam inventory — with the search itself
+      still to come.
+
+      No catalog file passes between these, so there is nothing to diff. What
+      holds them together is that the Python tests were ported case for case:
+      the same seven closing triples of 512, the same two that are actually
+      buildable, the same speeds through a subtractor, the same hinge and
+      four-bar results. Both suites assert the same numbers independently.
+
+      The linear algebra is hand-rolled: rank by elimination, least squares
+      through the normal equations. numpy uses LAPACK, but these matrices are
+      one row per transmission by one column per shaft with small integer
+      coefficients, so it keeps the engine free of a dependency for no loss of
+      accuracy at this size.
 - [ ] step 3: `internal/voxel` as bitsets, `internal/synth` greedy set cover
       parallel over restarts, A* connection search, and drop the top-k
       truncation — a correctness compromise forced by Python's allocation cost
