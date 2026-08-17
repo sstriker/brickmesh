@@ -158,3 +158,26 @@ func TestVec3Arithmetic(t *testing.T) {
 		t.Errorf("Unit of the zero vector should not divide by zero, got %+v", got)
 	}
 }
+
+func TestMat3MulComposesInOrder(t *testing.T) {
+	// Applying m.Mul(o) is applying o first, then m.
+	for i, a := range Rotations {
+		for j, b := range Rotations {
+			composed := a.Mul(b)
+			v := Vec3{X: 1, Y: 2, Z: 3}
+			want := a.Apply(b.Apply(v))
+			if composed.Apply(v).Sub(want).Len() > 1e-9 {
+				t.Fatalf("rotation %d after %d composed wrongly", j, i)
+			}
+		}
+	}
+}
+
+func TestMat3TransposeInvertsARotation(t *testing.T) {
+	v := Vec3{X: 1, Y: -2, Z: 3}
+	for i, m := range Rotations {
+		if got := m.Transpose().Apply(m.Apply(v)); got.Sub(v).Len() > 1e-9 {
+			t.Errorf("rotation %d: transpose did not invert it, got %+v", i, got)
+		}
+	}
+}

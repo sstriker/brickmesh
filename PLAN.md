@@ -133,8 +133,17 @@ three-axis grid bug surfaced within an hour of starting.
       through arbitrary parts. Making the repair phase call the A* search is
       M2's "connection phase", and is what turns a structure that bears every
       shaft into one that also holds together.
-- [ ] step 4: triangle-triangle intersection to replace FCL, gated on
-      reproducing two 24t gears meshing at 60 LDU and jamming at 58
+- [x] step 4: `internal/collide` is Möller's triangle-triangle test under a
+      bounding-volume hierarchy, and `internal/interfere` is the meshing sweep
+      on top of it. The gate held: two 24t gears mesh at 60 LDU with 24 windows
+      one per tooth, jam at 58, and the numbers come out identical to FCL's —
+      same window count, spacing, backlash and free fraction at 60 and at 62.
+
+      It is also about 45x faster: a 360-step sweep takes 110 ms against roughly
+      five seconds through FCL, because the hierarchy is built once per part and
+      only the relative transform moves. The resolution caveat reproduces
+      exactly too, which is the more reassuring result — 72 steps still reports
+      a confident jam for a pair that meshes.
 
 Both extractors agree exactly: 2,649 parts and 21,675 ports, every field
 identical, enforced by `tests/test_go_parity.py` in the libraries job. The

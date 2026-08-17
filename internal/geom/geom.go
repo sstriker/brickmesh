@@ -128,3 +128,23 @@ func PitchDistance(t1, t2 int) float64 { return float64(t1+t2) / 16.0 * Stud }
 
 // EffectiveRadius is the radius at which a gear engages.
 func EffectiveRadius(teeth int) float64 { return float64(teeth) / 16.0 * Stud }
+
+// Mul returns the product m*o: applying the result is applying o then m.
+func (m Mat3) Mul(o Mat3) Mat3 {
+	var out Mat3
+	for r := 0; r < 3; r++ {
+		for c := 0; c < 3; c++ {
+			out[r][c] = m[r][0]*o[0][c] + m[r][1]*o[1][c] + m[r][2]*o[2][c]
+		}
+	}
+	return out
+}
+
+// Transpose is the inverse of a rotation, which is all this package holds.
+func (m Mat3) Transpose() Mat3 {
+	return Mat3{
+		{m[0][0], m[1][0], m[2][0]},
+		{m[0][1], m[1][1], m[2][1]},
+		{m[0][2], m[1][2], m[2][2]},
+	}
+}
