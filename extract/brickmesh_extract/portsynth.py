@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-Verkenner op basis van poorten in plaats van balken.
+Search based on ports rather than on beams.
 
-De vorige versie ging ervan uit dat een dragend onderdeel gaten op een rij
-heeft langs zijn lengterichting, allemaal dezelfde kant op. Dat klopt voor
-liftarms en voor niets anders in de catalogus. Een hoekverbinder heeft twee
-gaten die loodrecht op elkaar staan, een askoppeling heeft mannelijke
-uiteinden, en een plaat met pingaten heeft weer een andere indeling.
+The previous version assumed that a load-bearing part has holes in a row along
+its length, all facing the same way. That holds for liftarms and for nothing
+else in the catalog. An angle connector has two holes perpendicular to each
+other, an axle coupler has male ends, and a plate with pin holes has yet
+another layout again.
 
-Deze versie leest de poorten uit de catalogus: positie, richting, en of het
-rond of kruisvormig is. Dat laatste is geen detail:
+This version reads the ports from the catalog: position, direction, and whether
+it is round or cross-shaped. That last one is no detail:
 
-    een lager moet een ROND gat zijn.
+    a bearing has to be a ROUND hole.
 
-Een as in een kruisvormig gat kan niet draaien. Een verkenner die dat
-onderscheid niet maakt levert constructies op die vastzitten.
+An axle in a cross-shaped hole cannot turn. A search that does not make that
+distinction produces structures that seize up.
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ _pcache: dict[str, tuple] = {}
 
 
 def part_ports(pid: str, cat: dict):
-    """Gaten en pennen van een onderdeel als arrays: [x,y,z,ax,ay,az,kruis]."""
+    """Holes and pins of a part as arrays: [x,y,z,ax,ay,az,cross]."""
     if pid not in _pcache:
         e = cat[pid]
         h = np.array(e["holes"], float).reshape(-1, 7) if e["holes"] else np.zeros((0, 7))
@@ -71,7 +71,7 @@ def world_ports(pl: Placed, cat: dict):
 
 
 def rotations_mapping(axis_local: np.ndarray, axis_world: np.ndarray) -> list[int]:
-    """Alleen de rotaties die de gat-as op de gevraagde richting leggen."""
+    """Only the rotations that put the hole axis along the requested direction."""
     out = []
     a = axis_local / np.linalg.norm(axis_local)
     b = axis_world / np.linalg.norm(axis_world)
@@ -84,11 +84,11 @@ def rotations_mapping(axis_local: np.ndarray, axis_world: np.ndarray) -> list[in
 def placements_for(point, axis, cat: dict, bearing: bool = True,
                    max_per_part: int = 40) -> list[Placed]:
     """
-    Alle manieren om een onderdeel zo te leggen dat een van zijn gaten op
-    `point` valt met de as langs `axis`.
+    Every way to place a part such that one of its holes lands on `point` with
+    the axis along `axis`.
 
-    Bij bearing=True tellen alleen RONDE gaten mee: een as moet erin kunnen
-    draaien.
+    With bearing=True only ROUND holes count: an axle has to be able to turn
+    inside it.
     """
     point = np.asarray(point, float)
     axis = np.asarray(axis, float); axis = axis / np.linalg.norm(axis)
@@ -121,15 +121,15 @@ def placements_for(point, axis, cat: dict, bearing: bool = True,
 
 def connectable(pa: Placed, pb: Placed, cat: dict) -> list[tuple]:
     """
-    Waar twee geplaatste onderdelen aan elkaar kunnen. Drie gevallen:
-      pen in gat        - direct, geen extra onderdeel
-      gat op gat        - er moet een pin tussen, dus een onderdeel erbij
-      as in rond gat    - draait vrij, dat is een lager en geen verbinding
+    Where two placed parts can join. Three cases:
+      pin in hole        - direct, no extra part
+      hole on hole       - a pin has to go between, so one part more
+      axle in round hole - turns freely, that is a bearing and not a joint
     """
     ha, pna = world_ports(pa, cat)
     hb, pnb = world_ports(pb, cat)
     links = []
-    for male, female, who in ((pna, hb, "a-pen"), (pnb, ha, "b-pen")):
+    for male, female, who in ((pna, hb, "a-pin"), (pnb, ha, "b-pin")):
         for m in male:
             for f in female:
                 if np.linalg.norm(m[:3] - f[:3]) > 0.5:
@@ -137,7 +137,7 @@ def connectable(pa: Placed, pb: Placed, cat: dict) -> list[tuple]:
                 if abs(abs(float(np.dot(m[3:6], f[3:6]))) - 1.0) > 1e-6:
                     continue
                 if m[6] == CROSS and f[6] == ROUND:
-                    continue                    # as in rond gat: draait, geen verbinding
+                    continue                    # axle in round hole: turns, not a joint
                 links.append((who, tuple(np.round(m[:3], 2)), "direct"))
     for a in ha:
         for b in hb:
@@ -146,5 +146,5 @@ def connectable(pa: Placed, pb: Placed, cat: dict) -> list[tuple]:
             if abs(abs(float(np.dot(a[3:6], b[3:6]))) - 1.0) > 1e-6:
                 continue
             if a[6] == ROUND and b[6] == ROUND:
-                links.append(("gat-gat", tuple(np.round(a[:3], 2)), "pin nodig"))
+                links.append(("hole-hole", tuple(np.round(a[:3], 2)), "pin needed"))
     return links

@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-Onderdelencatalogus voor constructief zoeken.
+Parts catalog for structural search.
 
-De shadow library beschrijft per onderdeel waar de gaten en pennen zitten,
-maar comprimeert herhalende gaten in een rasternotatie. Voor een zoeker die
-constructies moet bouwen zijn losse coordinaten nodig, dus die vouwen we uit.
+The shadow library describes, per part, where the holes and pins sit, but
+compresses repeating holes into a grid notation. A search that has to build
+structures needs individual coordinates, so we expand them.
 
-Rasternotatie: [grid=<aantalA> <aantalB> <stapA> <stapB>], waarbij een aantal
-voorafgegaan door C gecentreerd betekent in plaats van vanaf nul tellend.
+Grid notation: [grid=<countA> <countB> <stepA> <stepB>], where a count preceded
+by C means centered rather than counting up from zero.
 """
 from __future__ import annotations
 
@@ -29,32 +29,32 @@ def parse_grid(spec: str) -> tuple[int, int, float, float, bool, bool]:
         return 1, 1, 0.0, 0.0, False, False
     tok = spec.split()
     i = 0
-    counts, centred = [], []
+    counts, centered = [], []
     for _ in range(2):
         if tok[i].upper() == "C":
-            centred.append(True); i += 1
+            centered.append(True); i += 1
         else:
-            centred.append(False)
+            centered.append(False)
         counts.append(int(tok[i])); i += 1
     sa, sb = float(tok[i]), float(tok[i + 1])
-    return counts[0], counts[1], sa, sb, centred[0], centred[1]
+    return counts[0], counts[1], sa, sb, centered[0], centered[1]
 
 
-def _offsets(count: int, spacing: float, centred: bool) -> np.ndarray:
+def _offsets(count: int, spacing: float, centered: bool) -> np.ndarray:
     if count <= 1:
         return np.array([0.0])
     idx = np.arange(count, dtype=float)
-    if centred:
+    if centered:
         idx -= (count - 1) / 2.0
     return idx * spacing
 
 
 def expand(s: snap.Snap) -> list[np.ndarray]:
-    """Alle concrete posities van een snap, raster uitgevouwen."""
+    """All concrete positions of a snap, with the grid expanded."""
     ca, cb, sa, sb, cca, ccb = parse_grid(s.grid)
-    # Het raster ligt in het LOKALE stelsel van de snap, niet in een willekeurige
-    # loodrechte basis. De cilinder wijst lokaal langs Y, dus de rasterrichtingen
-    # zijn lokaal X en Z, omgerekend met de orientatiematrix.
+    # The grid lies in the snap's LOCAL frame, not in some arbitrary
+    # perpendicular basis. The cylinder points along Y locally, so the grid
+    # directions are local X and Z, carried over by the orientation matrix.
     u = s.ori @ np.array([1.0, 0.0, 0.0])
     v = s.ori @ np.array([0.0, 0.0, 1.0])
     out = []
@@ -67,14 +67,14 @@ def expand(s: snap.Snap) -> list[np.ndarray]:
 @dataclass
 class CatalogEntry:
     part: str
-    holes: list          # [[x,y,z,ax,ay,az,kruis], ...] vrouwelijk
-    pins: list           # [[x,y,z,ax,ay,az,kruis], ...] mannelijk
-    axle_holes: int      # hoeveel daarvan kruisvormig zijn
+    holes: list          # [[x,y,z,ax,ay,az,cross], ...] female
+    pins: list           # [[x,y,z,ax,ay,az,cross], ...] male
+    axle_holes: int      # how many of those are cross-shaped
     title: str = ""
 
     @property
     def axes(self) -> int:
-        """Hoeveel verschillende gatrichtingen. >1 = haakse verbinder."""
+        """How many different hole directions. >1 = perpendicular connector."""
         return len({tuple(np.round(np.abs(h[3:6]), 2)) for h in self.holes})
 
     @property
@@ -91,7 +91,7 @@ def entry(part: str) -> CatalogEntry | None:
         if s.kind not in ("SNAP_CYL", "SNAP_INCL"):
             continue
         if not s.is_generic:
-            continue          # kraanarmgleuf, deurscharnier, stekker: geen pin
+            continue          # crane-arm slot, door hinge, plug: not a pin
         female = (s.gender != "M")
         for p in expand(s):
             rec = [*np.round(p, 2), *np.round(s.axis, 3), 1 if s.is_axle else 0]
@@ -104,24 +104,24 @@ def entry(part: str) -> CatalogEntry | None:
     return CatalogEntry(part=part, holes=holes, pins=pins, axle_holes=naxle)
 
 
-# Volgorde telt: het eerste passende patroon wint, dus specifiek voor algemeen.
+# Order matters: the first matching pattern wins, so specific before general.
 FAMILIES = [
     ("liftarm",         r"^Technic (Beam|Liftarm)"),
-    ("hoekverbinder",   r"Angle Connector|Axle and Pin Connector|"
+    ("angle connector", r"Angle Connector|Axle and Pin Connector|"
                         r"Connector Perpendicular|Joiner Perpendicular"),
-    ("askoppeling",     r"Axle Joiner|Axle Connector|Axle Extender|Axle Coupling"),
-    ("pinverbinder",    r"Pin Connector|Pin Joiner|Pin Hole Connector|"
+    ("axle coupler",    r"Axle Joiner|Axle Connector|Axle Extender|Axle Coupling"),
+    ("pin connector",   r"Pin Connector|Pin Joiner|Pin Hole Connector|"
                         r"^Technic Pin\b"),
-    ("as met gat",      r"Axle .*with .*(Hole|Pin)|Axlehole"),
-    ("plaat met gat",   r"^Plate .*(Hole|Pin|Axle)|^Technic Plate"),
-    ("steen met gat",   r"^Technic Brick|^Brick .*(Hole|Pin|Axle)"),
-    ("paneel",          r"^Technic Panel|^Panel"),
-    ("bus",             r"Technic Bush|Bush "),
+    ("axle with hole",  r"Axle .*with .*(Hole|Pin)|Axlehole"),
+    ("plate with hole", r"^Plate .*(Hole|Pin|Axle)|^Technic Plate"),
+    ("brick with hole", r"^Technic Brick|^Brick .*(Hole|Pin|Axle)"),
+    ("panel",           r"^Technic Panel|^Panel"),
+    ("bush",            r"Technic Bush|Bush "),
 ]
 
 
 def titles(parts_dir: str) -> dict:
-    """Titels uit de LDraw-bibliotheek, om op families te kunnen filteren."""
+    """Titles from the LDraw library, so families can be filtered on."""
     out = {}
     for fn in os.listdir(parts_dir):
         if not fn.endswith(".dat"):
@@ -136,11 +136,11 @@ def titles(parts_dir: str) -> dict:
 
 
 def by_family(cat: dict, parts_dir: str) -> dict:
-    """Groepeer de catalogus op onderdeelfamilie."""
+    """Group the catalog by part family."""
     import re
     tt = titles(parts_dir)
     groups = {name: [] for name, _ in FAMILIES}
-    groups["overig"] = []
+    groups["other"] = []
     for pid, e in cat.items():
         t = tt.get(pid, "")
         for name, pat in FAMILIES:
@@ -148,7 +148,7 @@ def by_family(cat: dict, parts_dir: str) -> dict:
                 groups[name].append((pid, t, len(e["holes"]), len(e["pins"])))
                 break
         else:
-            groups["overig"].append((pid, t, len(e["holes"]), len(e["pins"])))
+            groups["other"].append((pid, t, len(e["holes"]), len(e["pins"])))
     return groups
 
 
@@ -180,8 +180,8 @@ def load_or_build() -> dict:
 
 
 if __name__ == "__main__":
-    # eerst valideren tegen wat de sonde fysiek vond
-    print("Validatie van de rasteruitvouwing tegen de sondemeting (64179):\n")
+    # first validate against what the probe physically found
+    print("Validation of the grid expansion against the probe measurement (64179):\n")
     e = entry("64179")
     byax = {}
     for h in e.holes:
@@ -189,34 +189,33 @@ if __name__ == "__main__":
         byax.setdefault(key, []).append(h[:3])
     for ax, ps in sorted(byax.items()):
         ps = sorted(ps)
-        print(f"  as {ax}: {len(ps)} gaten")
+        print(f"  axis {ax}: {len(ps)} holes")
         for p in ps:
             print(f"      {np.array(p)}")
-    print("\n  sonde vond eerder: as X -> Z in {-40, 0, +40}; as Z -> X in {-20, 0, +20}\n")
+    print("\n  probe found earlier: axis X -> Z in {-40, 0, +40}; axis Z -> X in {-20, 0, +20}\n")
 
     cat = load_or_build()
-    print(f"Catalogus: {len(cat)} onderdelen met verbindingsgeometrie")
+    print(f"Catalog: {len(cat)} parts with connection geometry")
     tot = sum(len(v["holes"]) for v in cat.values())
-    print(f"  {tot} gaten in totaal")
+    print(f"  {tot} holes in total")
     big = sorted(cat.items(), key=lambda kv: -len(kv[1]["holes"]))[:8]
-    print("\n  onderdelen met de meeste gaten:")
+    print("\n  parts with the most holes:")
     for k, v in big:
-        print(f"    {k:10s} {len(v['holes']):4d} gaten, {len(v['pins']):3d} pennen")
+        print(f"    {k:10s} {len(v['holes']):4d} holes, {len(v['pins']):3d} pins")
 
 
 # --------------------------------------------------------------------------
-# bruikbaarheid en kosten
+# usability and cost
 # --------------------------------------------------------------------------
 
 def usable(cat: dict, parts_dir: str) -> dict:
     """
-    Filter alles weg wat geen echt los onderdeel is.
+    Filter out everything that is not a real orderable part.
 
-    LDraw kent subonderdelen met een ~ voor de titel: de voorkant van een
-    motorbehuizing, de romp van een paard. Die bestaan alleen als bouwsteen
-    binnen een ander bestand en zijn niet los te bestellen of te gebruiken.
-    Laat je ze staan, dan verzint de verkenner constructies uit onderdelen die
-    niet bestaan.
+    LDraw has subparts with a ~ before the title: the front of a motor housing,
+    the body of a horse. Those exist only as a building block inside another
+    file and cannot be ordered or used on their own. Leave them in and the
+    search will invent structures out of parts that do not exist.
     """
     tt = titles(parts_dir)
     out = {}
@@ -231,9 +230,9 @@ def usable(cat: dict, parts_dir: str) -> dict:
     return out
 
 
-# Voorkeurslagen. De verkenner begint bij laag 1 en verbreedt alleen als het
-# daar niet lukt. Zo betaal je de grotere voorraad alleen wanneer je hem nodig
-# hebt, in plaats van bij elke zoekopdracht.
+# Preference tiers. The search starts at tier 1 and widens only when it fails
+# there. That way you pay for the larger inventory only when you need it,
+# instead of on every single query.
 TIERS = {
     1: r"^Technic (Beam|Liftarm)|^Technic Pin\b|Technic Pin with Friction|"
        r"Technic Axle Joiner|Angle Connector|Technic Bush|^Technic Axle\b",
@@ -252,12 +251,12 @@ def tier_of(title: str) -> int:
 
 def cost(entry: dict, owned: set | None = None) -> float:
     """
-    Wat het 'kost' om een onderdeel te gebruiken.
+    What it 'costs' to use a part.
 
-    Bezit je het, dan is het goedkoop. Bezit je het niet, dan moet het besteld
-    worden en telt dat mee. Daarbovenop een voorkeur voor gangbare Technic
-    onderdelen: dat is de coating waar je op doelt - hij mag het bouwen, maar
-    hij moet er een reden voor hebben.
+    If you own it, it is cheap. If you do not, it has to be ordered and that
+    counts. On top of that a preference for common Technic parts: that is the
+    bias you are after - the search may reach for something exotic, but it has
+    to have a reason to.
     """
     pid = entry.get("part") or entry.get("id", "")
     t = tier_of(entry.get("title", ""))
@@ -273,16 +272,16 @@ def inventory_by_tier(cat: dict, tier: int) -> dict:
 
 def infer_missing_holes(cat: dict) -> dict:
     """
-    Vul de gatenrij aan waar de shadow library er maar een noemt.
+    Fill in the row of holes where the shadow library names only one.
 
-    Bij een liftarm beschrijft de shadow-data vaak alleen het eindgat en laat
-    de rest aan de geometrie van het onderdeel zelf over. Voor een verkenner is
-    dat onbruikbaar: twee liftarms naast elkaar lijken dan nergens te kunnen
-    koppelen. De ontbrekende gaten liggen op de bekende steek van 20 LDU langs
-    de lengterichting, gecentreerd op de oorsprong.
+    For a liftarm the shadow data often describes only the end hole and leaves
+    the rest to the geometry of the part itself. For a search that is useless:
+    two liftarms side by side then appear to have nowhere to couple. The
+    missing holes lie at the known pitch of 20 LDU along the length, centered
+    on the origin.
 
-    Alleen toepassen waar het aantal duidelijk niet klopt; onderdelen met een
-    volledig raster in de shadow-data blijven ongemoeid.
+    Apply this only where the count is clearly wrong; parts with a complete
+    grid in the shadow data are left alone.
     """
     from . import ldraw
     out = {}
@@ -301,7 +300,7 @@ def infer_missing_holes(cat: dict) -> dict:
         if expect >= 3 and len(holes) < expect and len(holes) >= 1:
             base = holes[0]
             axis = np.array(base[3:6], float)
-            # de lengterichting mag niet de gat-as zijn
+            # the length direction must not be the hole axis
             if abs(axis[long_axis]) < 0.5:
                 d = np.zeros(3); d[long_axis] = 1.0
                 k = np.arange(expect) - (expect - 1) / 2.0

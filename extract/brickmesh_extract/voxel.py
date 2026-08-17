@@ -1,19 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-Voxelaliseren en snelle bezettingstoetsen.
+Voxelization and fast occupancy tests.
 
-FCL is nauwkeurig maar kost milliseconden per paar. Een zoektocht die
-honderdduizenden plaatsingen aanraakt is daarmee onbruikbaar traag. Omdat
-alles op een rooster ligt, kan het anders: rasteriseer elk onderdeel een keer
-per orientatie naar bezette cellen, en toets botsingen als een bitmasker.
+FCL is accurate but costs milliseconds per pair, which makes a search touching
+hundreds of thousands of placements unusably slow. Because everything sits on a
+lattice, it can be done differently: rasterize every part once per orientation
+into occupied cells, and test collisions as a bit mask.
 
-Belangrijk detail: we rasteriseren het OPPERVLAK, niet het volume. Dat is geen
-tekortkoming maar precies wat we willen - een Technic-gat blijft dan een gat,
-zodat een as er doorheen kan zonder als botsing te tellen. Bij volumevulling
-zou elk gat dichtslibben en zou de zoeker nooit een lager vinden.
+Important detail: we rasterize the SURFACE, not the volume. That is not a
+shortcoming but exactly what we want - a Technic hole then stays a hole, so an
+axle can pass through it without counting as a collision. Filling the volume
+would silt up every hole and the search would never find a bearing.
 
-FCL blijft in gebruik voor de eindkandidaten; dit is het grove filter ervoor.
+FCL stays in use for the final candidates; this is the coarse filter ahead of
+it.
 """
 from __future__ import annotations
 
@@ -24,12 +25,12 @@ import numpy as np
 
 from . import ldraw
 
-PITCH = 5.0                # LDU per cel. Een stud = 4 cellen.
+PITCH = 5.0                # LDU per cell. One stud = 4 cells.
 STUD = 20.0
 
 
 def cube_rotations() -> list[np.ndarray]:
-    """De 24 rotaties van de kubus. Alleen deze standen liggen op het rooster."""
+    """The 24 rotations of the cube. Only these orientations sit on the lattice."""
     out = []
     for perm in itertools.permutations(range(3)):
         for signs in itertools.product((1, -1), repeat=3):
@@ -49,8 +50,8 @@ _vox_cache: dict[tuple, np.ndarray] = {}
 
 def voxels(part: str, rot_index: int = 0, pitch: float = PITCH) -> np.ndarray:
     """
-    Bezette cellen van een onderdeel, als integer-coordinaten ten opzichte van
-    de eigen oorsprong. Gecachet per onderdeel en orientatie.
+    Occupied cells of a part, as integer coordinates relative to its own
+    origin. Cached per part and orientation.
     """
     key = (part, rot_index, pitch)
     if key in _vox_cache:
@@ -59,12 +60,12 @@ def voxels(part: str, rot_index: int = 0, pitch: float = PITCH) -> np.ndarray:
     g = ldraw.geometry(part)
     tris = np.array(g.tris) if g.tris else None
     if tris is None or len(tris) == 0:
-        raise ValueError(f"{part}: geen driehoeken")
+        raise ValueError(f"{part}: no triangles")
 
     R = ROTATIONS[rot_index]
     tris = tris @ R.T
 
-    # elke driehoek bemonsteren met een dichtheid die de celgrootte haalt
+    # sample every triangle at a density that reaches the cell size
     pts = []
     for tri in tris:
         e1, e2 = tri[1] - tri[0], tri[2] - tri[0]
@@ -83,9 +84,9 @@ def voxels(part: str, rot_index: int = 0, pitch: float = PITCH) -> np.ndarray:
 
 @dataclass
 class Occupancy:
-    """Een begrensde rasterruimte waarin je onderdelen legt en botsingen toetst."""
-    lo: np.ndarray            # ondergrens in cellen
-    hi: np.ndarray            # bovengrens in cellen
+    """A bounded lattice space in which you place parts and test collisions."""
+    lo: np.ndarray            # lower bound in cells
+    hi: np.ndarray            # upper bound in cells
     grid: np.ndarray = None
 
     def __post_init__(self):
@@ -107,8 +108,8 @@ class Occupancy:
 
     def flat(self, cells: np.ndarray, offset_ldu, pitch: float = PITCH) -> np.ndarray:
         """
-        Vlakke indices van een plaatsing. Reken dit een keer uit en hergebruik
-        het: de zoeker toetst dezelfde plaatsing vele malen.
+        Flat indices of a placement. Compute this once and reuse it: the search
+        tests the same placement many times over.
         """
         idx = self._index(cells, offset_ldu, pitch)
         shape = self.grid.shape
@@ -143,16 +144,16 @@ class Occupancy:
 
 
 def lattice_positions(extent_studs: int, step_ldu: float = STUD) -> np.ndarray:
-    """Alle roosterposities binnen een kubus, in LDU."""
+    """All lattice positions within a cube, in LDU."""
     r = np.arange(-extent_studs, extent_studs + 1) * step_ldu
     return np.array(np.meshgrid(r, r, r, indexing="ij")).reshape(3, -1).T
 
 
 def axis_aligned_rotations(part: str) -> list[int]:
     """
-    De rotatie-indices die werkelijk verschillende standen geven. Veel
-    onderdelen zijn symmetrisch, dus van de 24 blijven er vaak veel minder
-    over - dat scheelt direct in de zoekruimte.
+    The rotation indices that genuinely give different orientations. Many parts
+    are symmetric, so far fewer than 24 usually remain - which pays off
+    directly in the size of the search space.
     """
     seen, keep = {}, []
     for i in range(len(ROTATIONS)):

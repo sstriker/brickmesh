@@ -92,9 +92,9 @@ def mesh_phase(part_a: str, teeth_a: int, axis_a: np.ndarray,
     tb = tooth_angles(part_b, axis_b, teeth_b)
     pitch_a, pitch_b = 360.0 / teeth_a, 360.0 / teeth_b
 
-    # A: bring a tooth onto the line of centres.
+    # A: bring a tooth onto the line of centers.
     rot_a = (beta_a - ta[0]) % pitch_a
-    # B: bring a GAP onto the line of centres, i.e. a tooth half a pitch away.
+    # B: bring a GAP onto the line of centers, i.e. a tooth half a pitch away.
     rot_b = (beta_b + pitch_b / 2 - tb[0]) % pitch_b
 
     return {
@@ -111,11 +111,11 @@ def mesh_phase(part_a: str, teeth_a: int, axis_a: np.ndarray,
 
 if __name__ == "__main__":
     Z = np.array([0.0, 0, 1])
-    print("Tandposities uit de geometrie afgeleid\n")
-    print(f"  {'part':10s}{'tanden':>7}{'steek':>8}{'1e tand':>10}{'scherpte':>10}")
+    print("Tooth positions derived from the geometry\n")
+    print(f"  {'part':10s}{'teeth':>7}{'pitch':>8}{'1st tooth':>10}{'sharpness':>10}")
     for p, t in [("3647.dat", 8), ("32270.dat", 12), ("4019.dat", 16),
                  ("32269.dat", 20), ("3648b.dat", 24), ("32498.dat", 36)]:
         ang = tooth_angles(p, Z, t)
         sh = tooth_sharpness(p, Z, t)
         print(f"  {p:10s}{t:7d}{360/t:8.2f}{ang[0]:10.2f}{sh:10.3f}"
-              f"   {'as-zitting vrij' if axle_symmetry_ok(t) else 'LET OP: zitting bepaalt fase'}")
+              f"   {'axle seating free' if axle_symmetry_ok(t) else 'NOTE: seating fixes phase'}")

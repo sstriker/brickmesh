@@ -6,7 +6,7 @@ cannot.
 
 ## Gears
 
-**Pitch rule.** Two parallel gears mesh at a centre distance of
+**Pitch rule.** Two parallel gears mesh at a center distance of
 `(t1 + t2) / 16` studs. All standard tooth counts are multiples of 4, so that
 distance always lands on a whole half-stud (10 LDU).
 
@@ -21,7 +21,7 @@ Consequence: the two stations individually fall off the lattice (12t at 35 LDU,
 positioned independently; one fixes the other.
 
 **Tooth phase.** Every standard gear in LDraw has a tooth at exactly 0° modulo
-its pitch. For a meshing pair, one needs a tooth on the line of centres and the
+its pitch. For a meshing pair, one needs a tooth on the line of centers and the
 other a gap — half a pitch apart. For a 24t that works out to 7.5°, which
 doubles as a self-check: any other value means the tooth extraction is wrong.
 
@@ -33,7 +33,7 @@ tooth phase. No counting needed during assembly.
 the same plane, are one physical gear driving two meshes. That saves parts and
 search space.
 
-**Loop closure.** Three shafts driving each other in a ring fix three centre
+**Loop closure.** Three shafts driving each other in a ring fix three center
 distances, and that triangle has to close on the lattice. Of all 512
 combinations from eight standard tooth counts, **seven** close. Three 24t gears
 give an equilateral triangle with the third shaft at height 5.196 half-studs —
@@ -73,7 +73,7 @@ arm, door hinge, electrical connector, ball joint. These must not be treated as
 generic pins or holes. Do so and every liftarm appears to have a male port
 running its whole length — that is the slot for a crane-arm clamp.
 
-**Subparts.** 206 of 3003 catalogue entries have a `~` prefix in their title.
+**Subparts.** 206 of 3003 catalog entries have a `~` prefix in their title.
 They exist only inside another file and cannot be ordered separately. Leave
 them in and the solver will invent structures from parts that do not exist.
 
@@ -83,7 +83,7 @@ one known hole out of eleven. Fill in the row at the known 20 LDU pitch along
 the length; leave parts that do carry a full grid alone.
 
 **Grid notation.** `[grid=<nx> <ny> <dx> <dy>]`, where a count may be preceded
-by `C` for centred. The grid lies in the snap's own XZ plane and is then
+by `C` for centerd. The grid lies in the snap's own XZ plane and is then
 rotated by the orientation matrix. Validated against a physical probe: both
 methods give, for the 5x7 frame, transverse holes at Z in {-40, 0, +40} and
 longitudinal holes at X in {-20, 0, +20}.

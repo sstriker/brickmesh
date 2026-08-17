@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-De functionele laag: assen en overbrengingen, los van elk onderdeel.
+The functional layer: shafts and transmissions, independent of any part.
 
-Hier reken je een mechanisme door voordat je iets plaatst. Verhoudingen,
-draairichtingen, vrijheidsgraden, koppel, en de meetkundige eisen die eruit
-volgen. Dit is de laag waar een idee sneuvelt of overeind blijft, en dat wil
-je weten voor je begint te bouwen.
+This is where you work a mechanism out before placing anything. Ratios,
+directions of rotation, degrees of freedom, torque, and the geometric
+requirements that follow from them. This is the layer where an idea dies or
+survives, and you want to know which before you start building.
 
-Kern: elke overbrenging is een lineaire vergelijking tussen assnelheden. Het
-hele mechanisme is dus een matrix, en de nulruimte daarvan zijn je
-vrijheidsgraden. Een subtractor hoort er twee te hebben (rijden en sturen);
-komt er een uit, dan zit je trein op slot.
+The core: every transmission is one linear equation between shaft speeds. The
+whole mechanism is therefore a matrix, and its null space is your degrees of
+freedom. A subtractor should have two (drive and steer); if only one comes out,
+your train is locked.
 """
 from __future__ import annotations
 
@@ -21,25 +21,25 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-HALF_STUD = 10.0          # LDU. Alle tandaantallen zijn veelvouden van 4, dus
-                          # hartafstanden vallen altijd op hele halve studs.
+HALF_STUD = 10.0          # LDU. All tooth counts are multiples of 4, so center
+                          # distances always land on whole half studs.
 
 
 # --------------------------------------------------------------------------
-# elementen
+# elements
 # --------------------------------------------------------------------------
 
 @dataclass
 class Shaft:
     id: str
-    bearings: int = 0                  # aantal lagerpunten
+    bearings: int = 0                  # number of bearing points
     domain: str = "technic-studless"
     note: str = ""
 
 
 @dataclass
 class Mesh:
-    """Tandwielpaar. Extern kammend, dus de draairichting keert om."""
+    """A gear pair. Externally meshing, so the direction of rotation reverses."""
     a: str
     b: str
     teeth_a: int
@@ -52,8 +52,8 @@ class Mesh:
         return self.kind in ("spur", "bevel")
 
     @property
-    def centre_distance_halfstuds(self) -> float | None:
-        """Alleen zinvol bij evenwijdige assen."""
+    def center_distance_halfstuds(self) -> float | None:
+        """Only meaningful for parallel shafts."""
         if self.kind != "spur":
             return None
         return (self.teeth_a + self.teeth_b) / 8.0
@@ -70,10 +70,10 @@ class Mesh:
 @dataclass
 class Differential:
     """
-    Drie poorten. De huissnelheid is het gemiddelde van beide uitgangen:
-        2*w_huis - w_1 - w_2 = 0
-    Dit is de enige overbrenging met meer dan twee poorten, en precies daarom
-    kan een subtractor bestaan.
+    Three ports. The case speed is the average of both outputs:
+        2*w_case - w_1 - w_2 = 0
+    This is the only transmission with more than two ports, and that is exactly
+    why a subtractor can exist.
     """
     case: str
     out_a: str
@@ -95,7 +95,7 @@ class Finding:
 
 
 # --------------------------------------------------------------------------
-# mechanisme
+# mechanism
 # --------------------------------------------------------------------------
 
 class Mechanism:
@@ -106,7 +106,7 @@ class Mechanism:
         self.inputs: dict[str, float] = {}
         self.outputs: list[str] = []
 
-    # ---- opbouw ----
+    # ---- construction ----
 
     def shaft(self, sid: str, **kw) -> str:
         self.shafts[sid] = Shaft(sid, **kw)
@@ -124,7 +124,7 @@ class Mechanism:
     def output(self, sid: str):
         self.outputs.append(sid)
 
-    # ---- kinematica ----
+    # ---- kinematics ----
 
     @property
     def _index(self) -> dict:
@@ -137,13 +137,13 @@ class Mechanism:
         return np.vstack([l.equation(idx, n) for l in self.links])
 
     def dof(self) -> int:
-        """Vrijheidsgraden = aantal assen min de rang van de beperkingen."""
+        """Degrees of freedom = number of shafts minus the rank of the constraints."""
         A = self._matrix()
         rank = np.linalg.matrix_rank(A) if len(A) else 0
         return len(self.shafts) - int(rank)
 
     def solve(self) -> dict[str, float] | None:
-        """Snelheden van alle assen, gegeven de aangedreven assen."""
+        """Speeds of all shafts, given the driven shafts."""
         idx, n = self._index, len(self.shafts)
         A = list(self._matrix())
         rhs = [0.0] * len(A)
@@ -152,40 +152,40 @@ class Mechanism:
             A.append(row); rhs.append(w)
         A = np.array(A); rhs = np.array(rhs)
         if np.linalg.matrix_rank(A) < n:
-            return None                      # onderbepaald
+            return None                      # underdetermined
         sol, *_ = np.linalg.lstsq(A, rhs, rcond=None)
         if not np.allclose(A @ sol, rhs, atol=1e-8):
-            return None                      # strijdig
+            return None                      # inconsistent
         return {s: float(sol[idx[s]]) for s in self.shafts}
 
-    # ---- controles ----
+    # ---- checks ----
 
     def check_dof(self) -> list[Finding]:
         d, k = self.dof(), len(self.inputs)
         if d == 0:
-            return [Finding("FAIL", "vrijheidsgraden",
-                            "mechanisme heeft 0 vrijheidsgraden: de trein zit op slot "
-                            "en kan niet draaien")]
+            return [Finding("FAIL", "dof",
+                            "mechanism has 0 degrees of freedom: the train is locked "
+                            "and cannot turn")]
         if k < d:
-            return [Finding("WARN", "vrijheidsgraden",
-                            f"{d} vrijheidsgraden maar {k} aangedreven assen — "
-                            f"{d-k} beweging(en) blijven onbepaald")]
+            return [Finding("WARN", "dof",
+                            f"{d} degrees of freedom but {k} driven shafts — "
+                            f"{d-k} motion(s) remain undetermined")]
         if k > d:
-            return [Finding("FAIL", "vrijheidsgraden",
-                            f"{k} aandrijvingen op {d} vrijheidsgraden — overbepaald, "
-                            f"de motoren werken tegen elkaar in")]
-        return [Finding("OK", "vrijheidsgraden",
-                        f"{d} vrijheidsgraden, {k} aandrijvingen: bepaald")]
+            return [Finding("FAIL", "dof",
+                            f"{k} drives on {d} degrees of freedom — overdetermined, "
+                            f"the motors work against each other")]
+        return [Finding("OK", "dof",
+                        f"{d} degrees of freedom, {k} drives: determined")]
 
     def check_bearings(self) -> list[Finding]:
         out = []
         for s in self.shafts.values():
             if s.bearings < 2:
-                out.append(Finding("FAIL", "lagering",
-                                   f"as '{s.id}' heeft {s.bearings} lagerpunt(en). "
-                                   f"Minder dan twee betekent zwiepen onder belasting."))
+                out.append(Finding("FAIL", "bearings",
+                                   f"shaft '{s.id}' has {s.bearings} bearing point(s). "
+                                   f"Fewer than two means it whips under load."))
         if not out:
-            out.append(Finding("OK", "lagering", "alle assen dubbel gelagerd"))
+            out.append(Finding("OK", "bearings", "every shaft borne at both ends"))
         return out
 
     def check_domains(self) -> list[Finding]:
@@ -195,26 +195,26 @@ class Mechanism:
             doms = {self.shafts[i].domain for i in ids if i in self.shafts}
             if len(doms) > 1:
                 out.append(Finding(
-                    "FAIL", "rooster",
-                    f"overbrenging tussen {ids} kruist roosterdomeinen {doms}. "
-                    f"Technic-stenen staan op 24 LDU verticaal, liftarms op 20 — "
-                    f"gaten lijnen niet uit."))
+                    "FAIL", "grid",
+                    f"transmission between {ids} crosses grid domains {doms}. "
+                    f"Technic bricks sit at 24 LDU vertically, liftarms at 20 — "
+                    f"the holes do not line up."))
         if not out:
-            out.append(Finding("OK", "rooster", "een roosterdomein, geen overgangen"))
+            out.append(Finding("OK", "grid", "one grid domain, no transitions"))
         return out
 
     def check_closure(self) -> list[Finding]:
         """
-        Sluiting van tandwiellussen. Drie assen die elkaar rondom aandrijven
-        leggen drie hartafstanden vast. Die driehoek moet op het rooster
-        sluiten, anders krijg je het derde tandwiel er niet in.
+        Closure of gear loops. Three shafts driving each other in a ring fix
+        three center distances. That triangle has to close on the lattice, or
+        you will not get the third gear in.
         """
         out = []
         spur = [l for l in self.links if isinstance(l, Mesh) and l.kind == "spur"]
         dist = {}
         adj: dict[str, set] = {}
         for m in spur:
-            dist[frozenset((m.a, m.b))] = m.centre_distance_halfstuds
+            dist[frozenset((m.a, m.b))] = m.center_distance_halfstuds
             adj.setdefault(m.a, set()).add(m.b)
             adj.setdefault(m.b, set()).add(m.a)
 
@@ -225,32 +225,32 @@ class Mechanism:
                 continue
             d_ab, d_bc, d_ac = (dist[k] for k in keys)
             if d_ab + d_bc <= d_ac or d_ab + d_ac <= d_bc or d_bc + d_ac <= d_ab:
-                out.append(Finding("FAIL", "lussluiting",
-                                   f"{a}-{b}-{c}: hartafstanden {d_ab}/{d_bc}/{d_ac} "
-                                   f"halve studs vormen geen driehoek"))
+                out.append(Finding("FAIL", "loop closure",
+                                   f"{a}-{b}-{c}: center distances {d_ab}/{d_bc}/{d_ac} "
+                                   f"half studs do not form a triangle"))
                 continue
-            # derde punt: A op (0,0), B op (d_ab,0)
+            # third point: A at (0,0), B at (d_ab,0)
             x = (d_ab**2 + d_ac**2 - d_bc**2) / (2 * d_ab)
             y2 = d_ac**2 - x**2
             ok_x = abs(x - round(x)) < 1e-9
             y = math.sqrt(max(y2, 0.0))
             ok_y = abs(y - round(y)) < 1e-9
             if ok_x and ok_y:
-                out.append(Finding("OK", "lussluiting",
-                                   f"{a}-{b}-{c} sluit op het rooster: "
-                                   f"derde as op ({x:.0f}, {y:.0f}) halve studs"))
+                out.append(Finding("OK", "loop closure",
+                                   f"{a}-{b}-{c} closes on the lattice: "
+                                   f"third shaft at ({x:.0f}, {y:.0f}) half studs"))
             else:
                 out.append(Finding(
-                    "FAIL", "lussluiting",
-                    f"{a}-{b}-{c} sluit NIET op het rooster: derde as zou op "
-                    f"({x:.3f}, {y:.3f}) halve studs komen. Kies een ander "
-                    f"tandaantal of voeg een tussenwiel toe."))
+                    "FAIL", "loop closure",
+                    f"{a}-{b}-{c} does NOT close on the lattice: the third shaft "
+                    f"would land at ({x:.3f}, {y:.3f}) half studs. Pick a different "
+                    f"tooth count or add an idler."))
         if not out:
-            out.append(Finding("OK", "lussluiting", "geen tandwiellussen aanwezig"))
+            out.append(Finding("OK", "loop closure", "no gear loops present"))
         return out
 
     def backlash(self, path: list[str]) -> float:
-        """Opgetelde dode gang langs een pad van assen, in graden aan de uitgang."""
+        """Accumulated backlash along a path of shafts, in degrees at the output."""
         total, ratio = 0.0, 1.0
         for a, b in zip(path, path[1:]):
             m = next((l for l in self.links if isinstance(l, Mesh)
@@ -274,11 +274,11 @@ class Mechanism:
         for f in sorted(self.run_checks(), key=lambda f: order[f.level]):
             print(f"  {f.level:5s} [{f.check:14s}] {f.detail}")
         sol = self.solve()
-        print("\n  Snelheden:")
+        print("\n  Speeds:")
         if sol is None:
-            print("    niet oplosbaar met de huidige aandrijvingen")
+            print("    not solvable with the current drives")
         else:
             for s, w in sol.items():
-                mark = "  <- aandrijving" if s in self.inputs else (
-                    "  <- uitgang" if s in self.outputs else "")
+                mark = "  <- drive" if s in self.inputs else (
+                    "  <- output" if s in self.outputs else "")
                 print(f"    {s:16s} {w:+8.3f}{mark}")

@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-De constructieve laag: zoek balken die alle assen dragen.
+The structural layer: find beams that bear every shaft.
 
-Invoer is een uitgewerkte layout - aslijnen met richting, tandwielstations, en
-per as de vrije stukken. Uitvoer is een verzameling geplaatste onderdelen zodat
-elke as minstens twee lagerpunten heeft, niets elkaar raakt, en het geheel zo
-klein mogelijk is.
+Input is a worked-out layout - shaft lines with direction, gear stations, and
+the free stretches per shaft. Output is a set of placed parts such that every
+shaft has at least two bearing points, nothing touches anything else, and the
+whole is as small as possible.
 
-Wat het haalbaar maakt is dat er niets continu is. Een balk kan alleen in 24
-standen (waarvan er door symmetrie minder overblijven) en alleen op
-roosterposities. En het lagerpunt moet op de aslijn liggen, wat de kandidaten
-per eis terugbrengt tot een handvol.
+What makes it tractable is that nothing here is continuous. A beam can sit in
+only 24 orientations (fewer once symmetry is taken out) and only at lattice
+positions. And the bearing point has to lie on the shaft line, which cuts the
+candidates per requirement down to a handful.
 """
 from __future__ import annotations
 
@@ -27,24 +27,23 @@ from .layout import Layout, Station, free_intervals
 HALF_STUD = 10.0
 STUD = 20.0
 
-# Voorraad dragende onderdelen: (naam, aantal gaten)
+# Inventory of load-bearing parts: (name, number of holes)
 BEAMS = [("32523.dat", 3), ("32316.dat", 5), ("32524.dat", 7),
          ("40490.dat", 9), ("32525.dat", 11), ("41239.dat", 13)]
 
 
 def hole_offsets(n_holes: int) -> np.ndarray:
-    """Lokale gatposities langs de lengterichting (Z), in LDU."""
+    """Local hole positions along the length direction (Z), in LDU."""
     k = np.arange(n_holes) - (n_holes - 1) / 2.0
     return np.stack([np.zeros(n_holes), np.zeros(n_holes), k * STUD], axis=1)
 
 
 CONTACT_FRACTION = 0.12
 """
-Twee onderdelen die met een pin verbonden zijn liggen vlak tegen elkaar; hun
-oppervlakken vallen samen. Op een raster van 5 LDU is dat niet te onderscheiden
-van doorsnijden. Daarom geen absolute eis van nul gedeelde cellen, maar een
-drempel: aanraking deelt een randje, doorsnijding deelt een substantieel deel
-van het kleinste onderdeel.
+Two parts joined by a pin lie flat against each other; their surfaces coincide.
+On a 5 LDU grid that cannot be told apart from intersecting. Hence no absolute
+requirement of zero shared cells, but a threshold: touching shares an edge,
+intersecting shares a substantial part of the smaller part.
 """
 
 
@@ -84,7 +83,7 @@ def _local_hole_axis(part: str) -> np.ndarray:
         return _axis_cache[part]
     got = snap.rotation_axis(part)
     if got is None:
-        raise ValueError(f"{part}: gat-as onbekend")
+        raise ValueError(f"{part}: hole axis unknown")
     v = np.asarray(got[0], float)
     _axis_cache[part] = v / np.linalg.norm(v)
     return _axis_cache[part]
@@ -93,8 +92,8 @@ def _local_hole_axis(part: str) -> np.ndarray:
 def candidates_for(point: np.ndarray, direction: np.ndarray,
                    inventory=BEAMS) -> list[tuple[Placed, int]]:
     """
-    Alle manieren om een dragend onderdeel zo te leggen dat een van zijn gaten
-    op `point` valt met de gat-as langs `direction`.
+    Every way to place a load-bearing part such that one of its holes lands on
+    `point` with the hole axis along `direction`.
     """
     out = []
     d = np.asarray(direction, float); d = d / np.linalg.norm(d)
@@ -112,7 +111,7 @@ def candidates_for(point: np.ndarray, direction: np.ndarray,
             for k in range(n):
                 origin = np.asarray(point, float) - R @ offs[k]
                 if np.any(np.abs(np.round(origin / HALF_STUD) * HALF_STUD - origin) > 1e-6):
-                    continue                    # niet op het rooster
+                    continue                    # not on the lattice
                 out.append((Placed(part, ri, tuple(np.round(origin, 3))), n))
     return out
 
@@ -127,8 +126,8 @@ class Requirement:
 def bearing_requirements(layout: Layout, stations: list[Station],
                          per_shaft: int = 2, reach: float = 8.0) -> list[Requirement]:
     """
-    Twee lagerpunten per as, zo ver mogelijk uit elkaar binnen de vrije
-    stukken. Ver uit elkaar want een korte lagerbasis laat de as alsnog zwiepen.
+    Two bearing points per shaft, as far apart as the free stretches allow. Far
+    apart, because a short bearing base lets the shaft whip anyway.
     """
     reqs = []
     for sid, pl in layout.place.items():
@@ -147,7 +146,7 @@ def bearing_requirements(layout: Layout, stations: list[Station],
         chosen = [pts[0], pts[-1]] if per_shaft == 2 else pts[:per_shaft]
         for _, w in chosen:
             reqs.append(Requirement(sid, w, pl.direction))
-    # differentieelpoorten delen een lijn: hun lagereisen vallen samen
+    # differential ports share a line: their bearing requirements coincide
     uniq, out = set(), []
     for r in reqs:
         k = (tuple(np.round(r.point, 3)), tuple(np.round(np.abs(r.direction), 3)))
@@ -157,21 +156,21 @@ def bearing_requirements(layout: Layout, stations: list[Station],
     return out
 
 
-def synthesise(layout: Layout, stations: list[Station],
+def synthesize(layout: Layout, stations: list[Station],
                max_parts: int = 10, restarts: int = 60,
                inventory=BEAMS, seed: int = 0) -> list[dict]:
     """
-    Gulzige verzamelingsdekking met herstarts.
+    Greedy set cover with restarts.
 
-    Dit is geen zoektocht door een boom van deeloplossingen - dat ontploft,
-    want met tien eisen en bijna tweehonderd kandidaten per eis zijn er meer
-    combinaties dan zinvol. Het is een dekkingsprobleem: elke kandidaat-balk
-    dekt een deelverzameling van de lagereisen, en je zoekt de kleinste
-    dekking waarvan de onderdelen elkaar niet raken.
+    This is not a search through a tree of partial solutions - that explodes,
+    because with ten requirements and nearly two hundred candidates each there
+    are more combinations than is sensible. It is a covering problem: every
+    candidate beam covers a subset of the bearing requirements, and you look
+    for the smallest cover whose parts do not touch each other.
 
-    Gulzig kiezen op "meeste nog onbedekte eisen per stud^3" geeft snel een
-    goede oplossing. Met wat willekeurige herstarts kom je er meestal nog wat
-    onder.
+    Choosing greedily on "most still-uncovered requirements per stud^3" reaches
+    a good solution quickly. A few random restarts usually get you a little
+    below that again.
     """
     rng = np.random.default_rng(seed)
     reqs = bearing_requirements(layout, stations)
@@ -179,7 +178,7 @@ def synthesise(layout: Layout, stations: list[Station],
         return []
     nholes = dict(inventory)
 
-    # alle kandidaten, en welke eisen elk dekt
+    # every candidate, and which requirements each of them covers
     pool: dict[Placed, set] = {}
     for i, r in enumerate(reqs):
         for cand, _ in candidates_for(r.point, r.direction, inventory):
@@ -192,7 +191,7 @@ def synthesise(layout: Layout, stations: list[Station],
             return False
         return bool((np.linalg.norm(p.holes(n) - r.point, axis=1) < 1e-6).any())
 
-    # een balk kan meer eisen dekken dan die waarvoor hij gegenereerd is
+    # a beam can cover more requirements than the one it was generated for
     for cand in pool:
         for i, r in enumerate(reqs):
             if satisfies(cand, r):
@@ -222,7 +221,7 @@ def synthesise(layout: Layout, stations: list[Station],
         pts = np.array(pts)
         return float(np.prod(pts.max(axis=0) - pts.min(axis=0)) / 8000.0)
 
-    # gaten van elke kandidaat, om samenhang te kunnen toetsen
+    # holes of every candidate, so connectivity can be tested
     from .rigidity import world_holes
     hole_cache: dict[Placed, frozenset] = {}
 
@@ -248,8 +247,8 @@ def synthesise(layout: Layout, stations: list[Station],
                 cells = cells_of(cand)
                 if not _compatible(cells, frozenset(occupied)):
                     continue
-                # samenhang: na het eerste onderdeel moet elke toevoeging
-                # minstens een gat delen met wat er al ligt, anders zweeft hij
+                # connectivity: after the first part, every addition has to
+                # share at least one hole with what is already there, or it floats
                 shared = len(holes_of(cand) & placed_holes) if chosen else 1
                 score = (gain + 0.5 * min(shared, 2)) / (volume(cand) ** 0.5)
                 if jitter:
@@ -278,9 +277,9 @@ def synthesise(layout: Layout, stations: list[Station],
 
 def _repair_connectivity(chosen, cells_of, holes_of, nholes, inventory):
     """
-    Reparatiefase: de dekking is rond, maar de stukken hangen los. Voeg
-    verbindingsbalken toe tot alles een geheel is. Steeds het paar stukken
-    pakken dat het goedkoopst te overbruggen is.
+    Repair phase: the cover is complete, but the pieces hang loose. Add
+    connecting beams until everything is one whole, each time taking the pair
+    of pieces that is cheapest to bridge.
     """
     from .rigidity import find_joints, components
 
@@ -307,12 +306,12 @@ def _repair_connectivity(chosen, cells_of, holes_of, nholes, inventory):
 
 def connectors_between(holes_a: set, holes_b: set, inventory=BEAMS) -> list[Placed]:
     """
-    Balken die twee losse stukken aan elkaar knopen.
+    Beams tying two separate pieces together.
 
-    Deze dragen geen enkele as; ze zijn er puur om samenhang te maken. Gericht
-    genereren in plaats van blind: neem een gat uit het ene stuk en een uit het
-    andere, en als die op een rechte lijn liggen met een veelvoud van 20 LDU
-    ertussen, dan overspant een balk van de juiste lengte ze allebei.
+    These bear no shaft at all; they exist purely to create connectivity.
+    Generated deliberately rather than blindly: take a hole from one piece and
+    one from the other, and if they lie on a straight line with a multiple of
+    20 LDU between them, a beam of the right length spans both.
     """
     out = []
     for ha in holes_a:
@@ -323,11 +322,11 @@ def connectors_between(holes_a: set, holes_b: set, inventory=BEAMS) -> list[Plac
                 continue
             k = L / STUD
             if abs(k - round(k)) > 1e-6:
-                continue                      # niet op de gatensteek
+                continue                      # not on the hole pitch
             k = int(round(k))
             d = v / L
             if np.count_nonzero(np.abs(d) > 1e-6) != 1:
-                continue                      # alleen rechte richtingen
+                continue                      # straight directions only
             for part, n in inventory:
                 if n < k + 1:
                     continue
@@ -338,11 +337,11 @@ def connectors_between(holes_a: set, holes_b: set, inventory=BEAMS) -> list[Plac
                 offs = hole_offsets(n)
                 for ri in _rots(part):
                     R = ROTATIONS[ri]
-                    # lengterichting van de balk moet langs d liggen
+                    # the beam length direction has to lie along d
                     if abs(abs(float(np.dot(R @ np.array([0, 0, 1.0]), d))) - 1.0) > 1e-6:
                         continue
                     if abs(float(np.dot(R @ local, d))) > 1e-6:
-                        continue              # gat-as moet dwars staan
+                        continue              # the hole axis has to run across
                     for idx in range(n):
                         origin = np.array(ha) - R @ offs[idx]
                         if np.any(np.abs(np.round(origin / HALF_STUD) * HALF_STUD

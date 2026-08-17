@@ -59,7 +59,7 @@ def solve(diff_part: str = "62821.dat", gear_part: str = "32270.dat",
     base = gear @ rot("y", 90).T              # axis Z -> axis X
 
     # Tooth phase matters: at the wrong rotational phase the gears meet
-    # tip-to-tip and the solver reports a centre distance that is too large.
+    # tip-to-tip and the solver reports a center distance that is too large.
     # A 12t gear repeats every 30 deg, so sweep one tooth pitch.
     phases = [base @ rot("x", p).T for p in np.arange(0.0, 30.0, 2.5)]
 
@@ -84,7 +84,7 @@ def solve(diff_part: str = "62821.dat", gear_part: str = "32270.dat",
     # i.e. many points near the surface but not a huge count buried inside.
     touching = arr[(arr[:, 2] < 1.2)]
     if len(touching) == 0:
-        return None, None, {"error": "geen contactpositie gevonden in het zoekbereik",
+        return None, None, {"error": "no contact position found in the search range",
                             "min_gap": float(arr[:, 2].min())}
 
     # among touching candidates, prefer maximum engagement depth
@@ -100,12 +100,12 @@ def solve(diff_part: str = "62821.dat", gear_part: str = "32270.dat",
 
 if __name__ == "__main__":
     r, a, info = solve()
-    print("Conische ingrijping 12t -> 28t diff-kroonwiel\n")
+    print("Bevel engagement 12t -> 28t differential ring gear\n")
     if r is None:
-        print("  MISLUKT:", info)
+        print("  FAILED:", info)
     else:
-        print(f"  radiaal (X): {r:7.2f} LDU  = {r/20:.3f} stud")
-        print(f"  axiaal  (Z): {a:7.2f} LDU  = {a/20:.3f} stud")
+        print(f"  radial (X): {r:7.2f} LDU  = {r/20:.3f} stud")
+        print(f"  axial  (Z): {a:7.2f} LDU  = {a/20:.3f} stud")
         print()
         for k, v in info.items():
             print(f"  {k:22s} {v}")

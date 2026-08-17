@@ -120,7 +120,7 @@ func ToCell(v Vec3) Cell {
 
 func (c Cell) Add(o Cell) Cell { return Cell{c.X + o.X, c.Y + o.Y, c.Z + o.Z} }
 
-// PitchDistance is the centre distance at which two parallel gears mesh. All
+// PitchDistance is the center distance at which two parallel gears mesh. All
 // standard tooth counts are multiples of 4, so this always lands on a whole
 // half-stud.
 func PitchDistance(t1, t2 int) float64 { return float64(t1+t2) / 16.0 * Stud }

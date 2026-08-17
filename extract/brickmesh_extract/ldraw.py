@@ -202,5 +202,5 @@ if __name__ == "__main__":
             lo, hi = g.bbox
             print(f"{p:8s} {g.title[:42]:44s} size={np.round(g.size,1)} thin_axis={'XYZ'[g.thin_axis]}")
         except PartNotFound as e:
-            print(f"{p:8s} FOUT: {e}")
+            print(f"{p:8s} ERROR: {e}")
     print(json.dumps(cache_manifest()))

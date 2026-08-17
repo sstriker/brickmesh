@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-De meetkundige laag: van functionele graaf naar assen op het rooster.
+The geometric layer: from functional graph to shafts on the lattice.
 
-De functionele laag zegt wat er met wat verbonden is. Deze laag zoekt uit
-waar die assen dan liggen. Elke overbrenging legt een meetkundige eis op:
+The functional layer says what is connected to what. This layer works out where
+those shafts then lie. Every transmission imposes a geometric requirement:
 
-  evenwijdig kammend  ->  assen evenwijdig, loodrechte afstand (ta+tb)/8 halve studs
-  conisch kammend     ->  assen haaks EN snijdend
-  differentieel       ->  alle drie de poorten op dezelfde lijn
+  spur meshing   ->  shafts parallel, perpendicular distance (ta+tb)/8 half studs
+  bevel meshing  ->  shafts perpendicular AND intersecting
+  differential   ->  all three ports on the same line
 
-Dat is een beperkingsprobleem op een rooster, dus eindig en opsombaar. Er is
-geen optimalisatie nodig, alleen doorzoeken met terugkrabbelen.
+That is a constraint problem on a lattice, so finite and enumerable. No
+optimization is needed, only a search with backtracking.
 
-Eenheid is de halve stud (10 LDU), want alle tandaantallen zijn veelvouden van
-vier en daarmee vallen alle hartafstanden op hele halve studs.
+The unit is the half stud (10 LDU), because every tooth count is a multiple of
+four and every center distance therefore lands on a whole half stud.
 """
 from __future__ import annotations
 
@@ -27,15 +27,15 @@ from .mech import Mechanism, Mesh, Differential
 
 HALF_STUD = 10.0
 
-# Kanonieke richtingen. De pythagorese azimuts kun je aanzetten als je schuine
-# assen wilt toestaan; ze kosten zoekruimte en leveren zelden compacter op.
+# Canonical directions. The Pythagorean azimuths can be switched on if you want
+# to allow angled shafts; they cost search space and rarely come out compacter.
 AXIS_DIRS = [np.array(v, float) for v in ((1, 0, 0), (0, 1, 0), (0, 0, 1))]
 PYTHAGOREAN_DIRS = [np.array(v, float) / 5.0 for v in
                     ((4, 3, 0), (3, 4, 0), (4, 0, 3), (3, 0, 4), (0, 4, 3), (0, 3, 4))]
 
 
 def sum_of_two_squares(n: int) -> list[tuple[int, int]]:
-    """Alle (a,b) met a^2+b^2 = n, inclusief tekens en volgorde."""
+    """All (a,b) with a^2+b^2 = n, including signs and order."""
     out = []
     r = int(np.isqrt(n)) if hasattr(np, "isqrt") else int(n ** 0.5)
     for a in range(-r - 1, r + 2):
@@ -52,9 +52,9 @@ def sum_of_two_squares(n: int) -> list[tuple[int, int]]:
 
 @dataclass
 class Placement:
-    """Een as als oneindige lijn: een punt erop plus een richting."""
-    point: np.ndarray          # in halve studs
-    direction: np.ndarray      # eenheidsvector
+    """A shaft as an infinite line: a point on it plus a direction."""
+    point: np.ndarray          # in half studs
+    direction: np.ndarray      # unit vector
 
     def __post_init__(self):
         self.point = np.asarray(self.point, float)
@@ -90,10 +90,10 @@ def perpendicular(p: Placement, q: Placement) -> bool:
 
 
 def line_distance(p: Placement, q: Placement) -> float:
-    """Kortste afstand tussen twee oneindige lijnen, in halve studs."""
+    """Shortest distance between two infinite lines, in half studs."""
     n = np.cross(p.direction, q.direction)
     nn = np.linalg.norm(n)
-    if nn < 1e-9:                                   # evenwijdig
+    if nn < 1e-9:                                   # parallel
         v = q.point - p.point
         return float(np.linalg.norm(v - np.dot(v, p.direction) * p.direction))
     return abs(float(np.dot(q.point - p.point, n / nn)))
@@ -118,7 +118,7 @@ class Layout:
         if isinstance(link, Mesh):
             if link.kind == "spur":
                 d = parallel_distance(p, q)
-                return d is not None and abs(d - link.centre_distance_halfstuds) < 1e-6
+                return d is not None and abs(d - link.center_distance_halfstuds) < 1e-6
             if link.kind == "bevel":
                 return perpendicular(p, q) and axes_intersect(p, q)
             if link.kind == "worm":
@@ -137,18 +137,18 @@ def _diff_groups(mech: Mechanism) -> list[list[str]]:
             if isinstance(l, Differential)]
 
 
-def realise(mech: Mechanism, seed: str | None = None,
+def realize(mech: Mechanism, seed: str | None = None,
             allow_angled: bool = False, max_solutions: int = 20,
             span: int = 6, radius: dict[str, float] | None = None) -> list[Layout]:
     """
-    Zoek roosterposities voor alle assen. Geeft oplossingen terug, oplopend
-    gesorteerd op omhullend volume - dus compact eerst.
+    Search lattice positions for every shaft. Returns solutions sorted
+    ascending by bounding volume - so compact first.
     """
     dirs = AXIS_DIRS + (PYTHAGOREAN_DIRS if allow_angled else [])
     shafts = list(mech.shafts)
     seed = seed or shafts[0]
 
-    # differentieelpoorten delen een lijn: klap ze samen tot een klasse
+    # differential ports share a line: collapse them into one class
     parent = {s: s for s in shafts}
 
     def find(x):
@@ -165,7 +165,7 @@ def realise(mech: Mechanism, seed: str | None = None,
         classes.setdefault(find(s), []).append(s)
     reps = list(classes)
 
-    # buren tussen klassen
+    # neighbors between classes
     adj: dict[str, set] = {r: set() for r in reps}
     for l in mech.links:
         if isinstance(l, Mesh):
@@ -187,12 +187,12 @@ def realise(mech: Mechanism, seed: str | None = None,
 
     def clear(rep_a: str, rep_b: str, pa: Placement, pb: Placement) -> bool:
         """
-        Assen die niet met elkaar kammen moeten uit elkaars weg blijven. Zonder
-        deze eis landen twee differentiëlen vrolijk op dezelfde lijn - de graaf
-        verbiedt dat immers nergens.
+        Shafts that do not mesh with each other have to stay out of each
+        other's way. Without this requirement two differentials happily land on
+        the same line - nothing in the graph forbids it.
         """
         if rep_b in adj[rep_a]:
-            return True                            # kammend paar: al geregeld
+            return True                            # meshing pair: already handled
         need = (max(radius.get(s, 1.0) for s in classes[rep_a])
                 + max(radius.get(s, 1.0) for s in classes[rep_b]))
         return line_distance(pa, pb) >= need - 1e-9
@@ -216,13 +216,13 @@ def realise(mech: Mechanism, seed: str | None = None,
                     break
         out = []
         if link and link.kind == "spur":
-            d2 = int(round(link.centre_distance_halfstuds ** 2))
+            d2 = int(round(link.center_distance_halfstuds ** 2))
             u, v = _perp_basis(p.direction)
             for a, b in sum_of_two_squares(d2):
                 for t in range(-span, span + 1):
                     pt = p.point + a * u + b * v + t * p.direction
                     out.append(Placement(pt, p.direction))
-        else:                                    # conisch of worm: haaks
+        else:                                    # bevel or worm: perpendicular
             for d in dirs:
                 if abs(float(np.dot(d, p.direction))) > 1e-9:
                     continue
@@ -273,16 +273,16 @@ def realise(mech: Mechanism, seed: str | None = None,
 
 
 # --------------------------------------------------------------------------
-# stations: waar de tandwielen langs elke as zitten
+# stations: where the gears sit along each shaft
 # --------------------------------------------------------------------------
 
-# Dikte in halve studs. Wordt gebruikt om overlap op dezelfde as te vinden en
-# om de vrije stukken over te houden waar de lagers mogen komen.
+# Thickness in half studs. Used to find overlap on the same shaft and to leave
+# the free stretches where the bearings may go.
 GEAR_THICKNESS = {8: 2.0, 12: 2.0, 16: 1.0, 20: 2.0, 24: 1.0, 28: 2.0, 36: 1.0, 40: 1.0}
 
 
 def effective_radius(teeth: int) -> float:
-    """In halve studs. Volgt uit de steekregel: straal in studs = tanden/16."""
+    """In half studs. Follows from the pitch rule: radius in studs = teeth/16."""
     return teeth / 8.0
 
 
@@ -290,9 +290,9 @@ def effective_radius(teeth: int) -> float:
 class Station:
     shaft: str
     teeth: int
-    axial: float               # coordinaat langs de asrichting, halve studs
+    axial: float               # coordinate along the shaft direction, half studs
     thickness: float
-    origin: str = ""           # waar de waarde vandaan komt
+    origin: str = ""           # where the value came from
 
     @property
     def span(self):
@@ -301,13 +301,12 @@ class Station:
 
 def solve_stations(mech: Mechanism, layout: Layout) -> tuple[list[Station], list]:
     """
-    Bepaal de axiale positie van elk tandwiel.
+    Determine the axial position of every gear.
 
-    Conische paren geven een absolute positie: de assen snijden elkaar in een
-    punt, en elk tandwiel staat daar op de effectieve straal van de ander
-    vandaan. Evenwijdige paren geven alleen een gelijkheid - beide tandwielen
-    moeten in hetzelfde vlak liggen. Dus: eerst de conische verankeren, dan de
-    gelijkheden doorgeven.
+    Bevel pairs give an absolute position: the shafts intersect in a point, and
+    each gear stands the effective radius of the other away from it. Parallel
+    pairs give only an equality - both gears have to lie in the same plane. So:
+    anchor the bevels first, then propagate the equalities.
     """
     from .mech import Finding
 
@@ -318,22 +317,22 @@ def solve_stations(mech: Mechanism, layout: Layout) -> tuple[list[Station], list
         p = layout.place[shaft]
         return float(np.dot(world_pt - p.point, p.direction))
 
-    # 1. conische paren verankeren
+    # 1. anchor the bevel pairs
     for i, l in enumerate(mech.links):
         if not (isinstance(l, Mesh) and l.kind == "bevel"):
             continue
         pa, pb = layout.place[l.a], layout.place[l.b]
         n = np.cross(pa.direction, pb.direction)
         w0 = pa.point - pb.point
-        # snijpunt van twee elkaar snijdende lijnen
+        # intersection point of two intersecting lines
         denom = np.dot(np.cross(pb.direction, n), pa.direction)
         if abs(denom) < 1e-9:
             findings.append(Finding("FAIL", "station",
-                                    f"{l.a}/{l.b}: assen snijden elkaar niet"))
+                                    f"{l.a}/{l.b}: the shafts do not intersect"))
             continue
         t = -np.dot(np.cross(pb.direction, n), w0) / denom
         P = pa.point + t * pa.direction
-        # elk tandwiel op de effectieve straal van de ander vanaf het snijpunt
+        # each gear at the effective radius of the other from the intersection
         for shaft, teeth, other in ((l.a, l.teeth_a, l.teeth_b),
                                     (l.b, l.teeth_b, l.teeth_a)):
             off = effective_radius(other)
@@ -344,9 +343,9 @@ def solve_stations(mech: Mechanism, layout: Layout) -> tuple[list[Station], list
                     stations[(shaft, teeth, i)] = Station(
                         shaft, teeth, axial_of(shaft, pos),
                         GEAR_THICKNESS.get(teeth, 2.0),
-                        f"conisch met {other}t, effectieve straal {off} halve studs")
+                        f"bevel with {other}t, effective radius {off} half studs")
 
-    # 2. evenwijdige paren: gelijk axiaal vlak
+    # 2. parallel pairs: same axial plane
     for i, l in enumerate(mech.links):
         if not (isinstance(l, Mesh) and l.kind == "spur"):
             continue
@@ -360,28 +359,28 @@ def solve_stations(mech: Mechanism, layout: Layout) -> tuple[list[Station], list
             if abs(stations[ka].axial - stations[kb].axial) > 1e-6:
                 findings.append(Finding(
                     "FAIL", "station",
-                    f"{l.a}/{l.b}: beide assen al verankerd op verschillende vlakken "
-                    f"({stations[ka].axial:.2f} en {stations[kb].axial:.2f}) - kammen niet"))
+                    f"{l.a}/{l.b}: both shafts already anchored in different planes "
+                    f"({stations[ka].axial:.2f} and {stations[kb].axial:.2f}) - they do not mesh"))
             base = stations[ka].axial
         else:
             base = 0.0
         for shaft, teeth in ((l.a, l.teeth_a), (l.b, l.teeth_b)):
             stations.setdefault((shaft, teeth, i), Station(
                 shaft, teeth, base, GEAR_THICKNESS.get(teeth, 2.0),
-                "evenwijdig, zelfde vlak"))
+                "parallel, same plane"))
 
-    # Twee tandwielen met hetzelfde tandaantal op dezelfde as in hetzelfde vlak
-    # zijn in werkelijkheid EEN tandwiel dat twee dingen tegelijk aandrijft.
+    # Two gears with the same tooth count on the same shaft in the same plane
+    # are really ONE gear driving two things at once.
     merged: dict[tuple, Station] = {}
     for st in stations.values():
         k = (st.shaft, st.teeth, round(st.axial, 6))
         if k in merged:
-            merged[k].origin += " (deelt met een tweede ingrijping)"
+            merged[k].origin += " (shared with a second mesh)"
         else:
             merged[k] = st
     result = list(merged.values())
 
-    # 3. overlap op dezelfde as
+    # 3. overlap on the same shaft
     per_shaft: dict[str, list[Station]] = {}
     for st in result:
         per_shaft.setdefault(st.shaft, []).append(st)
@@ -391,26 +390,26 @@ def solve_stations(mech: Mechanism, layout: Layout) -> tuple[list[Station], list
             if min(hi1, hi2) - max(lo1, lo2) > 1e-6:
                 findings.append(Finding(
                     "FAIL", "station",
-                    f"as '{shaft}': {x.teeth}t op {x.axial:.2f} en {y.teeth}t op "
-                    f"{y.axial:.2f} overlappen elkaar"))
+                    f"shaft '{shaft}': {x.teeth}t at {x.axial:.2f} and {y.teeth}t at "
+                    f"{y.axial:.2f} overlap"))
 
-    # 4. rooster
+    # 4. lattice
     for st in result:
         if abs(st.axial - round(st.axial)) > 1e-6:
             findings.append(Finding(
                 "WARN", "station",
-                f"as '{st.shaft}': {st.teeth}t op {st.axial:.3f} halve studs, "
-                f"niet op het rooster"))
+                f"shaft '{st.shaft}': {st.teeth}t at {st.axial:.3f} half studs, "
+                f"not on the lattice"))
 
     if not findings:
         findings.append(Finding("OK", "station",
-                                f"{len(result)} tandwielstations bepaald, geen conflicten"))
+                                f"{len(result)} gear stations determined, no conflicts"))
     return result, findings
 
 
 def free_intervals(stations: list[Station], shaft: str,
                    reach: float = 12.0) -> list[tuple[float, float]]:
-    """Stukken van een as waar geen tandwiel zit: daar kunnen de lagers heen."""
+    """Stretches of a shaft with no gear on them: that is where bearings can go."""
     occ = sorted(s.span for s in stations if s.shaft == shaft)
     free, cursor = [], -reach
     for lo, hi in occ:

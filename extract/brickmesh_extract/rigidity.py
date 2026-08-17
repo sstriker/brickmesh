@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-Starheidscontrole.
+Rigidity check.
 
-Een constructie die alle assen draagt is nog geen constructie. Twee balken die
-elkaar nergens raken hangen los in de lucht, en twee balken met een enkele pin
-ertussen zijn een scharnier. Dat is precies de fout die je pas ontdekt als het
-ding in je handen slap gaat hangen.
+A structure that bears every axle is not yet a structure. Two beams that touch
+nowhere hang loose in the air, and two beams with a single pin between them are
+a hinge. That is exactly the mistake you only discover once the thing goes limp
+in your hands.
 
-De toets is de beweeglijkheidsformule. Voor pinverbindingen met evenwijdige
-assen geldt de vlakke vorm:
+The test is the mobility formula. For pin joints with parallel axes the planar
+form applies:
 
     M = 3(n-1) - 2j
 
-met n onderdelen en j pinverbindingen. M > 0 betekent scharnieren. Staan de
-pinassen niet allemaal evenwijdig, dan de ruimtelijke vorm M = 6(n-1) - 5j.
+with n parts and j pin joints. M > 0 means it hinges. If the pin axes are not
+all parallel, the spatial form M = 6(n-1) - 5j applies instead.
 
-Let op waarom de vlakke vorm nodig is: ruimtelijk gerekend zou een vierkant van
-vier balken star lijken, terwijl dat in werkelijkheid een vierstangenmechanisme
-is met een vrijheidsgraad. Dat is de klassieke Gruebler-paradox, en precies het
-geval dat je in LEGO voortdurend tegenkomt.
+Note why the planar form is needed: computed spatially, a square of four beams
+would look rigid, while it is really a four-bar linkage with one degree of
+freedom. That is the classic Gruebler paradox, and exactly the case you run
+into constantly in LEGO.
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def world_holes(p: Placed, n_holes: int):
 
 
 def find_joints(parts: list[Placed], inventory=BEAMS) -> list[Joint]:
-    """Samenvallende gaten met evenwijdige as: daar kan een pin doorheen."""
+    """Coincident holes with parallel axes: a pin can go through there."""
     nholes = dict(inventory)
     data = []
     for p in parts:
@@ -62,7 +62,7 @@ def find_joints(parts: list[Placed], inventory=BEAMS) -> list[Joint]:
             pi, ai = data[i]
             pj, aj = data[j]
             if abs(abs(float(np.dot(ai, aj))) - 1.0) > 1e-6:
-                continue                       # gaten staan niet in lijn
+                continue                       # holes do not line up
             for a in pi:
                 for b in pj:
                     if np.linalg.norm(a - b) < TOL:
@@ -89,15 +89,15 @@ def components(n: int, joints: list[Joint]) -> list[list[int]]:
 
 def mobility(n_parts: int, joints: list[Joint]) -> tuple[int, str]:
     if n_parts <= 1:
-        return 0, "enkel onderdeel"
+        return 0, "single part"
     axes = {jt.axis for jt in joints}
     j = len(joints)
     if len(axes) <= 1:
-        return 3 * (n_parts - 1) - 2 * j, "vlak"
-    return 6 * (n_parts - 1) - 5 * j, "ruimtelijk"
+        return 3 * (n_parts - 1) - 2 * j, "planar"
+    return 6 * (n_parts - 1) - 5 * j, "spatial"
 
 
-def analyse(parts: list[Placed], inventory=BEAMS) -> list:
+def analyze(parts: list[Placed], inventory=BEAMS) -> list:
     from .mech import Finding
 
     out = []
@@ -107,28 +107,28 @@ def analyse(parts: list[Placed], inventory=BEAMS) -> list:
     if len(comps) > 1:
         loose = [len(c) for c in comps]
         out.append(Finding(
-            "FAIL", "samenhang",
-            f"de constructie valt uiteen in {len(comps)} losse stukken "
-            f"(groottes {loose}). Onderdelen die nergens aan vastzitten dragen niets."))
+            "FAIL", "connectivity",
+            f"the structure falls apart into {len(comps)} separate pieces "
+            f"(sizes {loose}). Parts attached to nothing carry nothing."))
         for c in comps:
             if len(c) == 1:
                 p = parts[c[0]]
-                out.append(Finding("FAIL", "samenhang",
-                                   f"  {p.part} op {p.origin} zweeft los"))
+                out.append(Finding("FAIL", "connectivity",
+                                   f"  {p.part} at {p.origin} floats free"))
         return out
 
     m, kind = mobility(len(parts), joints)
     if m > 0:
         out.append(Finding(
-            "FAIL", "starheid",
-            f"{len(parts)} onderdelen, {len(joints)} pinverbindingen, "
-            f"beweeglijkheid M = {m} ({kind}). De constructie scharniert. "
-            f"Voeg {m} verbinding(en) toe, of driehoek hem met een 3-4-5."))
+            "FAIL", "rigidity",
+            f"{len(parts)} parts, {len(joints)} pin joints, "
+            f"mobility M = {m} ({kind}). The structure hinges. "
+            f"Add {m} joint(s), or triangulate it with a 3-4-5."))
     else:
         out.append(Finding(
-            "OK", "starheid",
-            f"{len(parts)} onderdelen, {len(joints)} pinverbindingen, M = {m} "
-            f"({kind}): star{' (overbepaald, in LEGO normaal)' if m < 0 else ''}"))
+            "OK", "rigidity",
+            f"{len(parts)} parts, {len(joints)} pin joints, M = {m} "
+            f"({kind}): rigid{' (overconstrained, normal in LEGO)' if m < 0 else ''}"))
     return out
 
 

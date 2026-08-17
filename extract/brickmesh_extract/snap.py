@@ -47,7 +47,7 @@ class Snap:
     gender: str               # M / F / ''
     pos: np.ndarray           # LDU, in part coordinates
     ori: np.ndarray           # 3x3
-    group: str = ""           # benoemde verbindingsgroep, zie is_generic
+    group: str = ""           # named connection group, see is_generic
     secs: str = ""
     grid: str = ""
     ref: str = ""
@@ -60,11 +60,11 @@ class Snap:
     @property
     def is_generic(self) -> bool:
         """
-        Snaps met een [group=...] horen bij een specifieke verbinding: kraanarm,
-        deurscharnier, elektrische stekker, kogelgewricht. Die mag je niet als
-        gewone pin of gewoon gat behandelen - een liftarm heeft daardoor
-        schijnbaar een mannelijke poort over zijn hele lengte, terwijl dat de
-        gleuf voor een kraanarmklem is.
+        Snaps carrying a [group=...] belong to one specific connection: crane
+        arm, door hinge, electrical plug, ball joint. Those must not be treated
+        as an ordinary pin or an ordinary hole - it is what makes a liftarm
+        appear to have a male port along its whole length, when that is really
+        the slot for a crane-arm clamp.
         """
         return not self.group
 
@@ -116,8 +116,8 @@ def rotation_axis(part: str) -> tuple[np.ndarray, str] | None:
     for s in snaps(part):
         if s.kind == "SNAP_CYL" and s.gender == "F":
             return s.axis, "LDCad shadow library, round hole"
-    # Veel onderdelen definieren hun gat indirect via een include naar een
-    # generieke gatdefinitie. Die zijn altijd vrouwelijk.
+    # Many parts define their hole indirectly, through an include pointing at a
+    # generic hole definition. Those are always female.
     for s in snaps(part):
         if s.kind == "SNAP_INCL" and ("hole" in s.ref or "conn" in s.ref):
             return s.axis, f"LDCad shadow library, include {s.ref}"
@@ -137,9 +137,9 @@ if __name__ == "__main__":
         sn = snaps(p, root)
         ax = rotation_axis(p)
         if not sn:
-            print(f"  {p:8s} GEEN shadowfile - val terug op de heuristiek")
+            print(f"  {p:8s} NO shadow file - fall back on the heuristic")
             continue
-        axtxt = f"as {np.round(ax[0],2)}" if ax else "geen as-info"
+        axtxt = f"axis {np.round(ax[0],2)}" if ax else "no axis info"
         print(f"  {p:8s} {len(sn):2d} snaps   {axtxt}")
         for s in sn:
             print(f"           {s.kind:11s} {s.gender or '-'} pos={np.round(s.pos,0)} "

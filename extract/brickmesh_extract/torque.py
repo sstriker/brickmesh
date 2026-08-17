@@ -101,19 +101,19 @@ def assess(rows) -> list[str]:
             lim = small if teeth <= 12 else big
             if f > lim:
                 out.append(
-                    f"FAIL  {r['stage']}: {teeth}t ziet {f:.0f} N tandkracht, "
-                    f"grens {lim:.0f} N — dit wiel slaat over.")
+                    f"FAIL  {r['stage']}: {teeth}t sees {f:.0f} N tooth load, "
+                    f"limit {lim:.0f} N — this gear will skip.")
             elif f > 0.7 * lim:
                 out.append(
-                    f"WARN  {r['stage']}: {teeth}t ziet {f:.0f} N, "
-                    f"{100*f/lim:.0f}% van de grens.")
+                    f"WARN  {r['stage']}: {teeth}t sees {f:.0f} N, "
+                    f"{100*f/lim:.0f}% of the limit.")
         if r["torque_out_Ncm"] > axle:
             out.append(
-                f"WARN  {r['stage']}: as na deze trap draagt "
-                f"{r['torque_out_Ncm']:.1f} Ncm, boven de {axle:.0f} Ncm vuistregel. "
-                f"Houd deze as kort en dubbel gelagerd.")
+                f"WARN  {r['stage']}: the axle after this stage carries "
+                f"{r['torque_out_Ncm']:.1f} Ncm, above the {axle:.0f} Ncm rule of thumb. "
+                f"Keep this axle short and bear it at both ends.")
     if not out:
-        out.append("Geen overschrijdingen — maar zie de waarschuwing over de grenswaarden.")
+        out.append("No limits exceeded — but see the warning about the limit values.")
     return out
 
 

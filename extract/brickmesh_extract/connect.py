@@ -1,22 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Sander Striker
 """
-Verbinden van losse stukken.
+Connecting separate pieces.
 
-Twee onderdelen kunnen alleen rechtstreeks aan elkaar als hun gaten toevallig
-samenvallen met dezelfde richting. In een echt mechanisme is dat zelden zo: de
-lagers dragen assen die haaks op elkaar staan, dus hun gaten wijzen alle
-kanten op.
+Two parts can only join directly if their holes happen to coincide with the
+same direction. In a real mechanism that is rarely so: the bearings carry
+shafts that stand perpendicular to each other, so their holes point every which
+way.
 
-Wat je nodig hebt is een KETTING van tussenonderdelen die de ene gatrichting
-naar de andere brengt. Dat is een Steinerboom-probleem, en tussen twee stukken
-komt het neer op een kortste pad: elk toegevoegd onderdeel breidt de
-bereikbare poorten uit, en je zoekt de goedkoopste weg tot je een poort van het
-andere stuk raakt.
+What you need is a CHAIN of intermediate parts carrying one hole direction over
+to the other. That is a Steiner tree problem, and between two pieces it comes
+down to a shortest path: every part added widens the set of reachable ports,
+and you look for the cheapest route until you touch a port of the other piece.
 
-A* met als heuristiek de resterende afstand gedeeld door hoever een onderdeel
-maximaal reikt. Zonder heuristiek dwaalt de zoeker af: er zijn bijna duizend
-plaatsingen per poort.
+A* with, as its heuristic, the remaining distance divided by how far a part
+reaches at most. Without a heuristic the search wanders off: there are close to
+a thousand placements per port.
 """
 from __future__ import annotations
 
@@ -29,7 +28,7 @@ from .portsynth import Placed, world_ports, part_ports, rotations_mapping, ROUND
 from .voxel import ROTATIONS, voxels
 
 HALF_STUD = 10.0
-MAX_REACH = 220.0          # langste onderdeel in de voorraad, in LDU
+MAX_REACH = 220.0          # longest part in the inventory, in LDU
 
 
 def _port_key(p, a):
@@ -39,8 +38,8 @@ def _port_key(p, a):
 def placements_at(point, axis, cat: dict, want_gender: str = "F",
                   want_kind=None, cap: int = 25) -> list[Placed]:
     """
-    Plaatsingen waarbij een poort van het onderdeel op `point` valt met de as
-    langs `axis`. want_gender 'F' zoekt gaten, 'M' zoekt pennen.
+    Placements where a port of the part lands on `point` with the axis along
+    `axis`. want_gender 'F' looks for holes, 'M' looks for pins.
     """
     point = np.asarray(point, float)
     axis = np.asarray(axis, float); axis = axis / np.linalg.norm(axis)
@@ -71,7 +70,7 @@ def placements_at(point, axis, cat: dict, want_gender: str = "F",
 
 
 def free_ports(parts: list[Placed], cat: dict) -> list[tuple]:
-    """Alle poorten van een stuk, als (positie, as, soort, geslacht)."""
+    """Every port of a piece, as (position, axis, kind, gender)."""
     out = []
     for p in parts:
         h, pn = world_ports(p, cat)
@@ -100,8 +99,8 @@ def connect(comp_a: list[Placed], comp_b: list[Placed], cat: dict,
             blocked: frozenset = frozenset(), max_parts: int = 3,
             beam: int = 14, cost_fn=None) -> list[Placed] | None:
     """
-    Goedkoopste ketting onderdelen die stuk A aan stuk B knoopt.
-    Geeft de toe te voegen onderdelen terug, of None.
+    Cheapest chain of parts tying piece A to piece B.
+    Returns the parts to add, or None.
     """
     cost_fn = cost_fn or (lambda pl: 1.0)
 
@@ -115,7 +114,7 @@ def connect(comp_a: list[Placed], comp_b: list[Placed], cat: dict,
 
     base_cells = frozenset().union(*[_cells(p) for p in comp_a + comp_b]) | blocked
 
-    HW = 6.0        # gewicht van de heuristiek; zonder dit is A* gewoon BFS
+    HW = 6.0        # heuristic weight; without it A* is just BFS
 
     def h(pl: Placed) -> float:
         h_, pn = world_ports(pl, cat)
@@ -124,17 +123,18 @@ def connect(comp_a: list[Placed], comp_b: list[Placed], cat: dict,
             return 1e9
         axs = np.vstack([x[3:6] for x in list(h_) + list(pn)])
         axs = axs / np.linalg.norm(axs, axis=1, keepdims=True)
-        # Alleen poorten met dezelfde as kunnen ooit verbonden worden. Meet je
-        # de afstand zonder dat onderscheid, dan beloont de heuristiek juist de
-        # kandidaten die nutteloos boven op het doel liggen met een gat dwars
-        # erop, en snijdt hij de haakse verbinders weg die het wel oplossen.
+        # Only ports sharing an axis can ever be connected. Measure the
+        # distance without that distinction and the heuristic rewards exactly
+        # those candidates sitting uselessly on top of the target with a hole
+        # across it, and prunes away the perpendicular connectors that do solve
+        # it.
         align = np.abs(axs @ target_axes.T)
         d = np.linalg.norm(pts[:, None, :] - target_pts[None, :, :], axis=2)
         d = np.where(align > 1 - 1e-6, d, np.inf)
         best = float(d.min())
         if not np.isfinite(best):
-            # geen enkele as komt overeen: waardeer op hoe dicht de richtingen
-            # bij elkaar komen, want dat is wat een volgende schakel moet doen
+            # no axis matches at all: score on how close the directions come
+            # to each other, since that is what a next link has to fix
             return HW * (1.0 + (1.0 - float(align.max())))
         return HW * best / MAX_REACH
 
@@ -157,15 +157,15 @@ def connect(comp_a: list[Placed], comp_b: list[Placed], cat: dict,
         used = frozenset().union(*[_cells(p) for p in chain]) if chain else frozenset()
         occupied = base_cells | used
 
-        # Poorten sorteren op afstand tot het doel en alleen de dichtstbijzijnde
-        # uitbreiden. Willekeurig afsnijden gooit juist de nuttige poorten weg.
+        # Sort ports by distance to the target and expand only the nearest.
+        # Truncating arbitrarily throws away precisely the useful ports.
         fr = sorted(frontier,
                     key=lambda k: float(np.min(np.linalg.norm(
                         target_pts - np.array(k[0]), axis=1))))
         cands = []
         for key in fr[:8]:
             pos, ax = np.array(key[0]), np.array(key[1])
-            # pen in het bereikbare gat, of gat op gat met een pin ertussen
+            # pin into the reachable hole, or hole on hole with a pin between
             for pl in (placements_at(pos, ax, cat, "M", cap=14)
                        + placements_at(pos, ax, cat, "F", ROUND, cap=14)):
                 if pl in chain:
@@ -187,14 +187,14 @@ def connect(comp_a: list[Placed], comp_b: list[Placed], cat: dict,
 
 
 # --------------------------------------------------------------------------
-# index: het verschil tussen 7,7 ms en microseconden per zoekvraag
+# index: the difference between 7.7 ms and microseconds per query
 # --------------------------------------------------------------------------
 
 _INDEX: dict = {}
 
 
 def _axis_key(a) -> tuple:
-    """Gaten zijn richtingloos: +Y en -Y zijn hetzelfde gat."""
+    """Holes have no direction: +Y and -Y are the same hole."""
     a = np.asarray(a, float)
     a = a / np.linalg.norm(a)
     for v in a:
@@ -207,16 +207,16 @@ def _axis_key(a) -> tuple:
 
 def build_index(cat: dict) -> dict:
     """
-    Draai de vraag om.
+    Turn the question around.
 
-    De zoeker vraagt telkens: welk onderdeel heeft een gat op DIT punt met DEZE
-    richting. Dat beantwoorden door alle onderdelen langs te lopen kost 7,7 ms.
-    Maar de verzameling antwoorden hangt niet van het punt af - alleen van de
-    richting. Dus reken een keer voor elke combinatie van onderdeel, gat en
-    rotatie uit welke wereldrichting eruit komt, en groepeer daarop.
+    The search keeps asking: which part has a hole at THIS point with THIS
+    direction. Answering that by walking every part costs 7.7 ms. But the set
+    of answers does not depend on the point - only on the direction. So compute
+    once, for every combination of part, hole and rotation, which world
+    direction comes out, and group on that.
 
-    Een zoekvraag wordt dan: tabel opzoeken, en per treffer origin = punt min
-    de voorgedraaide gatpositie. Dat is een aftrekking.
+    A query then becomes: look up the table, and per hit origin = point minus
+    the pre-rotated hole position. That is one subtraction.
     """
     idx: dict = {}
     for pid, e in cat.items():
@@ -245,7 +245,7 @@ def index_for(cat: dict) -> dict:
 
 def placements_indexed(point, axis, cat: dict, gender: str = "F",
                        kind: int | None = None) -> list[Placed]:
-    """Zelfde antwoord als placements_at, maar via de index."""
+    """The same answer as placements_at, but through the index."""
     idx = index_for(cat)
     point = np.asarray(point, float)
     key_axis = _axis_key(axis)
@@ -267,13 +267,13 @@ def placements_topk(point, axis, cat: dict, gender: str = "F",
                     kind: int | None = None, target_pts=None,
                     k: int = 24) -> list[Placed]:
     """
-    Zelfde opzoeking, maar filter en scoor VECTORIEEL en maak pas objecten van
-    de beste k.
+    The same lookup, but filter and score VECTORIZED and only build objects for
+    the best k.
 
-    Dat is waar de tijd zat. De index vindt in microseconden 2600 kandidaten,
-    en vervolgens kost het 16 milliseconden om er 2600 Python-objecten van te
-    maken die daarna vrijwel allemaal worden weggegooid. Score eerst, bouw
-    daarna alleen wat je houdt.
+    That is where the time went. The index finds 2600 candidates in
+    microseconds, and then it costs 16 milliseconds to turn them into 2600
+    Python objects that are almost all thrown away again. Score first, build
+    only what you keep.
     """
     idx = index_for(cat)
     point = np.asarray(point, float)

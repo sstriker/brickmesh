@@ -77,10 +77,11 @@ def gear_plane(g: ldraw.PartGeometry, axis: int) -> float:
 
 def bevel_placement(apex, diff_axis, radius: float, azimuth_deg: float):
     """
-    Plaats van het rondsel rond de kroon. De ingrijping blijft haaks; de azimut
-    draait alleen het hele deelsamenstel om de as van het differentieel.
+    Position of the pinion around the crown. The engagement stays
+    perpendicular; the azimuth only turns the whole sub-assembly about the axis
+    of the differential.
 
-    Geeft (positie, orientatie, lagerpunten-op-het-raster).
+    Returns (position, orientation, bearing-points-on-the-grid).
     """
     d = np.asarray(diff_axis, dtype=float); d /= np.linalg.norm(d)
     tmp = np.array([1.0, 0, 0]) if abs(d[0]) < 0.9 else np.array([0, 1.0, 0])
@@ -90,10 +91,10 @@ def bevel_placement(apex, diff_axis, radius: float, azimuth_deg: float):
     direction = np.cos(t) * u + np.sin(t) * v
     pos = np.asarray(apex, dtype=float) + radius * direction
 
-    # Waar op deze as valt een lager op het gaatjesraster?
-    # Tolerantie in LDU, niet exact: een azimut die als 36,87 graden wordt
-    # doorgegeven is een afronding van arctan(3/4) en valt anders net buiten.
-    # Voor exact werk: geef de azimut als drietal, niet als graden.
+    # Where along this axis does a bearing land on the hole grid?
+    # Tolerance in LDU, not exact: an azimuth passed in as 36.87 degrees is a
+    # rounding of arctan(3/4) and would otherwise fall just outside it.
+    # For exact work, give the azimuth as a triple rather than in degrees.
     bearings = []
     for dist in np.arange(20.0, 320.0, 20.0):
         p = np.asarray(apex, dtype=float) + dist * direction
@@ -104,12 +105,12 @@ def bevel_placement(apex, diff_axis, radius: float, azimuth_deg: float):
 
 
 def azimuth_from_triple(a: int, b: int) -> float:
-    """Exacte azimut uit een pythagorees drietal, zonder afrondverlies."""
+    """Exact azimuth from a Pythagorean triple, without rounding loss."""
     return float(np.degrees(np.arctan2(b, a)))
 
 
 def buildable_azimuths(max_reach_studs: int = 8) -> list[tuple[float, int, int, int]]:
-    """Azimuts waarbij een lager op het raster valt, uit pythagorese drietallen."""
+    """Azimuths where a bearing lands on the grid, from Pythagorean triples."""
     out = []
     for a in range(0, max_reach_studs + 1):
         for b in range(0, max_reach_studs + 1):
@@ -128,7 +129,7 @@ def buildable_azimuths(max_reach_studs: int = 8) -> list[tuple[float, int, int, 
 
 
 BUILDABLE_AZIMUTHS = {
-    0.00:   (1, 0, 1),      # (been a, been b, reik c) - ligt al op het raster
+    0.00:   (1, 0, 1),      # (leg a, leg b, reach c) - already on the grid
     36.87:  (4, 3, 5),
     53.13:  (3, 4, 5),
     90.00:  (0, 1, 1),
@@ -139,13 +140,13 @@ BUILDABLE_AZIMUTHS = {
 
 def azimuth_frame(diff_axis: str, azimuth_deg: float):
     """
-    Het rondsel mag overal langs de omtrek van de kroon zitten: de ingrijping
-    blijft haaks, alleen het geheel draait. Dit geeft de orientatie en de
-    richtingsvector die daarbij horen.
+    The pinion may sit anywhere along the circumference of the crown: the
+    engagement stays perpendicular, only the whole assembly turns. This gives
+    the orientation and the direction vector that go with it.
 
-    De vrijheid is continu voor de tandwielen maar gekwantiseerd voor de
-    lagering: een lager op afstand d onder hoek theta komt op (d cos, d sin) en
-    beide moeten op het raster vallen. Dat kan alleen bij pythagorese hoeken.
+    The freedom is continuous for the gears but quantized for the bearings: a
+    bearing at distance d and angle theta lands at (d cos, d sin) and both have
+    to fall on the grid. That is only possible at Pythagorean angles.
     """
     ax = "xyz".index(diff_axis)
     perp = [i for i in range(3) if i != ax]
@@ -164,20 +165,20 @@ def azimuth_frame(diff_axis: str, azimuth_deg: float):
         "error_deg": err,
         "legs": legs,
         "reach_studs": legs[2],
-        "note": ("ligt op het raster" if err < 0.01 else
-                 f"NIET bouwbaar: dichtstbij is {nearest:.2f} deg "
-                 f"({legs[0]}-{legs[1]}-{legs[2]}), {err:.2f} deg ernaast"),
+        "note": ("lands on the grid" if err < 0.01 else
+                 f"NOT buildable: nearest is {nearest:.2f} deg "
+                 f"({legs[0]}-{legs[1]}-{legs[2]}), {err:.2f} deg off"),
     }
 
 
 def orient_for_hole_axis(part: str, world_axis) -> np.ndarray:
     """
-    Orientatie die het gat van een onderdeel langs de gevraagde wereld-as legt.
-    Haalt de gat-as uit de LDCad shadow library in plaats van hem te gokken.
+    Orientation putting a part's hole along the requested world axis. Takes the
+    hole axis from the LDCad shadow library instead of guessing at it.
     """
     got = snap.rotation_axis(part)
     if got is None:
-        raise ValueError(f"{part}: geen shadowdata, gat-as onbekend")
+        raise ValueError(f"{part}: no shadow data, hole axis unknown")
     src = got[0] / np.linalg.norm(got[0])
     dst = np.asarray(world_axis, dtype=float)
     dst = dst / np.linalg.norm(dst)
@@ -194,7 +195,7 @@ class Part:
     ldraw_name: str
     pos: np.ndarray                      # LDU
     orient: np.ndarray = field(default_factory=lambda: IDENTITY.copy())
-    colour: int = 71
+    color: int = 71
     label: str = ""
     teeth: int | None = None             # set for gears
     shaft: str | None = None             # name of the shaft it sits on
@@ -215,7 +216,7 @@ class Part:
             return got
         idx, conf = infer_native_axis(self.geo)
         v = np.zeros(3); v[idx] = 1.0
-        return v, f"bounding box heuristiek ({conf})"
+        return v, f"bounding box heuristic ({conf})"
 
     @property
     def axis_vec(self) -> np.ndarray:
@@ -258,19 +259,19 @@ class Model:
         out = []
         for p in self.parts:
             if p.teeth is None:
-                continue          # assen en balken hebben geen rotatie-as nodig
+                continue          # axles and beams need no rotation axis
             _, src = p.native_axis
             if src.startswith("LDCad"):
-                out.append(Finding("OK", "as-richting",
+                out.append(Finding("OK", "axis direction",
                                    f"{p.label or p.ldraw_name}: {src}"))
             else:
-                out.append(Finding("WARN", "as-richting",
-                                   f"{p.label or p.ldraw_name}: geen shadowdata, "
-                                   f"teruggevallen op {src} — verifieren"))
+                out.append(Finding("WARN", "axis direction",
+                                   f"{p.label or p.ldraw_name}: no shadow data, "
+                                   f"fell back on {src} — verify this"))
         return out
 
     def check_phase(self) -> list[Finding]:
-        """Welke tandstand elk tandwiel nodig heeft om te kammen."""
+        """Which tooth phase each gear needs in order to mesh."""
         out = []
         for a, b in self.declared_meshes:
             pa, pb = self.parts[a], self.parts[b]
@@ -278,7 +279,7 @@ class Model:
                 continue
             va, vb = pa.axis_vec, pb.axis_vec
             if abs(abs(float(np.dot(va, vb))) - 1.0) > 1e-6:
-                continue                      # conisch: fase niet zo af te leiden
+                continue                      # bevel: phase not derivable this way
             d = pb.pos - pa.pos
             perp = d - np.dot(d, va) * va
             if np.linalg.norm(perp) < 1e-6:
@@ -287,22 +288,22 @@ class Model:
                 r = teeth.mesh_phase(pa.ldraw_name, pa.teeth, pa.native_axis[0],
                                      pb.ldraw_name, pb.teeth, pb.native_axis[0], perp)
             except Exception as exc:
-                out.append(Finding("WARN", "tandstand",
-                                   f"{pa.label}/{pb.label}: fase niet af te leiden ({exc})"))
+                out.append(Finding("WARN", "tooth phase",
+                                   f"{pa.label}/{pb.label}: phase not derivable ({exc})"))
                 continue
             worst = min(r["sharpness_a"], r["sharpness_b"])
             lvl = "OK" if worst > 0.45 else "WARN"
             out.append(Finding(
-                lvl, "tandstand",
-                f"{pa.label}: draai {r['rot_a_deg']:.1f} deg om eigen as "
-                f"(steek {r['pitch_a_deg']:.1f}); {pb.label}: draai {r['rot_b_deg']:.1f} deg "
-                f"(steek {r['pitch_b_deg']:.1f}). Tandherkenning {worst:.2f}"))
+                lvl, "tooth phase",
+                f"{pa.label}: rotate {r['rot_a_deg']:.1f} deg about its own axis "
+                f"(pitch {r['pitch_a_deg']:.1f}); {pb.label}: rotate {r['rot_b_deg']:.1f} deg "
+                f"(pitch {r['pitch_b_deg']:.1f}). Tooth detection {worst:.2f}"))
         return out
 
     def check_axle_phase_conflicts(self) -> list[Finding]:
         """
-        Twee kammende tandwielen op dezelfde as: hun onderlinge fase ligt vast,
-        dus je kunt zelden beide ingrijpingen tegelijk perfect stellen.
+        Two meshing gears on the same shaft: their relative phase is fixed, so
+        you can rarely set both engagements perfectly at the same time.
         """
         out = []
         by_shaft: dict[str, list[Part]] = {}
@@ -314,10 +315,10 @@ class Model:
             if len(ps) > 1:
                 names = ", ".join(x.label or x.ldraw_name for x in ps)
                 out.append(Finding(
-                    "WARN", "tandstand",
-                    f"as '{shaft}' draagt {len(ps)} kammende tandwielen ({names}). "
-                    f"Hun onderlinge stand ligt vast, dus beide ingrijpingen precies "
-                    f"stellen kan niet — speling moet het verschil opvangen."))
+                    "WARN", "tooth phase",
+                    f"shaft '{shaft}' carries {len(ps)} meshing gears ({names}). "
+                    f"Their relative orientation is fixed, so setting both engagements "
+                    f"exactly is impossible — backlash has to absorb the difference."))
         return out
 
     def check_meshes(self) -> list[Finding]:
@@ -336,15 +337,15 @@ class Model:
                 if key in self.verified_bevels:
                     out.append(Finding(
                         "OK", "mesh",
-                        f"{pa.label}/{pb.label}: conisch, handmatig geverifieerd "
+                        f"{pa.label}/{pb.label}: bevel, manually verified "
                         f"({self.verified_bevels[key]})"))
                 else:
                     out.append(Finding(
                         "FAIL", "mesh",
-                        f"{pa.label}/{pb.label}: CONISCHE INGRIJPING, POSITIE NIET "
-                        f"GEVERIFIEERD. Niet af te leiden uit geometrie. Meet dit fysiek "
-                        f"of laat Stud.io de twee onderdelen aan elkaar snappen, en zet "
-                        f"de maat in verified_bevels. Tot die tijd is dit model fout."))
+                        f"{pa.label}/{pb.label}: BEVEL ENGAGEMENT, POSITION NOT "
+                        f"VERIFIED. Not derivable from geometry. Measure it physically "
+                        f"or let Stud.io snap the two parts together, and put the "
+                        f"measurement in verified_bevels. Until then this model is wrong."))
                 continue
 
             # distance measured perpendicular to the shared axis
@@ -363,8 +364,8 @@ class Model:
                 out.append(Finding(
                     "FAIL", "mesh",
                     f"{pa.label} ({pa.teeth}t) / {pb.label} ({pb.teeth}t): "
-                    f"{actual:.1f} LDU, moet {want:.1f} LDU zijn "
-                    f"({want/LDU_STUD:.3f} stud). Afwijking {err:+.1f} LDU."))
+                    f"{actual:.1f} LDU, should be {want:.1f} LDU "
+                    f"({want/LDU_STUD:.3f} stud). Deviation {err:+.1f} LDU."))
         return out
 
     def check_grid(self) -> list[Finding]:
@@ -375,15 +376,15 @@ class Model:
                 if abs(v / 10.0 - round(v / 10.0)) > 1e-6:
                     out.append(Finding(
                         "WARN", "grid",
-                        f"{p.label or p.ldraw_name}: {ax}={v:.2f} LDU ligt niet op een "
-                        f"halve stud (10 LDU). Bewust? Anders bouwtechnisch niet te maken."))
+                        f"{p.label or p.ldraw_name}: {ax}={v:.2f} LDU does not lie on a "
+                        f"half stud (10 LDU). Deliberate? Otherwise it cannot be built."))
         return out
 
     def _is_bearing(self, pa: "Part", pb: "Part") -> bool:
         """
-        Steekt een as door een gat van het andere onderdeel? Dan is de aanraking
-        gewenst, geen fout. Gatpositie volgt uit de shadow-as plus de vaste
-        LEGO-steek van 20 LDU langs de lengte van het onderdeel.
+        Does an axle pass through a hole of the other part? Then the contact is
+        wanted, not an error. Hole position follows from the shadow axis plus
+        the fixed LEGO pitch of 20 LDU along the length of the part.
         """
         for axle, host in ((pa, pb), (pb, pa)):
             try:
@@ -396,19 +397,20 @@ class Model:
             axle_axis_w = axle.axis_vec
             if abs(abs(float(np.dot(hole_axis_w, axle_axis_w))) - 1.0) > 1e-3:
                 continue
-            # as-lijn omzetten naar het lokale assenstelsel van de gastheer
+            # convert the shaft line into the host part's local frame
             rel = host.orient.T @ (axle.pos - host.pos)
             perp = rel - np.dot(rel, haxis) * haxis
             d = np.linalg.norm(perp)
-            # gaten liggen op veelvouden van 20 LDU langs de lengterichting
+            # holes lie at multiples of 20 LDU along the length direction
             if d < 2.0 or abs(d / 20.0 - round(d / 20.0)) < 0.12:
                 return True
         return False
 
     def check_collisions(self, tol: float = 1.0) -> list[Finding]:
         """
-        Echte doorsnijding op driehoekniveau via FCL. Bounding boxes gaven te
-        veel valse meldingen: een as die door een gat steekt overlapte altijd.
+        Real intersection at triangle level through FCL. Bounding boxes gave
+        too many false reports: an axle passing through a hole always
+        overlapped.
         """
         import trimesh
 
@@ -430,36 +432,36 @@ class Model:
 
         hit, pairs = mgr.in_collision_internal(return_names=True)
         if not hit:
-            out.append(Finding("OK", "botsing", "geen doorsnijdingen gevonden (FCL)"))
+            out.append(Finding("OK", "collision", "no intersections found (FCL)"))
             return out
 
         for a, b in pairs:
             i, j = idx_by_name[a], idx_by_name[b]
             pa, pb = self.parts[i], self.parts[j]
             if tuple(sorted((i, j))) in meshed:
-                continue                       # kammende tandwielen raken elkaar
+                continue                       # meshing gears do touch
             if pa.shaft and pa.shaft == pb.shaft:
-                continue                       # zelfde as
+                continue                       # same shaft
             names = {(pa.label, pb.label), (pb.label, pa.label)}
             if names & set(self.expected):
                 continue
             if self._is_bearing(pa, pb):
-                out.append(Finding("OK", "botsing",
-                                   f"{pa.label} door {pb.label}: aslagering, gewenst contact"))
+                out.append(Finding("OK", "collision",
+                                   f"{pa.label} through {pb.label}: shaft bearing, wanted contact"))
                 continue
             out.append(Finding(
-                "FAIL", "botsing",
-                f"{pa.label or pa.ldraw_name} snijdt {pb.label or pb.ldraw_name} "
-                f"— echte doorsnijding, niet alleen bounding box"))
+                "FAIL", "collision",
+                f"{pa.label or pa.ldraw_name} intersects {pb.label or pb.ldraw_name} "
+                f"— a real intersection, not just a bounding box"))
         if not any(f.level == "FAIL" for f in out):
-            out.append(Finding("OK", "botsing", "alle contacten zijn verwacht (FCL)"))
+            out.append(Finding("OK", "collision", "every contact is expected (FCL)"))
         return out
 
     def solve_phases(self) -> list[str]:
         """
-        Bereken de benodigde tandstand per ingrijping en pas hem toe op de
-        orientatie van de tandwielen. Een as die al een gestelde tandwiel draagt
-        wordt niet nog eens gedraaid: die fase ligt dan vast.
+        Compute the tooth phase each engagement needs and apply it to the
+        orientation of the gears. A shaft already carrying a gear that has been
+        set is not rotated again: that phase is fixed by then.
         """
         log, locked = [], set()
         for a, b in self.declared_meshes:
@@ -477,15 +479,15 @@ class Model:
                                  pb.ldraw_name, pb.teeth, pb.native_axis[0], perp)
             for part, key, deg in ((pa, a, r["rot_a_deg"]), (pb, b, r["rot_b_deg"])):
                 if part.shaft in locked:
-                    log.append(f"  {part.label}: fase overgeslagen, as "
-                               f"'{part.shaft}' is al gesteld")
+                    log.append(f"  {part.label}: phase skipped, shaft "
+                               f"'{part.shaft}' has already been set")
                     continue
                 axis_local, _ = part.native_axis
                 idx = int(np.argmax(np.abs(axis_local)))
                 part.orient = part.orient @ rot("xyz"[idx], deg)
                 if part.shaft:
                     locked.add(part.shaft)
-                log.append(f"  {part.label}: {deg:+.2f} deg om {'XYZ'[idx]}")
+                log.append(f"  {part.label}: {deg:+.2f} deg about {'XYZ'[idx]}")
         return log
 
     def run_checks(self) -> list[Finding]:
@@ -504,6 +506,6 @@ class Model:
             nums = " ".join(f"{v:g}" for v in [x, y, z, *m])
             if p.label:
                 lines.append(f"0 // {p.label}")
-            lines.append(f"1 {p.colour} {nums} {p.ldraw_name}")
+            lines.append(f"1 {p.color} {nums} {p.ldraw_name}")
         lines.append("0")
         return "\n".join(lines)

@@ -1,6 +1,6 @@
 # brickmesh
 
-Tooling to analyse and construct LEGO Technic mechanisms *before* you build
+Tooling to analyze and construct LEGO Technic mechanisms *before* you build
 them. Original creations rarely fail on the idea and almost always on the
 execution: the gear train does not close on the lattice, a shaft has only one
 bearing, the structure hinges. This catches that.
@@ -14,7 +14,7 @@ occupy the same place.
 | layer | question | catches |
 |---|---|---|
 | **functional** | what drives what? | locked trains, motors fighting each other, loops that do not close |
-| **geometric** | where do the shafts lie? | centre distances off the lattice, parts overlapping |
+| **geometric** | where do the shafts lie? | center distances off the lattice, parts overlapping |
 | **stations** | where on the shaft do the gears sit? | gears overlapping, no room left for bearings |
 | **structural** | what holds it together? | shafts with one bearing, loose pieces, hinging structures |
 
@@ -28,7 +28,7 @@ Python does the data extraction, Go does the computation.
 
 ```
 extract/     Python. Reads the LDraw parts library and the LDCad shadow
-             library, expands the grids, writes a single catalogue file.
+             library, expands the grids, writes a single catalog file.
              Run once.
 
 internal/    Go. Index, occupancy grid, search algorithms, .ldr output.
@@ -46,7 +46,7 @@ Working and validated:
 
 - functional layer: degrees of freedom, speeds, loop closure, torque
 - geometric layer: shaft lines on the lattice, gear stations
-- catalogue: 2796 usable parts, 21617 ports from the shadow library
+- catalog: 2796 usable parts, 21617 ports from the shadow library
 - collision detection: voxel occupancy (coarse) and FCL (exact)
 - tooth phase: derived from geometry, self-checked against half a pitch
 - rigidity: mobility formula, planar and spatial
@@ -59,10 +59,7 @@ Not finished:
 - bevel engagement: the position cannot be derived reliably, see
   `docs/findings.md`
 
-Note: the Python modules under `extract/` still carry Dutch docstrings and
-comments. Translation is pending.
-
-## Licence
+## License
 
 Apache 2.0, see `LICENSE`.
 

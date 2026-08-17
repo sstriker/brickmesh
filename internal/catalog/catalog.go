@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Sander Striker
 
-// Package catalog reads the parts catalogue produced by the Python extractor
+// Package catalog reads the parts catalog produced by the Python extractor
 // and builds the search index over it.
 //
 // The index is where the performance lives. The solver keeps asking: which
@@ -59,7 +59,7 @@ type Catalog struct {
 }
 
 type indexKey struct {
-	axis   geom.Vec3 // normalised, sign-free
+	axis   geom.Vec3 // normalized, sign-free
 	gender Gender
 	kind   PortKind
 }
@@ -81,11 +81,11 @@ type jsonPart struct {
 	Pins  [][7]float64 `json:"pins"`
 }
 
-// Load reads the catalogue from the JSON the extractor writes.
+// Load reads the catalog from the JSON the extractor writes.
 func Load(r io.Reader) (*Catalog, error) {
 	var raw []jsonPart
 	if err := json.NewDecoder(r).Decode(&raw); err != nil {
-		return nil, fmt.Errorf("reading catalogue: %w", err)
+		return nil, fmt.Errorf("reading catalog: %w", err)
 	}
 	c := &Catalog{Parts: make(map[string]*Part, len(raw))}
 	for _, jp := range raw {
@@ -130,7 +130,7 @@ func axisKey(a geom.Vec3) geom.Vec3 {
 	return a.Round(3)
 }
 
-// BuildIndex populates the search index. Once per catalogue.
+// BuildIndex populates the search index. Once per catalog.
 func (c *Catalog) BuildIndex(maxTier uint8) {
 	c.index = make(map[indexKey][]Candidate)
 	for _, p := range c.Parts {

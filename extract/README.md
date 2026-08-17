@@ -12,5 +12,3 @@ Why this stays in Python rather than moving to Go: the parsing is full of edge
 cases that each had to be found — group snaps that are not pins, subparts that
 do not exist separately, hole rows the shadow library only half describes.
 Rewriting that gains nothing and costs you the same bugs again.
-
-Note: the module docstrings and comments in this package are still in Dutch.
