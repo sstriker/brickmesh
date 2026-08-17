@@ -4,7 +4,7 @@ Run this once. It fetches the LDraw parts library and the LDCad shadow library,
 expands the grids, filters out everything that is not a real orderable part,
 and writes `data/catalog.json` for the Go engine.
 
-```
+```console
 python -m brickmesh_extract.build --out ../data/catalog.json --tier 2
 ```
 

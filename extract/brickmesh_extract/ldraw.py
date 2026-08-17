@@ -40,7 +40,7 @@ def fetch(name: str) -> str:
     name = name.replace("\\", "/").lower()
     cp = _cache_path(name)
     if os.path.exists(cp):
-        with open(cp, "r", encoding="utf-8", errors="replace") as fh:
+        with open(cp, encoding="utf-8", errors="replace") as fh:
             return fh.read()
 
     os.makedirs(CACHE, exist_ok=True)

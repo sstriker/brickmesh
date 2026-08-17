@@ -1,4 +1,0 @@
-numpy>=1.26
-scipy>=1.11
-trimesh>=4.0
-python-fcl>=0.7

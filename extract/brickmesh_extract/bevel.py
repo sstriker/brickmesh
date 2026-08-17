@@ -92,7 +92,7 @@ def solve(diff_part: str = "62821.dat", gear_part: str = "32270.dat",
     return float(best[0]), float(best[1]), {
         "min_gap_LDU": float(best[2]),
         "contact_points": int(best[3]),
-        "candidates_touching": int(len(touching)),
+        "candidates_touching": len(touching),
         "radial_stud": float(best[0]) / 20.0,
         "axial_stud": float(best[1]) / 20.0,
     }

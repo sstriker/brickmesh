@@ -1,0 +1,13 @@
+config:
+  # Prose here is hard-wrapped at 80 but tables and links run past it; wrapping
+  # a table to satisfy a linter makes it unreadable.
+  MD013: false
+  # The README deliberately repeats "## Status"-style headings across sections.
+  MD024:
+    siblings_only: true
+  # Bare URLs are fine in ATTRIBUTION.md.
+  MD034: false
+
+globs:
+  - "**/*.md"
+  - "!.venv"

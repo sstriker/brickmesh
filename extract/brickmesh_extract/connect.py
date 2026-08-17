@@ -20,11 +20,10 @@ a thousand placements per port.
 from __future__ import annotations
 
 import heapq
-from dataclasses import dataclass
 
 import numpy as np
 
-from .portsynth import Placed, world_ports, part_ports, rotations_mapping, ROUND, CROSS
+from .portsynth import ROUND, Placed, part_ports, rotations_mapping, world_ports
 from .voxel import ROTATIONS, voxels
 
 HALF_STUD = 10.0

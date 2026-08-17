@@ -13,8 +13,9 @@ those shafts then lie. Every transmission imposes a geometric requirement:
 That is a constraint problem on a lattice, so finite and enumerable. No
 optimization is needed, only a search with backtracking.
 
-The unit is the half stud (10 LDU), because every tooth count is a multiple of
-four and every center distance therefore lands on a whole half stud.
+The unit is the half stud (10 LDU). A center distance lands on a whole half
+stud when the two tooth counts SUM to a multiple of 8, which covers most pairs
+but not all: 8t+12t and 36t+40t fall on a quarter stud instead.
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .mech import Mechanism, Mesh, Differential
+from .mech import Differential, Mechanism, Mesh
 
 HALF_STUD = 10.0
 

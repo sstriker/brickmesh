@@ -380,7 +380,7 @@ class Model:
                         f"half stud (10 LDU). Deliberate? Otherwise it cannot be built."))
         return out
 
-    def _is_bearing(self, pa: "Part", pb: "Part") -> bool:
+    def _is_bearing(self, pa: Part, pb: Part) -> bool:
         """
         Does an axle pass through a hole of the other part? Then the contact is
         wanted, not an error. Hole position follows from the shadow axis plus

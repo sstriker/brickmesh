@@ -120,9 +120,10 @@ func ToCell(v Vec3) Cell {
 
 func (c Cell) Add(o Cell) Cell { return Cell{c.X + o.X, c.Y + o.Y, c.Z + o.Z} }
 
-// PitchDistance is the center distance at which two parallel gears mesh. All
-// standard tooth counts are multiples of 4, so this always lands on a whole
-// half-stud.
+// PitchDistance is the center distance at which two parallel gears mesh. It
+// lands on a whole half stud exactly when the two tooth counts SUM to a
+// multiple of 8 — being multiples of 4 individually is not enough. 8t+12t
+// (25 LDU) and 36t+40t (95 LDU) are the buildable pairs that fall between.
 func PitchDistance(t1, t2 int) float64 { return float64(t1+t2) / 16.0 * Stud }
 
 // EffectiveRadius is the radius at which a gear engages.

@@ -1,0 +1,84 @@
+[project]
+name = "brickmesh-extract"
+version = "0.1.0"
+description = "Extractor for brickmesh: reads the LDraw and LDCad shadow libraries into a parts catalog"
+authors = [
+    { name = "Sander Striker", email = "s.striker@striker.nl" },
+]
+requires-python = ">=3.12"
+readme = "extract/README.md"
+license = "Apache-2.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+# Building the catalog needs numpy and nothing else: catalog.py, snap.py,
+# ldraw.py, mech.py and layout.py are pure array work. The mesh-level modules
+# (holes, voxel, interfere, bevel) are the ones that need a collision library,
+# so those dependencies are an extra rather than a hard requirement.
+dependencies = [
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+geometry = [
+    "scipy>=1.11",
+    "trimesh>=4.0",
+    "python-fcl>=0.7",
+]
+
+[dependency-groups]
+test = [
+    "pytest>=8.0",
+]
+dev = [
+    "prek>=0.2.0,<0.3",
+    "ruff>=0.9.4",
+]
+
+[tool.uv]
+default-groups = ["test", "dev"]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = "extract"
+module-name = "brickmesh_extract"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "I",   # isort
+    "E",
+    "W",
+    "F",
+    "RUF", # ruff-checks
+    "UP",  # pyupgrade
+]
+ignore = [
+    # `a = x; b = y` on one line is used deliberately throughout the extractor
+    # to keep paired assignments together; 46 sites, all intentional.
+    "E702",
+    # `l` reads as a link in mech/layout, where it matches the maths being
+    # transcribed. Renaming would obscure more than it clarifies.
+    "E741",
+    # The four below are cosmetic, and ruff offers only `--unsafe-fixes` for
+    # them. They sit in the search code, which has no test coverage yet, so
+    # they are recorded rather than applied. Worth revisiting once the covering
+    # and connection searches are finished and tested.
+    "RUF005",  # `[*chosen, placed]` over `chosen + [placed]`
+    "RUF007",  # itertools.pairwise over zip(x, x[1:])
+    "RUF046",  # int(round(x)) — redundant, round() on a numpy scalar gives int
+    "RUF059",  # unpacked-but-unused loop variables
+]

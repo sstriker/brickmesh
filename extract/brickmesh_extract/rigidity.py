@@ -27,8 +27,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .synth import BEAMS, Placed, _local_hole_axis, hole_offsets
 from .voxel import ROTATIONS
-from .synth import Placed, hole_offsets, _local_hole_axis, BEAMS
 
 TOL = 1e-6
 

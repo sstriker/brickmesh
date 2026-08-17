@@ -17,12 +17,13 @@ from __future__ import annotations
 
 import itertools
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
-HALF_STUD = 10.0          # LDU. All tooth counts are multiples of 4, so center
-                          # distances always land on whole half studs.
+HALF_STUD = 10.0          # LDU. A center distance lands on a whole half stud
+                          # when the two tooth counts SUM to a multiple of 8;
+                          # 8t+12t and 36t+40t are the pairs that do not.
 
 
 # --------------------------------------------------------------------------

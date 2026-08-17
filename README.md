@@ -12,7 +12,7 @@ tidiness but necessity — a functional graph happily allows two differentials t
 occupy the same place.
 
 | layer | question | catches |
-|---|---|---|
+| --- | --- | --- |
 | **functional** | what drives what? | locked trains, motors fighting each other, loops that do not close |
 | **geometric** | where do the shafts lie? | center distances off the lattice, parts overlapping |
 | **stations** | where on the shaft do the gears sit? | gears overlapping, no room left for bearings |
@@ -26,7 +26,7 @@ freedom. A subtractor should have two.
 
 Python does the data extraction, Go does the computation.
 
-```
+```text
 extract/     Python. Reads the LDraw parts library and the LDCad shadow
              library, expands the grids, writes a single catalog file.
              Run once.
@@ -58,6 +58,28 @@ Not finished:
 - the connection search does not yet count loose pins in its cost
 - bevel engagement: the position cannot be derived reliably, see
   `docs/findings.md`
+
+## Building
+
+Go 1.22 or newer for the engine, [uv](https://docs.astral.sh/uv/) for the
+extractor. The two halves build and test independently; the Makefile runs both.
+
+```console
+make build   # the Go binary, into bin/
+make test    # Go and Python tests
+make lint    # vet, gofmt, staticcheck, complexity lens, ruff
+```
+
+Building the catalog needs numpy and nothing else. The mesh-level modules
+(`holes`, `voxel`, `interfere`, `bevel`) additionally need a collision library,
+which is the `geometry` extra:
+
+```console
+uv sync --extra geometry
+```
+
+`prek run --all-files` runs the same hooks CI runs. Every source file carries an
+SPDX header, and a pre-commit hook adds one to files that do not.
 
 ## License
 

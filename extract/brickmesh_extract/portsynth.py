@@ -23,7 +23,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from . import catalog
 from .voxel import ROTATIONS
 
 STUD = 20.0

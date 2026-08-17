@@ -1,0 +1,36 @@
+# golangci-lint config — COMPLEXITY LENS ONLY.
+#
+# Correctness and style are covered by `go vet`, `gofmt` and `staticcheck` (see
+# the Makefile). golangci-lint is wired in for the one axis none of those cover:
+# code complexity. `default: none` keeps it from second-guessing staticcheck.
+#
+# The thresholds are deliberately loose for now — the Go side is young, and the
+# point is to catch a regression rather than to grade what is here. Tighten them
+# as the engine fills in.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - gocyclo   # cyclomatic complexity (branch count)
+    - gocognit  # cognitive complexity (nesting-weighted: "is this hard to read")
+    - nestif    # deeply nested if blocks
+    - funlen    # over-long functions
+  settings:
+    gocyclo:
+      min-complexity: 30
+    gocognit:
+      min-complexity: 50
+    nestif:
+      min-complexity: 10
+    funlen:
+      lines: 150
+      statements: 100
+      ignore-comments: true
+  exclusions:
+    generated: lax
+    rules:
+      # Table-driven tests read fine despite high counts; the lens targets
+      # production complexity, not test scaffolding.
+      - path: _test\.go
+        linters: [gocyclo, gocognit, nestif, funlen]

@@ -15,14 +15,13 @@ candidates per requirement down to a handful.
 """
 from __future__ import annotations
 
-import heapq
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
 from . import ldraw, snap
-from .voxel import ROTATIONS, Occupancy, voxels, axis_aligned_rotations
 from .layout import Layout, Station, free_intervals
+from .voxel import ROTATIONS, axis_aligned_rotations, voxels
 
 HALF_STUD = 10.0
 STUD = 20.0
@@ -281,7 +280,7 @@ def _repair_connectivity(chosen, cells_of, holes_of, nholes, inventory):
     connecting beams until everything is one whole, each time taking the pair
     of pieces that is cheapest to bridge.
     """
-    from .rigidity import find_joints, components
+    from .rigidity import components, find_joints
 
     for _ in range(12):
         comps = components(len(chosen), find_joints(chosen, inventory))
