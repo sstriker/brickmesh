@@ -146,6 +146,11 @@ def ldraw_files() -> dict[str, str]:
         # A square hole bored through X.
         "fixtube.dat": part("Test Tube 40 x 40 with 12 LDU Bore", "fixtube.dat",
                             tube_along_x(100, 40, 12)),
+        # A slim connector, long along Y: what actually bridges two beams whose
+        # hole planes are 40 LDU apart. Thin enough that meeting them counts as
+        # touching rather than intersecting.
+        "fixpin.dat": part("Test Pin 48 LDU", "fixpin.dat",
+                           box(0, 0, 0, 8, 48, 8)),
         # Two references to the SAME subfile at different places. Deduplicating
         # repeated subfiles would collapse this into one cube, which is the bug
         # ldraw._resolve warns about.

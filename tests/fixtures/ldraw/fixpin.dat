@@ -1,0 +1,12 @@
+0 Test Pin 48 LDU
+0 Name: fixpin.dat
+0 Author: brickmesh test fixtures
+0 !LDRAW_ORG Unofficial_Part
+0 !LICENSE Apache-2.0, authored for brickmesh; NOT an LDraw part
+
+4 16 4 -24 -4 4 24 -4 4 24 4 4 -24 4
+4 16 -4 -24 4 -4 24 4 -4 24 -4 -4 -24 -4
+4 16 -4 24 4 4 24 4 4 24 -4 -4 24 -4
+4 16 -4 -24 -4 4 -24 -4 4 -24 4 -4 -24 4
+4 16 -4 -24 4 4 -24 4 4 24 4 -4 24 4
+4 16 -4 24 -4 4 24 -4 4 -24 -4 -4 -24 -4

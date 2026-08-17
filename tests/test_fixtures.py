@@ -43,6 +43,7 @@ def test_fixtures_are_not_ldraw_parts():
         ("fixbeam", 100 * 20 * 20),
         ("fixdisc", 40 * 40 * 8),
         ("fixtube", 100 * (40 * 40 - 12 * 12)),   # the bore is really open
+        ("fixpin", 8 * 48 * 8),
         ("fixpair", 2 * 40 * 40 * 40),            # two cubes, not one
     ],
 )

@@ -117,9 +117,22 @@ three-axis grid bug surfaced within an hour of starting.
       one row per transmission by one column per shaft with small integer
       coefficients, so it keeps the engine free of a dependency for no loss of
       accuracy at this size.
-- [ ] step 3: `internal/voxel` as bitsets, `internal/synth` greedy set cover
-      parallel over restarts, A* connection search, and drop the top-k
-      truncation — a correctness compromise forced by Python's allocation cost
+- [x] step 3: `internal/voxel` rasterizes to a bitset grid; `internal/synth`
+      is the greedy set cover with restarts, parallel and reproducible per
+      seed; `internal/connect` is the A* chain search. The top-k truncation is
+      simply absent — `internal/catalog`'s index returns every placement, since
+      truncating only ever dodged Python's allocation cost.
+
+      `internal/part` was carved out on the way. The repair phase asks the
+      rigidity check which pieces hang loose while the rigidity check needs the
+      search's vocabulary; Python breaks that with an import inside a function,
+      which Go cannot do, so the shared nouns live in a package neither owns.
+
+      Two things are ported but not yet wired to each other: `synth` repairs
+      connectivity with straight beams only, while `connect` can route a chain
+      through arbitrary parts. Making the repair phase call the A* search is
+      M2's "connection phase", and is what turns a structure that bears every
+      shaft into one that also holds together.
 - [ ] step 4: triangle-triangle intersection to replace FCL, gated on
       reproducing two 24t gears meshing at 60 LDU and jamming at 58
 
