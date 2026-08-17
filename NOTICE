@@ -1,0 +1,13 @@
+brickmesh
+Copyright 2026 Sander Striker
+
+This product includes software developed for analyzing and constructing LEGO
+Technic mechanisms.
+
+This product does NOT include the LDraw Parts Library or the LDCad Shadow
+Library. Those are fetched on first use. See ATTRIBUTION.md for their origin
+and license terms; the shadow library is licensed CC BY-SA 4.0, and that
+share-alike condition carries over to data files derived from it.
+
+LEGO is a trademark of the LEGO Group, which does not sponsor, authorize or
+endorse this project.

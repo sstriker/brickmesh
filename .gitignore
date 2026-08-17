@@ -1,0 +1,29 @@
+# Parts libraries do not belong in the repository; the extractor fetches them on
+# first use. See ATTRIBUTION.md: the LDCad shadow library is licensed CC BY-SA
+# 4.0, and that share-alike condition carries over to derived files such as the
+# generated catalog.
+/data/
+ldraw/
+ldcad/
+*.ldraw.zip
+*.shadow.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editor and OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
