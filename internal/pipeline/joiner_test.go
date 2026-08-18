@@ -114,7 +114,9 @@ func TestTouchingIsAllowedAndOverlapIsNot(t *testing.T) {
 
 	// The ring runs 20 LDU each way along its shaft and the beam 10, so at 30
 	// their faces meet exactly.
-	inside, _, err := sharesSpace(context.Background(), deps, ring, beam(30))
+	// The ring turns about its own shaft, which runs along x through the origin.
+	spin := turning{about: map[int]axis{0: {dir: geom.Vec3{X: 1}}}}
+	inside, _, err := sharesSpace(context.Background(), deps, ring, beam(30), spin, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +125,7 @@ func TestTouchingIsAllowedAndOverlapIsNot(t *testing.T) {
 	}
 
 	// Half a stud further in and it is inside the ring.
-	inside, overlap, err := sharesSpace(context.Background(), deps, ring, beam(20))
+	inside, overlap, err := sharesSpace(context.Background(), deps, ring, beam(20), spin, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

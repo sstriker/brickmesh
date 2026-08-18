@@ -320,32 +320,37 @@ the shadow library says nothing about. It was wired into nothing, and it is the
 intersection, or a run of empty cells through the voxel grid that
 internal/voxel already builds.
 
-## What turns is decided by what a part is, and that will not hold
+## What turns, and how far it spreads
 
-The clearance check sweeps a part through a revolution if it is a gear, a
-driving ring or a joiner, and tests everything else where it stands. That is a
-statement about part identity, not about the mechanism, and it is only sound
-while nothing else can be keyed to a turning shaft.
+An axle in a round hole spins inside it: that is a bearing, the part stays put,
+and nothing is carried. An axle in a cross hole cannot spin, so the part is
+keyed to it and goes round with it. 61408 — a thin liftarm with an axle hole
+through the middle — is such a part, and the shadow library describes 161 more
+with an axle-shaped section.
 
-A cross-shaped hole is what does the keying. An axle cannot turn inside one, so
-the part turns with the axle instead — sweeping a circle of its own length, and
-taking whatever is pinned to it along, and whatever is pinned to that. 61408, a
-thin liftarm with an axle hole through the middle, is such a part; so are the
-161 others in the shadow library with an axle-shaped section.
+It does not stop at the keyed part. Whatever is pinned to it goes round too, and
+about the same axis rather than about its own pin: a liftarm keyed to a shaft
+sweeps its own length, and a beam pinned to the end of that liftarm sweeps a
+wider circle about the same shaft. So the axis is inherited along the joints.
 
-None of them can be placed at present. The beams in the inventory have round
-holes only, bearings are required to be round because an axle in a cross hole
-seizes, and so the only things on a turning shaft are the gears, rings and
-joiners already accounted for. A test asserts that rather than trusting it: add
-a part with an axle hole to the inventory and it fails.
+Two things bound that, and both matter more than they look.
 
-It will not hold once the inventory grows, and it does not hold for a model
-read back in from somewhere else. The fix is to stop deciding by part and derive
-it: a part with a cross port on a shaft line turns with that shaft, and turning
-propagates to whatever is pinned to it. That is the same union-find the framing
-check does over lines.
+**One pin is a hinge.** A part held by a single pin is carried round the shaft
+*and* free to swing about the pin while it goes. No one axis says where it can
+be, so it is not swept about one — it is reported as free to swing, which is a
+fact about the mechanism rather than about clearance. Two pins settle it only if
+they are in different places: pins strung along one line leave the part free to
+spin about that line, which is how a long hinge is built.
+
+**Two axes mean nothing turns.** A part reached from two different shafts, or
+keyed to one and pinned to something that is not going anywhere, cannot turn at
+all. That is reported rather than resolved by choosing an axis.
+
+None of this fires on what the engine currently places: the inventory beams have
+round holes only, and a bearing is required to be round because an axle in a
+cross hole seizes. A test asserts that rather than trusting it. It matters for a
+larger inventory, and for a model read back in from somewhere else.
 
 It matters more for rigidity than for clearance. A part keyed to a turning shaft
-is not a structural member at all, and counting its pin joints as if it were
-would claim a frame is rigid when it is free to rotate — a wrong answer in the
-direction that says yes.
+is not a structural member, and counting its pin joints as if it were would call
+a frame rigid when it is free to rotate — wrong in the direction that says yes.

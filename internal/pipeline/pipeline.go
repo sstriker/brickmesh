@@ -265,7 +265,10 @@ func firstThatFits(ctx context.Context, solutions []synth.Solution,
 func overlapping(ctx context.Context, parts []synth.Placed, deps Deps) bool {
 	for a := 0; a < len(parts); a++ {
 		for b := a + 1; b < len(parts); b++ {
-			inside, _, err := sharesSpace(ctx, deps, lattice(parts[a]), lattice(parts[b]))
+			// Beams among themselves: none of them turns, so no axes are
+			// needed here.
+			inside, _, err := sharesSpace(ctx, deps,
+				lattice(parts[a]), lattice(parts[b]), turning{}, -1, -1)
 			if err == nil && inside {
 				return true
 			}

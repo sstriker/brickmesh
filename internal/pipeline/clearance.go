@@ -31,6 +31,10 @@ func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 	if res.Model == nil || deps.Lib == nil {
 		return nil
 	}
+	// What turns is worked out from the joints rather than from what a part is
+	// called: keyed to a shaft by a cross hole, or pinned to something that is.
+	// A part swept about the wrong axis is worse than one not swept at all.
+	spin := checkTurning(res, deps)
 	parts := res.Model.Parts
 	clashes := 0
 	for i := 0; i < len(parts); i++ {
@@ -42,7 +46,7 @@ func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 			if mayBeInside(a, b) {
 				continue
 			}
-			inside, overlap, err := sharesSpace(ctx, deps, a, b)
+			inside, overlap, err := sharesSpace(ctx, deps, a, b, spin, i, j)
 			if err != nil {
 				return err
 			}
@@ -71,7 +75,9 @@ func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 // A part that turns is swept a full revolution rather than tested where it
 // happens to sit: a gear that clears a beam at rest and strikes it a quarter
 // turn later is not a gear that clears a beam.
-func sharesSpace(ctx context.Context, deps Deps, a, b ldr.Part) (bool, float64, error) {
+func sharesSpace(ctx context.Context, deps Deps, a, b ldr.Part,
+	spin turning, ia, ib int) (bool, float64, error) {
+
 	alo, ahi, err := placedBox(deps, a)
 	if err != nil {
 		return false, 0, nil
@@ -82,11 +88,13 @@ func sharesSpace(ctx context.Context, deps Deps, a, b ldr.Part) (bool, float64, 
 	}
 	// Widened to the circle each turning part sweeps out before the boxes are
 	// compared, so the cheap rejection stays sound for something rotating.
-	if turns(a) {
-		alo, ahi, _ = sweptBox(deps, a)
+	axisA, spinsA := spin.about[ia]
+	axisB, spinsB := spin.about[ib]
+	if spinsA {
+		alo, ahi, _ = sweptBox(deps, a, axisA)
 	}
-	if turns(b) {
-		blo, bhi, _ = sweptBox(deps, b)
+	if spinsB {
+		blo, bhi, _ = sweptBox(deps, b, axisB)
 	}
 	overlap := overlapOf(alo, ahi, blo, bhi)
 	if overlap < touchTolerance {
@@ -101,15 +109,19 @@ func sharesSpace(ctx context.Context, deps Deps, a, b ldr.Part) (bool, float64, 
 	if err != nil {
 		return false, 0, nil
 	}
-	if turns(a) || turns(b) {
+	if spinsA || spinsB {
 		rider, ta, other, tb := ma, a, mb, b
-		if !turns(a) {
+		if !spinsA {
 			rider, ta, other, tb = mb, b, ma, a
+		}
+		spinAxis := axisA
+		if !spinsA {
+			spinAxis = axisB
 		}
 		got, err := interfere.MeshLock(ctx,
 			other, collide.Transform{Rot: tb.Rot, Pos: tb.Pos},
 			rider, collide.Transform{Rot: ta.Rot, Pos: ta.Pos},
-			16, interfere.Options{Steps: 72})
+			16, interfere.Options{Steps: 72, SpinAxis: principal(spinAxis.dir)})
 		if err != nil {
 			return false, 0, err
 		}
@@ -216,30 +228,43 @@ func placedBox(deps Deps, p ldr.Part) (geom.Vec3, geom.Vec3, error) {
 
 // sweptBox is the box a turning part needs: its own, widened across its axis to
 // the circle it sweeps out.
-func sweptBox(deps Deps, p ldr.Part) (geom.Vec3, geom.Vec3, error) {
+// sweptBox is the space a part needs while it turns: its own extent along the
+// axis, widened across it to the circle it sweeps.
+//
+// The axis is the one it inherited, not its own. A liftarm keyed to a shaft
+// sweeps about that shaft; a beam pinned to the end of the liftarm sweeps a
+// wider circle about the same shaft, and measuring it about its own centre
+// would understate it badly.
+func sweptBox(deps Deps, p ldr.Part, about axis) (geom.Vec3, geom.Vec3, error) {
 	g, err := deps.Lib.Geometry(p.Name)
 	if err != nil {
 		return geom.Vec3{}, geom.Vec3{}, err
 	}
-	axis := p.Rot.Apply(geom.Vec3{Z: 1}).Unit()
-	var along, radius float64
-	alongLo := math.Inf(1)
+	dir := about.dir.Unit()
+	// Both ends from infinity. Starting the far end at zero was harmless while
+	// distances were measured from the part's own origin, since those straddle
+	// it — but they are measured from a point on the axis now, and a part
+	// entirely on one side of that point had its box stretched back to it.
+	var radius float64
+	along, alongLo := math.Inf(-1), math.Inf(1)
 	for _, t := range g.Tris {
 		for _, v := range [3]geom.Vec3{t[0], t[1], t[2]} {
-			w := p.Rot.Apply(v)
-			d := w.Dot(axis)
+			// Measured from a point on the axis, so a part away from it gets
+			// the radius of the circle it actually travels.
+			w := p.Rot.Apply(v).Add(p.Pos).Sub(about.at)
+			d := w.Dot(dir)
 			along = math.Max(along, d)
 			alongLo = math.Min(alongLo, d)
-			radius = math.Max(radius, w.Sub(axis.Scale(d)).Len())
+			radius = math.Max(radius, w.Sub(dir.Scale(d)).Len())
 		}
 	}
-	u, v := teeth.Frame(axis)
+	u, v := teeth.Frame(dir)
 	lo := geom.Vec3{X: math.Inf(1), Y: math.Inf(1), Z: math.Inf(1)}
 	hi := geom.Vec3{X: math.Inf(-1), Y: math.Inf(-1), Z: math.Inf(-1)}
 	for _, d := range []float64{alongLo, along} {
 		for _, a := range []float64{-radius, radius} {
 			for _, b := range []float64{-radius, radius} {
-				w := axis.Scale(d).Add(u.Scale(a)).Add(v.Scale(b)).Add(p.Pos)
+				w := dir.Scale(d).Add(u.Scale(a)).Add(v.Scale(b)).Add(about.at)
 				lo = geom.Vec3{X: math.Min(lo.X, w.X), Y: math.Min(lo.Y, w.Y), Z: math.Min(lo.Z, w.Z)}
 				hi = geom.Vec3{X: math.Max(hi.X, w.X), Y: math.Max(hi.Y, w.Y), Z: math.Max(hi.Z, w.Z)}
 			}
@@ -255,4 +280,16 @@ func overlapOf(alo, ahi, blo, bhi geom.Vec3) float64 {
 		math.Min(math.Min(ahi.X, bhi.X)-math.Max(alo.X, blo.X),
 			math.Min(ahi.Y, bhi.Y)-math.Max(alo.Y, blo.Y)),
 		math.Min(ahi.Z, bhi.Z)-math.Max(alo.Z, blo.Z))
+}
+
+// principal names the axis a sweep spins about. The shafts run along lattice
+// directions, so one of the three always fits.
+func principal(d geom.Vec3) byte {
+	switch {
+	case math.Abs(d.X) > 0.9:
+		return 'x'
+	case math.Abs(d.Y) > 0.9:
+		return 'y'
+	}
+	return 'z'
 }
