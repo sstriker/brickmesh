@@ -70,12 +70,18 @@ Two caveats came out of writing them:
 ## M2 — finish structural synthesis
 
 The covering search finds structures that bear every shaft but do not hang
-together; the rigidity check correctly reports them as loose pieces.
+together; the rigidity check correctly reports them as loose pieces, and the
+pipeline now runs that check on what it built, so every run says so out loud.
 
-- [ ] connection phase: a straight beam only joins parts whose holes are
-      already collinear. Perpendicular components need intermediate parts.
-      This is a Steiner tree problem — connect terminals via as few
-      intermediate nodes as possible.
+The repair phase cannot fix it on its own: it bridges with straight beams, which
+only join pieces whose holes already line up. Two bearings on parallel shafts
+need a connector that steps sideways, and that is what `internal/connect`'s A*
+search does — wiring it into the repair phase is the first item below.
+
+- [ ] connection phase: call `internal/connect` from `synth`'s repair rather
+      than the straight-beam bridge. The A* search is written and tested; what
+      is missing is handing it the two loose pieces and taking its chain back.
+      A straight beam only joins parts whose holes are already collinear.
 - [ ] count the pins that hole-to-hole joins require; they are real parts and
       currently invisible in both the cost and the output
 - [ ] feed rigidity back in as a hard constraint rather than a post-check

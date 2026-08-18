@@ -23,6 +23,7 @@ import (
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/part"
+	"brickmesh/internal/rigidity"
 	"brickmesh/internal/shadow"
 	"brickmesh/internal/synth"
 	"brickmesh/internal/voxel"
@@ -153,6 +154,24 @@ func runStructure(res *Result, deps Deps, opts Options) error {
 		Detail: fmt.Sprintf("%d parts bear the shafts, %.1f cubic studs",
 			res.Structure.Count, res.Structure.BBoxStud3),
 	})
+
+	// Bearing every shaft is not the same as holding together. Ask — but the
+	// covering search is not finished, and its repair phase can only bridge
+	// pieces whose holes already line up: joining a perpendicular pair needs
+	// the A* connection search, which is not wired into it yet. So this is
+	// reported loudly and does not condemn the model, which is still worth
+	// looking at. PLAN.md M2 is where that gets fixed.
+	rigid, err := rigidity.Analyze(deps.Shadow, res.Structure.Parts, opts.Inventory)
+	if err != nil {
+		return fmt.Errorf("the rigidity check: %w", err)
+	}
+	for _, f := range rigid {
+		if f.Level == "FAIL" {
+			f.Level = "WARN"
+			f.Detail += " — the covering search does not join pieces yet, see PLAN.md M2"
+		}
+		res.Findings = append(res.Findings, f)
+	}
 	return nil
 }
 
