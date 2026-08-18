@@ -154,7 +154,7 @@ Slicing the ring across its axis, rather than reading off where its vertices
 happen to sit, gives the profile the shift linkage has to work with:
 
 | z, LDU | radius | what it is |
-|---|---|---|
+| --- | --- | --- |
 | ±10 to ±20 | 15 | the hub |
 | ±6 to ±8 | 20 | the rims |
 | −4 to +4 | 13 | **the groove**, 8 LDU wide |
@@ -184,7 +184,7 @@ Generating `meshes.bin` turns this up because it is the first thing that asks
 for every part's geometry rather than a handful:
 
 | tier | parts | with geometry | missing |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | 135 | 109 | 26 (19%) |
 | 2 | 412 | 340 | 72 (17%) |
 
@@ -219,7 +219,6 @@ as long as nothing asked for every part. Everything that reads geometry read a
 handful, and a handful of old, common parts is exactly the set a stale mirror
 still has.
 
-
 ## Two shifted ratios per pair of shafts, and no more
 
 Not a limit of this engine. It follows from three measured facts and a bit of
@@ -237,7 +236,7 @@ count, because the shafts are a fixed distance apart. So with the driven gear
 restricted to 16 or 20:
 
 | centres | pairs that fit | driven is a clutch gear? |
-|---|---|---|
+| --- | --- | --- |
 | 2 studs (sum 32) | 16+16, 12+20, 20+12, 24+8 | only 16+16 and 12+20 |
 | 2.5 studs (sum 40) | 24+16, 20+20, 16+24 | only 24+16 and 20+20 |
 | 1.5 studs (sum 24) | 8+16, 16+8 | only 8+16 |
@@ -257,14 +256,13 @@ coincide. The stages have to differ, and the way to make them differ is to set
 them different distances apart:
 
 | stage | centres | ratios |
-|---|---|---|
+| --- | --- | --- |
 | one | 2 studs | 12+20 = 0.60, 16+16 = 1.00 |
 | two | 2.5 studs | 24+16 = 1.50, 20+20 = 1.00 |
 
 which multiply out to 0.60, 0.90, 1.00 and 1.50 — four distinct speeds, and
 each gear a 16t or 20t so every one of them can be gripped.
 `examples/gearbox-4-speed-compound.json`.
-
 
 ## The meshing sweep does not settle a bevel pair
 
@@ -288,7 +286,6 @@ and `internal/bevel` by stride, and from the same 444 positions they choose
 different winners for that reason alone. The two agree exactly on the 444, which
 is the gap arithmetic; they do not agree on the answer, and neither has been
 checked against a mechanism that was built.
-
 
 ## What the Python was, and what it verified before it went
 
@@ -322,3 +319,33 @@ the shadow library says nothing about. It was wired into nothing, and it is the
 `--infer-holes` item in PLAN.md. Reimplementing it in Go means a ray-mesh
 intersection, or a run of empty cells through the voxel grid that
 internal/voxel already builds.
+
+## What turns is decided by what a part is, and that will not hold
+
+The clearance check sweeps a part through a revolution if it is a gear, a
+driving ring or a joiner, and tests everything else where it stands. That is a
+statement about part identity, not about the mechanism, and it is only sound
+while nothing else can be keyed to a turning shaft.
+
+A cross-shaped hole is what does the keying. An axle cannot turn inside one, so
+the part turns with the axle instead — sweeping a circle of its own length, and
+taking whatever is pinned to it along, and whatever is pinned to that. 61408, a
+thin liftarm with an axle hole through the middle, is such a part; so are the
+161 others in the shadow library with an axle-shaped section.
+
+None of them can be placed at present. The beams in the inventory have round
+holes only, bearings are required to be round because an axle in a cross hole
+seizes, and so the only things on a turning shaft are the gears, rings and
+joiners already accounted for. A test asserts that rather than trusting it: add
+a part with an axle hole to the inventory and it fails.
+
+It will not hold once the inventory grows, and it does not hold for a model
+read back in from somewhere else. The fix is to stop deciding by part and derive
+it: a part with a cross port on a shaft line turns with that shaft, and turning
+propagates to whatever is pinned to it. That is the same union-find the framing
+check does over lines.
+
+It matters more for rigidity than for clearance. A part keyed to a turning shaft
+is not a structural member at all, and counting its pin joints as if it were
+would claim a frame is rigid when it is free to rotate — a wrong answer in the
+direction that says yes.

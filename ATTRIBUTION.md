@@ -12,7 +12,7 @@ repository unnoticed.
 library's own `CAreadme.txt` and `CAlicense.txt`. Every part file says so in its
 header:
 
-```
+```text
 0 !LICENSE Redistributable under CCAL version 2.0 : see CAreadme.txt
 ```
 
@@ -46,7 +46,7 @@ same license. The code that processes it does not.
 they are not derived from the same thing.
 
 | file | derived from | terms |
-|---|---|---|
+| --- | --- | --- |
 | `catalog.bin` | shadow library ports, LDraw ids and titles | **CC BY-SA 4.0** |
 | `meshes.bin` | LDraw part geometry | **CC BY 2.0** (CCAL 2.0) |
 

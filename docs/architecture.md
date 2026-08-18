@@ -37,7 +37,7 @@ than taste.
 Measured sizes:
 
 | asset | tier 1 | tier 2 | everything |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | ports (raw float32) | 6 KB | 40 KB | 623 KB |
 | ports (gzipped JSON) | — | — | 81 KB |
 | triangles (raw) | 5.2 MB | 16.9 MB | 132 MB |
@@ -64,7 +64,7 @@ this and caches per (part, rotation).
 
 Simpler than Parquet and it satisfies the TinyGo constraint at the same time.
 
-```
+```text
 catalog.bin
   header      magic, version, part count, tier boundaries
   string pool ids and titles, offsets into it
@@ -278,7 +278,7 @@ says 2764 parts and 22783 ports; this extractor finds 2649 usable, of which 135
 are tier 1 with 285 ports and 412 are tier 2 with 1569.
 
 | asset | tier 1 raw | tier 1 gzipped | tier 2 raw | tier 2 gzipped |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `catalog.bin` | 15 KB | 3.9 KB | 63 KB | 13 KB |
 | `meshes.bin` | 4.7 MB | 1.4 MB | 31 MB | 9.4 MB |
 
