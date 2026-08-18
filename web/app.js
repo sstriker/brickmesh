@@ -163,6 +163,21 @@ function buildExampleButtons() {
   }
 }
 
+// instantiate loads the module, streaming where the host allows it.
+//
+// instantiateStreaming refuses anything not served as application/wasm, and not
+// every static host sends that. Falling back to the bytes costs one buffer and
+// removes a whole class of "works here, not there".
+async function instantiate(go) {
+  const response = await fetch("brickmesh.wasm");
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  try {
+    return await WebAssembly.instantiateStreaming(response.clone(), go.importObject);
+  } catch (err) {
+    return WebAssembly.instantiate(await response.arrayBuffer(), go.importObject);
+  }
+}
+
 // waitFor polls until a condition holds, or gives up.
 function waitFor(cond, tries = 200, every = 10) {
   return new Promise((resolve, reject) => {
@@ -180,8 +195,7 @@ async function start() {
 
   const go = new Go();
   try {
-    const wasm = await WebAssembly.instantiateStreaming(
-      fetch("brickmesh.wasm"), go.importObject);
+    const wasm = await instantiate(go);
     // go.run settles only when the module's main returns, and this one never
     // does — a Go module whose main returns is torn down, taking its exported
     // functions with it. So it is started, not awaited, and what we wait for is

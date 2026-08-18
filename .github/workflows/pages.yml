@@ -1,0 +1,86 @@
+# Publishes the functional calculator to GitHub Pages.
+#
+# Built here rather than committed to a branch: the WebAssembly module is a
+# compiled artifact, and wasm_exec.js has to match the compiler that produced
+# it. Keeping either in git means keeping them in step by hand.
+#
+# The site is the calculator only — the functional layer, which needs no parts
+# library. It therefore ships no data derived from LDraw or LDCad and carries
+# none of their terms. If catalog.bin and meshes.bin are ever published here,
+# that changes: see ATTRIBUTION.md.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deployment at a time, and never cancel one halfway: a half-published site
+# is worse than a slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build the WebAssembly module
+        run: |
+          GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" \
+            -o web/brickmesh.wasm ./cmd/brickmesh-wasm
+
+      # The module and the glue are a pair: wasm_exec.js is the Go runtime's
+      # side of the boundary and has to come from the same toolchain.
+      - name: Take the matching wasm_exec.js
+        run: |
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/wasm_exec.js 2>/dev/null \
+            || cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" web/wasm_exec.js
+
+      # The examples are copied rather than linked. In the repository web/examples
+      # is a symlink so the page always shows what the tests use; an artifact
+      # cannot carry that.
+      - name: Assemble
+        run: |
+          mkdir -p site/examples
+          cp web/index.html web/style.css web/app.js web/wasm_exec.js \
+             web/brickmesh.wasm site/
+          cp examples/*.json site/examples/
+          touch site/.nojekyll
+          ls -l site site/examples
+
+      # Prove the thing that is about to be published actually answers, rather
+      # than merely compiling. Same check the Go tests run, against the same
+      # module, with node from the runner.
+      - name: The module answers before it is published
+        run: go test ./internal/calc/ -run Browser
+
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
