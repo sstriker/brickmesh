@@ -10,7 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"brickmesh/internal/clutch"
+	"brickmesh/internal/collide"
 	"brickmesh/internal/geom"
+	"brickmesh/internal/interfere"
+	"brickmesh/internal/ldr"
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/shadow"
@@ -216,25 +220,64 @@ func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var rings, gears []geom.Vec3
+	var rings []ldr.Part
+	var gears []ldr.Part
 	for _, p := range res.Model.Parts {
-		switch p.Name {
-		case DrivingRing:
-			rings = append(rings, p.Pos)
-		case "3648b.dat", "4019.dat":
-			gears = append(gears, p.Pos)
+		if p.Name == DrivingRing {
+			rings = append(rings, p)
+			continue
+		}
+		if _, _, ok := gearFromLabel(p.Label); ok {
+			gears = append(gears, p)
 		}
 	}
 	if len(rings) != 2 {
 		t.Fatalf("got %d driving rings, want one per shift", len(rings))
 	}
-	// A ring engages the gear beside it, so it must not be inside one.
+
+	// Not "is it on top of a gear" but "can it be built": every ring is turned
+	// a full revolution against every gear, and anything a ring passes through
+	// is a model that cannot be assembled. Checking only for a shared position
+	// is what let the rings sit inside their gears for as long as they did.
+	ring, err := interfere.MeshFor(deps.Lib, DrivingRing)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, r := range rings {
 		for _, g := range gears {
-			if r.Sub(g).Len() < 1e-6 {
-				t.Errorf("a ring landed on top of a gear at %+v", r)
+			gear, err := interfere.MeshFor(deps.Lib, g.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := interfere.MeshLock(
+				gear, collide.Transform{Rot: g.Rot, Pos: g.Pos},
+				ring, collide.Transform{Rot: r.Rot, Pos: r.Pos},
+				16, interfere.Options{Steps: 72})
+			if got.Verdict == interfere.TooDeep {
+				t.Errorf("the ring at %+v is inside the %s at %+v: no rotation "+
+					"of it is free", r.Pos, g.Name, g.Pos)
 			}
 		}
+	}
+}
+
+// A ring beside a plain gear has nothing to grip. Where the library has the
+// clutch variant, the shifted station gets it.
+func TestAShiftedSixteenBecomesAClutchGear(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := clutch.Gears[16]
+	var found bool
+	for _, p := range res.Model.Parts {
+		if p.Name == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no %s in the model: the shifted 16t should be the clutch variant", want)
 	}
 }
 

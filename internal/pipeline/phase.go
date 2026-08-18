@@ -6,6 +6,8 @@ package pipeline
 import (
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/interfere"
@@ -56,17 +58,25 @@ func applyPhase(m *mech.Mechanism, res *Result, deps Deps) {
 		}
 		localZ := geom.Vec3{Z: 1}
 
+		// Whatever was actually placed, which for a shifted gear is the
+		// clutch variant rather than the plain one.
+		partA, okA2 := placedGear(res.Model, mesh.A, mesh.TeethA)
+		partB, okB2 := placedGear(res.Model, mesh.B, mesh.TeethB)
+		if !okA2 || !okB2 {
+			continue
+		}
+
 		phase, err := teeth.MeshPhase(deps.Lib,
-			gearPart(mesh.TeethA), mesh.TeethA, localZ,
-			gearPart(mesh.TeethB), mesh.TeethB, localZ,
+			partA, mesh.TeethA, localZ,
+			partB, mesh.TeethB, localZ,
 			rotA.Transpose().Apply(toward))
 		if err != nil {
-			continue // no part for it, or nothing to read; already reported
+			continue // nothing to read; reported elsewhere
 		}
 		// B reads its own line of centers, which points the other way.
 		phaseB, err := teeth.MeshPhase(deps.Lib,
-			gearPart(mesh.TeethB), mesh.TeethB, localZ,
-			gearPart(mesh.TeethA), mesh.TeethA, localZ,
+			partB, mesh.TeethB, localZ,
+			partA, mesh.TeethA, localZ,
 			rotB.Transpose().Apply(toward.Scale(-1)))
 		if err != nil {
 			continue
@@ -113,18 +123,45 @@ func applyPhase(m *mech.Mechanism, res *Result, deps Deps) {
 	})
 }
 
+// placedGear names the part standing at a tooth count on a shaft.
+func placedGear(model *ldr.Model, shaft string, count int) (string, bool) {
+	for _, p := range model.Parts {
+		if gotTeeth, gotShaft, ok := gearFromLabel(p.Label); ok &&
+			gotShaft == shaft && gotTeeth == count {
+			return p.Name, true
+		}
+	}
+	return "", false
+}
+
+// gearFromLabel reads a gear's tooth count and shaft out of the label written
+// when it was placed. Going through the label rather than a part table is what
+// keeps this right when a shifted station gets the clutch variant instead.
+func gearFromLabel(label string) (int, string, bool) {
+	shaft, ok := shaftFromLabel(label)
+	if !ok {
+		return 0, "", false
+	}
+	i := strings.Index(label, "t on shaft ")
+	if i <= 0 {
+		return 0, "", false
+	}
+	count, err := strconv.Atoi(label[:i])
+	if err != nil {
+		return 0, "", false
+	}
+	return count, shaft, true
+}
+
 // turnGears rotates every gear of a tooth count on a shaft about that shaft.
 func turnGears(model *ldr.Model, shaft string, count int, angle float64,
 	axis geom.Vec3) bool {
 
-	want := gearPart(count)
 	turnedAny := false
 	for i := range model.Parts {
 		p := &model.Parts[i]
-		if p.Name != want {
-			continue
-		}
-		if got, ok := shaftFromLabel(p.Label); !ok || got != shaft {
+		gotTeeth, gotShaft, ok := gearFromLabel(p.Label)
+		if !ok || gotShaft != shaft || gotTeeth != count {
 			continue
 		}
 		// About the shaft, which is where the gear turns anyway.
@@ -141,11 +178,4 @@ func wrapPitch(deg, pitch float64) float64 {
 		v += pitch
 	}
 	return v
-}
-
-func gearPart(teethCount int) string {
-	if name, ok := GearParts[teethCount]; ok {
-		return name
-	}
-	return ""
 }

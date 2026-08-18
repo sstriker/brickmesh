@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"brickmesh/internal/clutch"
 	"brickmesh/internal/geom"
 	"brickmesh/internal/mech"
 )
@@ -687,8 +688,14 @@ func anchorBevels(m *mech.Mechanism, l *Layout, stations *stationSet) []mech.Fin
 // what a multi-speed gearbox needs: three pairs sharing an input shaft have to
 // be spread along it, not stacked in one plane.
 // RingRoomHalfStuds is the space a driving ring needs beside the gear it
-// engages: its hub is two half studs wide.
-const RingRoomHalfStuds = 2.0
+// engages.
+//
+// The ring runs four half studs along its shaft and sits with its face against
+// the gear's, so engaged it already reaches four half studs past the gear's
+// center. Disengaging slides it one further. Reserving less than that is what
+// used to leave a ring with nowhere to go but through its neighbor. The number
+// comes from internal/clutch, which measures it.
+const RingRoomHalfStuds = clutch.Room
 
 // shiftedShafts are those a shift engages, which need room beside their gear
 // for the ring that does the engaging.

@@ -18,6 +18,7 @@ import (
 	"math"
 	"sort"
 
+	"brickmesh/internal/clutch"
 	"brickmesh/internal/geom"
 	"brickmesh/internal/layout"
 	"brickmesh/internal/ldcad"
@@ -58,11 +59,7 @@ var GearParts = map[int]string{
 // The newer rings — 18947 of the Chiron and the MT-10's — are not in the parts
 // mirror this reads from, so only the classic system can be placed.
 const (
-	DrivingRing = "6539.dat"
-	// ringHubHalfStuds is how far the ring's center sits from the gear it
-	// engages: its own hub is two half studs, so clearing a gear of the same
-	// width puts it two away.
-	ringHubHalfStuds = 2.0
+	DrivingRing = clutch.Ring
 )
 
 // SelectorParts are what moves a driving ring. Their position follows from the
@@ -259,8 +256,9 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 		return stations[i].Axial < stations[j].Axial
 	})
 
+	sites := ringSites(m, res)
 	for _, st := range stations {
-		name, ok := GearParts[st.Teeth]
+		name, ok := gearAt(st, sites)
 		if !ok {
 			res.Findings = append(res.Findings, mech.Finding{
 				Level: "WARN", Check: "parts",
@@ -289,7 +287,7 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 			fmt.Sprintf("%dt on shaft '%s'", st.Teeth, st.Shaft))
 	}
 
-	placeDrivingRings(m, res, model)
+	placeDrivingRings(res, model, sites)
 	for _, a := range res.axles {
 		model.Add(a.name, ldr.ColorBlack, a.rot, a.center,
 			fmt.Sprintf("axle %d for shaft '%s'", a.studs, a.shaft))
@@ -309,8 +307,22 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 //
 // A coupling forces its two shafts coaxial, so the ring goes on that shared
 // line, next to the gear it locks. Which side is whichever is free.
-func placeDrivingRings(m *mech.Mechanism, res *Result, model *ldr.Model) {
-	rings := 0
+// ringSite is a driving ring, the gear it engages, and where it slides.
+type ringSite struct {
+	coupling mech.Coupling
+	station  layout.Station
+	// Engaged is where the ring sits when the coupling is engaged, along the
+	// shaft in half studs; Disengaged is where it slides to when it is not.
+	engaged, disengaged float64
+}
+
+// ringSites works out where every shift's driving ring goes.
+//
+// Separated from placing them because the gears have to know too: a gear a ring
+// engages is not the plain gear, it is the clutch variant, and buildModel picks
+// the part before any ring is placed.
+func ringSites(m *mech.Mechanism, res *Result) []ringSite {
+	var out []ringSite
 	for _, link := range m.Links {
 		c, ok := link.(mech.Coupling)
 		if !ok || len(c.States) == 0 {
@@ -323,15 +335,6 @@ func placeDrivingRings(m *mech.Mechanism, res *Result, model *ldr.Model) {
 		if !found {
 			continue // nothing to engage: reported by CheckShiftable already
 		}
-		place, ok := res.Layout.Place[station.Shaft]
-		if !ok {
-			continue
-		}
-		rot, ok := alignZTo(place.Direction)
-		if !ok {
-			continue
-		}
-
 		axial, ok := freeSideOf(res.Stations, station, res.Layout)
 		if !ok {
 			res.Findings = append(res.Findings, mech.Finding{
@@ -340,23 +343,79 @@ func placeDrivingRings(m *mech.Mechanism, res *Result, model *ldr.Model) {
 						"has nowhere to go", station.Teeth, station.Shaft, c.States)})
 			continue
 		}
+		// Away from the gear, which is the only direction there is room in.
+		side := 1.0
+		if axial < station.Axial {
+			side = -1
+		}
+		out = append(out, ringSite{coupling: c, station: station,
+			engaged: axial, disengaged: axial + side*clutch.Travel})
+	}
+	return out
+}
+
+// gearAt names the part for a station, using the clutch variant where a ring
+// engages it.
+func gearAt(st layout.Station, sites []ringSite) (string, bool) {
+	for _, site := range sites {
+		if site.station.Shaft != st.Shaft || site.station.Axial != st.Axial {
+			continue
+		}
+		if name, ok := clutch.Gears[st.Teeth]; ok {
+			return name, true
+		}
+		break
+	}
+	name, ok := GearParts[st.Teeth]
+	return name, ok
+}
+
+// placeDrivingRings puts a ring beside each shifted gear, at the distance the
+// sweep says its dogs sit in the gear's recesses.
+func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
+	var nominal []string
+	for _, site := range sites {
+		place, ok := res.Layout.Place[site.station.Shaft]
+		if !ok {
+			continue
+		}
+		rot, ok := alignZTo(place.Direction)
+		if !ok {
+			continue
+		}
 		pos := place.Point.Scale(synth.HalfStud).
-			Add(place.Direction.Scale(axial * synth.HalfStud))
-		label := c.Name
+			Add(place.Direction.Scale(site.engaged * synth.HalfStud))
+		label := site.coupling.Name
 		if label == "" {
-			label = fmt.Sprintf("driving ring for %v", c.States)
+			label = fmt.Sprintf("driving ring for %v", site.coupling.States)
 		}
 		model.Add(DrivingRing, ldr.ColorRed, rot, pos, label)
-		rings++
+
+		if _, ok := clutch.Gears[site.station.Teeth]; !ok {
+			nominal = append(nominal, fmt.Sprintf("%dt on '%s'",
+				site.station.Teeth, site.station.Shaft))
+		}
 	}
 
-	if rings > 0 {
+	if len(sites) == 0 {
+		return
+	}
+	res.Findings = append(res.Findings, mech.Finding{
+		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
+			"%d driving ring(s) placed, each a half stud short of three from its "+
+				"gear's center so its dogs sit in the recesses. What moves them is not "+
+				"placed: %v — their position follows from the shift linkage, which is "+
+				"not modelled. Two rings beside the same gear could be one ring "+
+				"engaging either side.", len(sites), SelectorParts)})
+
+	if len(nominal) > 0 {
 		res.Findings = append(res.Findings, mech.Finding{
-			Level: "OK", Check: "parts", Detail: fmt.Sprintf(
-				"%d driving ring(s) placed. What moves them is not placed: %v — their "+
-					"position follows from the shift linkage, which is not modelled. Two "+
-					"rings beside the same gear could be one ring engaging either side.",
-				rings, SelectorParts)})
+			Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+				"%v get a plain gear, not a clutch one: the library has a clutch "+
+					"variant only for the 16t (%v). A real 20t or 24t shift reaches its "+
+					"gear through a driving ring extension (32187, or 35186), which is "+
+					"not modelled — so those rings turn beside their gear without "+
+					"gripping it.", nominal, clutch.Gears)})
 	}
 }
 
@@ -377,15 +436,19 @@ func stationOn(stations []layout.Station, shaft string) (layout.Station, bool) {
 // right there even though it belongs to a differently named shaft.
 func freeSideOf(stations []layout.Station, gear layout.Station, l *layout.Layout) (float64, bool) {
 	line := layout.LineOf(l, gear.Shaft)
-	for _, offset := range []float64{ringHubHalfStuds, -ringHubHalfStuds} {
-		axial := gear.Axial + offset
+	for _, side := range []float64{1, -1} {
+		axial := gear.Axial + side*clutch.Engaged
+		// The ring is four half studs long, and it has to stay clear of
+		// everything else on the line once it has slid the whole way out.
+		lo := math.Min(axial, axial+side*clutch.Travel) - 2
+		hi := math.Max(axial, axial+side*clutch.Travel) + 2
 		clear := true
 		for _, st := range stations {
-			if layout.LineOf(l, st.Shaft) != line {
+			if layout.LineOf(l, st.Shaft) != line || st == gear {
 				continue
 			}
-			lo, hi := st.Span()
-			if math.Min(hi, axial+1)-math.Max(lo, axial-1) > 1e-6 {
+			slo, shi := st.Span()
+			if math.Min(shi, hi)-math.Max(slo, lo) > 1e-6 {
 				clear = false
 				break
 			}
