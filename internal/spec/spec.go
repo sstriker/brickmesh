@@ -81,9 +81,23 @@ type Spec struct {
 	Couplings     []Coupling     `json:"couplings,omitempty"`
 	// States a gearbox can be shifted into, in order. Leave it out for a
 	// mechanism with only one.
-	States  []string `json:"states,omitempty"`
-	Inputs  []Input  `json:"inputs,omitempty"`
-	Outputs []string `json:"outputs,omitempty"`
+	States []string `json:"states,omitempty"`
+	// ShiftPoints make the box change gear on its own. Leave it out for one
+	// that is shifted by hand.
+	ShiftPoints *ShiftPoints `json:"shift_points,omitempty"`
+	Inputs      []Input      `json:"inputs,omitempty"`
+	Outputs     []string     `json:"outputs,omitempty"`
+}
+
+// ShiftPoints say when the box changes up.
+type ShiftPoints struct {
+	// Watch is the shaft whose speed decides; the input, if left out.
+	Watch string `json:"watch,omitempty"`
+	// UpAt is the speed at which each gear gives way to the next, so there is
+	// one fewer of them than there are states.
+	UpAt []float64 `json:"up_at"`
+	// DownAt is where each gear is given up again on the way down.
+	DownAt []float64 `json:"down_at,omitempty"`
 }
 
 // Read parses a spec.
@@ -136,7 +150,33 @@ func (s *Spec) Build() (*mech.Mechanism, error) {
 	if err := s.addCouplings(m, known, states); err != nil {
 		return nil, err
 	}
-	return m, s.addDrive(m, known)
+	if err := s.addDrive(m, known); err != nil {
+		return nil, err
+	}
+	return m, s.addShiftPoints(m, shafts)
+}
+
+// addShiftPoints hands the mechanism its schedule, defaulting the watched shaft
+// to the input: it is the engine speed a box shifts on.
+func (s *Spec) addShiftPoints(m *mech.Mechanism, shafts map[string]bool) error {
+	if s.ShiftPoints == nil {
+		return nil
+	}
+	watch := s.ShiftPoints.Watch
+	if watch == "" {
+		if len(s.Inputs) == 0 {
+			return fmt.Errorf("shift points need a shaft to watch, and there is " +
+				"no input to fall back on")
+		}
+		watch = s.Inputs[0].Shaft
+	}
+	if !shafts[watch] {
+		return fmt.Errorf("the shift points watch shaft %q, which is not declared",
+			watch)
+	}
+	m.Shifts(mech.ShiftPoints{Watch: watch, UpAt: s.ShiftPoints.UpAt,
+		DownAt: s.ShiftPoints.DownAt})
+	return nil
 }
 
 func (s *Spec) addShafts(m *mech.Mechanism) (map[string]bool, error) {

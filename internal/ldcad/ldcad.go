@@ -60,6 +60,10 @@ type Segment struct {
 	State   string
 	Turning []Turning
 	Sliding []Sliding
+	// Fraction of the animation this state is held for. Zero in every segment
+	// means share the time equally, which is all there is to go on for a box
+	// that is shifted by hand.
+	Fraction float64
 }
 
 // Animation is one thing to watch — a gearbox has one per state, plus one that
@@ -183,6 +187,27 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 	}
 }
 
+// fractions is each state's share of the animation, from the schedule if there
+// is one and shared equally if there is not.
+func fractions(ani Animation) []float64 {
+	out := make([]float64, len(ani.Segments))
+	var total float64
+	for k, seg := range ani.Segments {
+		out[k] = seg.Fraction
+		total += seg.Fraction
+	}
+	if total <= 0 {
+		for k := range out {
+			out[k] = 1 / float64(len(out))
+		}
+		return out
+	}
+	for k := range out {
+		out[k] /= total
+	}
+	return out
+}
+
 // shiftFraction is how much of a segment the ring spends moving. The rest of it
 // is spent sitting still in gear, which is what a gearbox mostly does.
 const shiftFraction = 0.25
@@ -197,10 +222,28 @@ const shiftFraction = 0.25
 func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 	segs := len(ani.Segments)
 	fmt.Fprintf(b, "  local segs=%d\n", segs)
-	b.WriteString("  local seg=math.floor(t*segs)\n")
-	b.WriteString("  if seg>segs-1 then seg=segs-1 end\n")
-	b.WriteString("  local u=t*segs-seg --0..1 within this segment\n")
-	fmt.Fprintf(b, "  local perSeg=%g*360/segs --input degrees per segment\n", turns)
+
+	frac := fractions(ani)
+	b.WriteString("  --how long each state is held, as a share of the animation\n")
+	b.WriteString("  local frac={")
+	for k, f := range frac {
+		if k > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(b, "%.6f", f)
+	}
+	b.WriteString("}\n")
+	b.WriteString(`  local seg,acc=0,0
+  for k=1,segs do
+    --The last state takes whatever is left, so t=1 lands in it rather than
+    --running off the end of the table.
+    if t<acc+frac[k] or k==segs then seg=k-1 break end
+    acc=acc+frac[k]
+  end
+  local u=(t-acc)/frac[seg+1] --0..1 within this segment
+  if u<0 then u=0 elseif u>1 then u=1 end
+`)
+	fmt.Fprintf(b, "  local turns=%g\n", turns)
 	b.WriteString("  local m=ldc.matrix()\n\n")
 
 	// Speeds, group by group, segment by segment.
@@ -223,8 +266,8 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
   --this segment's share.
   local function angle(sp)
     local a=0
-    for k=1,seg do a=a+sp[k]*perSeg end
-    return a+sp[seg+1]*u*perSeg
+    for k=1,seg do a=a+sp[k]*frac[k]*turns*360 end
+    return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
 `)

@@ -173,6 +173,20 @@ type Mechanism struct {
 	inOrder  []string
 	Outputs  []string
 	inputSet map[string]bool
+	// shiftPoints make the box change gear on its own. Nil for one shifted by
+	// hand, which is most of them.
+	shiftPoints *ShiftPoints
+}
+
+// Shifts sets when the box changes gear on its own.
+func (m *Mechanism) Shifts(p ShiftPoints) { m.shiftPoints = &p }
+
+// ShiftPointsSet is the schedule the box was given, if any.
+func (m *Mechanism) ShiftPointsSet() (ShiftPoints, bool) {
+	if m.shiftPoints == nil {
+		return ShiftPoints{}, false
+	}
+	return *m.shiftPoints, true
 }
 
 func New(name string) *Mechanism {
@@ -659,5 +673,8 @@ func (m *Mechanism) RunChecks() []Finding {
 	out = append(out, m.CheckClosure()...)
 	out = append(out, m.CheckStates()...)
 	out = append(out, m.CheckShiftable()...)
+	if m.shiftPoints != nil {
+		out = append(out, m.CheckShiftPoints(*m.shiftPoints)...)
+	}
 	return out
 }

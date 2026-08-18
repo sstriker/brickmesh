@@ -255,5 +255,38 @@ func shiftAnimation(m *mech.Mechanism, res *Result, groupOf map[string]string,
 			State: state, Turning: seg.Turning, Sliding: seg.Sliding,
 		})
 	}
+	applySchedule(m, &ani)
 	return ani, true
+}
+
+// topGearTail is how far past the last shift point the animation carries on, so
+// the top gear is held for a while rather than arrived at and stopped in.
+const topGearTail = 0.5
+
+// applySchedule gives each state as much of the animation as the shift points
+// say it is held for.
+//
+// Without them every state gets an equal share, which is all there is to go on
+// for a box shifted by hand. With them the animation sweeps the watched shaft
+// from a standstill to half again past the last shift point, and each gear
+// takes the share of that sweep it is actually in.
+func applySchedule(m *mech.Mechanism, ani *ldcad.Animation) {
+	p, ok := m.ShiftPointsSet()
+	if !ok || len(p.UpAt) == 0 {
+		return
+	}
+	sched, err := m.Schedule(p)
+	if err != nil || len(sched.Gears) != len(ani.Segments) {
+		return
+	}
+	top := p.UpAt[len(p.UpAt)-1] * (1 + topGearTail)
+	for i, g := range sched.Gears {
+		to := g.To
+		if to == 0 {
+			to = top
+		}
+		if span := to - g.From; span > 0 {
+			ani.Segments[i].Fraction = span
+		}
+	}
 }

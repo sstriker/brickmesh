@@ -185,10 +185,18 @@ function onFrame3()
   local ani=ldc.animation.getCurrent()
   local t=ani:getFrameTime()/ani:getLength()
   local segs=3
-  local seg=math.floor(t*segs)
-  if seg>segs-1 then seg=segs-1 end
-  local u=t*segs-seg --0..1 within this segment
-  local perSeg=4*360/segs --input degrees per segment
+  --how long each state is held, as a share of the animation
+  local frac={0.333333, 0.333333, 0.333333}
+  local seg,acc=0,0
+  for k=1,segs do
+    --The last state takes whatever is left, so t=1 lands in it rather than
+    --running off the end of the table.
+    if t<acc+frac[k] or k==segs then seg=k-1 break end
+    acc=acc+frac[k]
+  end
+  local u=(t-acc)/frac[seg+1] --0..1 within this segment
+  if u<0 then u=0 elseif u>1 then u=1 end
+  local turns=4
   local m=ldc.matrix()
 
   --speed[group][segment], in turns per turn of the input
@@ -204,8 +212,8 @@ function onFrame3()
   --this segment's share.
   local function angle(sp)
     local a=0
-    for k=1,seg do a=a+sp[k]*perSeg end
-    return a+sp[seg+1]*u*perSeg
+    for k=1,seg do a=a+sp[k]*frac[k]*turns*360 end
+    return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
   m:setRotate(angle(speed[1]), 1, 0, 0)
