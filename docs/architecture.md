@@ -259,6 +259,29 @@ repository. Building that harness immediately found a real bug in the page —
 so awaiting it hangs while not waiting at all calls the export before it exists.
 Both now wait on a flag main sets.
 
-**The measurements need retaking.** The table says 2764 parts and 22783 ports;
-the extractor currently produces 2649 and 21675. A different snapshot or a
-different tier cut — worth settling before anything is sized on it.
+**Step 2 is built, in Go.** `internal/assets` holds both formats and
+`make assets` generates them. Hand-rolled rather than protobuf, decided
+deliberately: nothing schema-based range-addresses a remote file, which is the
+entire design of `meshes.bin`, and a schema for `catalog.bin` alone would leave
+the pair in two technologies for a schema of four scalars and a float array.
+FlatBuffers, not protobuf, is the version of that idea worth revisiting — it is
+the one that keeps zero-copy — if a generated JavaScript reader turns out to be
+worth a dependency.
+
+Floats and kind bytes are in separate runs rather than interleaved, so the port
+array can become a `Float32Array` view over the same memory instead of a copy
+and a loop. The string pool goes last, since text has no alignment and would
+push whatever followed it off it.
+
+**The measurements, retaken.** The table above says 2764 parts and 22783 ports;
+this extractor finds 2649 usable, of which 135 are tier 1 with 285 ports.
+
+| asset | tier 1 raw | tier 1 gzipped |
+|---|---|---|
+| `catalog.bin` (ports, ids, titles) | 15 KB | 3.9 KB |
+| `meshes.bin` (indexed triangles) | 3.4 MB | 1.0 MB |
+
+The triangle figures come in under the estimate — 3.4 MB against 5.2 MB raw —
+because the meshes are indexed. LDraw parts are built from primitives that meet
+edge to edge, so the same corner turns up in many triangles, and sharing them is
+most of why the file is worth generating rather than shipping the `.dat`s.

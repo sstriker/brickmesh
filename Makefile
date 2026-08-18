@@ -7,12 +7,14 @@
 .PHONY: all build test lint fmt clean \
         go-build go-test go-vet go-fmt go-staticcheck go-lint-complexity \
         py-sync py-test py-lint py-fmt py-lock \
-        web serve help
+        web serve assets help
 
 GO      ?= go
 UV      ?= uv
 BINDIR  ?= bin
 BINARY  ?= $(BINDIR)/brickmesh
+# Which parts go into the browser assets: 1 common, 2 all Technic, 3 everything.
+ASSET_TIER ?= 2
 
 all: build
 
@@ -22,6 +24,7 @@ help:
 	@echo "lint    - vet, gofmt check, staticcheck, complexity lens, ruff"
 	@echo "fmt     - format Go and Python sources in place"
 	@echo "web     - build the browser calculator into web/"
+	@echo "assets  - generate catalog.bin and meshes.bin into web/data"
 	@echo "serve   - build it and serve web/ on http://localhost:8080"
 	@echo "clean   - remove build output and caches"
 
@@ -49,6 +52,15 @@ web/examples: FORCE
 	@test -e $@ || ln -s ../examples $@
 
 FORCE:
+
+# The two files a browser build downloads. Minutes of work and tens of
+# megabytes, so it is never a dependency of anything: run it when the libraries
+# change, not on every build.
+#
+# What it writes is derived from the LDCad shadow library and the LDraw parts
+# library, so publishing it carries their terms. See ATTRIBUTION.md.
+assets:
+	$(GO) run ./cmd/brickmesh-assets --out web/data --tier $(ASSET_TIER)
 
 serve: web
 	@echo "http://localhost:8080 — WebAssembly needs http, not file://"

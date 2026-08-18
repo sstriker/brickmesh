@@ -78,13 +78,7 @@ type Catalog struct {
 // generated file that changes without its input changing is a generated file
 // nobody can review.
 func WriteCatalog(c Catalog) ([]byte, error) {
-	parts := append([]Part(nil), c.Parts...)
-	sort.SliceStable(parts, func(i, j int) bool {
-		if parts[i].Tier != parts[j].Tier {
-			return parts[i].Tier < parts[j].Tier
-		}
-		return parts[i].ID < parts[j].ID
-	})
+	parts := Sorted(c).Parts
 
 	var (
 		pool      []byte
@@ -174,6 +168,23 @@ func WriteCatalog(c Catalog) ([]byte, error) {
 	copy(out[portsOff:], floats)
 	copy(out[kindsOff:], kinds)
 	return append(out, pool...), nil
+}
+
+// Sorted puts a catalog in the order it will be written in.
+//
+// Exported because the mesh file has to be built in the same order — a part's
+// index is what addresses it in both — and a generator that sorted separately,
+// or forgot to, would produce two files that disagree about which part is which
+// and nothing would notice until something was drawn with the wrong shape.
+func Sorted(c Catalog) Catalog {
+	parts := append([]Part(nil), c.Parts...)
+	sort.SliceStable(parts, func(i, j int) bool {
+		if parts[i].Tier != parts[j].Tier {
+			return parts[i].Tier < parts[j].Tier
+		}
+		return parts[i].ID < parts[j].ID
+	})
+	return Catalog{Parts: parts}
 }
 
 // TierEnd is the part index one past the last part of a tier, which is what

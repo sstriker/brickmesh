@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"brickmesh/internal/extract"
+	"brickmesh/internal/geom"
 )
 
 func sample() Catalog {
@@ -348,4 +351,69 @@ func ExampleMeshIndex_Range() {
 	off, n, _ := idx.Range(0)
 	fmt.Printf("Range: bytes=%d-%d\n", off, off+n-1)
 	// Output: Range: bytes=56-111
+}
+
+// Sharing corners is most of the reason the mesh file is worth generating: a
+// square made of two triangles has six corners and four vertices.
+func TestSharedCornersBecomeOneVertex(t *testing.T) {
+	square := [][3]geom.Vec3{
+		{{X: 0}, {X: 1}, {X: 1, Y: 1}},
+		{{X: 0}, {X: 1, Y: 1}, {Y: 1}},
+	}
+	got := IndexTriangles(square)
+	if v := len(got.Positions) / 3; v != 4 {
+		t.Errorf("got %d vertices for a square, want 4", v)
+	}
+	if got.Triangles() != 2 {
+		t.Errorf("got %d triangles, want 2", got.Triangles())
+	}
+	// And the shape has to survive the sharing.
+	for i, idx := range got.Indices {
+		if int(idx)*3+2 >= len(got.Positions) {
+			t.Fatalf("index %d of %d points outside the vertices", i, idx)
+		}
+	}
+	for i, tri := range square {
+		for j, want := range tri {
+			at := got.Indices[i*3+j] * 3
+			if got.Positions[at] != float32(want.X) ||
+				got.Positions[at+1] != float32(want.Y) ||
+				got.Positions[at+2] != float32(want.Z) {
+				t.Errorf("triangle %d corner %d moved", i, j)
+			}
+		}
+	}
+}
+
+// Corners that are close but not identical stay separate. Welding them would
+// move geometry the collision tests are measured against.
+func TestNearlyEqualCornersAreNotWelded(t *testing.T) {
+	got := IndexTriangles([][3]geom.Vec3{
+		{{X: 0}, {X: 1}, {Y: 1}},
+		{{X: 1e-7}, {X: 1}, {Y: 1}},
+	})
+	if v := len(got.Positions) / 3; v != 4 {
+		t.Errorf("got %d vertices, want 4: a corner a ten-millionth away is a "+
+			"different corner", v)
+	}
+}
+
+func TestRecordsBecomePortsWithTheRightKind(t *testing.T) {
+	got := FromRecords([]extract.Record{{
+		ID: "x.dat", Title: "X", Tier: 1,
+		Holes: []extract.Port{{1, 2, 3, 0, 0, 1, 0}, {4, 5, 6, 1, 0, 0, 1}},
+		Pins:  []extract.Port{{7, 8, 9, 0, 1, 0, 1}},
+	}})
+	if len(got.Parts) != 1 || len(got.Parts[0].Ports) != 3 {
+		t.Fatalf("got %+v", got)
+	}
+	want := []uint8{0, PortCross, PortMale | PortCross}
+	for i, k := range want {
+		if got.Parts[0].Ports[i].Kind != k {
+			t.Errorf("port %d kind %d, want %d", i, got.Parts[0].Ports[i].Kind, k)
+		}
+	}
+	if p := got.Parts[0].Ports[0]; p.X != 1 || p.Y != 2 || p.Z != 3 || p.AZ != 1 {
+		t.Errorf("the first hole came through as %+v", p)
+	}
 }
