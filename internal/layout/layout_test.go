@@ -308,7 +308,7 @@ func TestOverlapOnAShaftIsReported(t *testing.T) {
 		station("a", 24, 0, 2),
 		station("a", 24, 0.5, 2),
 	}
-	findings := checkOverlap(stations)
+	findings := checkOverlap(stations, lineLayout())
 	if len(findings) != 1 || findings[0].Level != "FAIL" {
 		t.Fatalf("got %+v, want one failure", findings)
 	}
@@ -321,7 +321,104 @@ func TestGearsThatOnlyTouchAreNotAnOverlap(t *testing.T) {
 	// Centers two apart, each two thick: they meet exactly, which is how gears
 	// sit side by side on a shaft.
 	stations := []Station{station("a", 24, 0, 2), station("a", 24, 2, 2)}
-	if got := checkOverlap(stations); len(got) != 0 {
+	if got := checkOverlap(stations, lineLayout()); len(got) != 0 {
 		t.Errorf("got %+v, want nothing", got)
+	}
+}
+
+// lineLayout puts shaft "a" on a line so the overlap check can group by it.
+func lineLayout() *Layout {
+	return &Layout{Place: map[string]Placement{
+		"a": NewPlacement(geom.Vec3{}, geom.Vec3{X: 1}),
+	}}
+}
+
+// A coupling holds two shafts on one axis, so their gears are as much in each
+// other's way as if they shared a name. Grouping by shaft name let a gearbox
+// stack every ratio in one plane.
+func TestCoaxialShaftsShareTheirSlots(t *testing.T) {
+	m := mech.New("2-speed")
+	for _, s := range []string{"input", "output", "low", "high"} {
+		m.Shaft(s, 2)
+	}
+	m.Mesh("input", "low", 16, 24)
+	m.Mesh("input", "high", 24, 16)
+	m.State("low")
+	m.State("high")
+	m.Couple("output", "low", "ring low", "low")
+	m.Couple("output", "high", "ring high", "high")
+
+	sols := Realize(m, Options{MaxSolutions: 1, Span: 2})
+	if len(sols) == 0 {
+		t.Fatal("no layout")
+	}
+	stations, findings := SolveStations(m, sols[0])
+	for _, f := range findings {
+		if f.Level == "FAIL" {
+			t.Errorf("unexpected failure: %+v", f)
+		}
+	}
+
+	// The two ratio gears ride on one line and must not be in the same place.
+	var lowAxial, highAxial float64
+	for _, st := range stations {
+		switch st.Shaft {
+		case "low":
+			lowAxial = st.Axial
+		case "high":
+			highAxial = st.Axial
+		}
+	}
+	if lowAxial == highAxial {
+		t.Errorf("both ratio gears landed at %v; they share an axis", lowAxial)
+	}
+}
+
+// A shifted gear needs a gap beside it for the ring that engages it.
+func TestAShiftedGearGetsRoomForItsRing(t *testing.T) {
+	m := mech.New("shifted")
+	for _, s := range []string{"input", "output", "a", "b"} {
+		m.Shaft(s, 2)
+	}
+	m.Mesh("input", "a", 16, 24)
+	m.Mesh("input", "b", 24, 16)
+	m.State("1")
+	m.State("2")
+	m.Couple("output", "a", "ring", "1")
+	m.Couple("output", "b", "ring", "2")
+
+	sols := Realize(m, Options{MaxSolutions: 1, Span: 2})
+	if len(sols) == 0 {
+		t.Fatal("no layout")
+	}
+	stations, _ := SolveStations(m, sols[0])
+
+	var axials []float64
+	for _, st := range stations {
+		if st.Shaft == "a" || st.Shaft == "b" {
+			axials = append(axials, st.Axial)
+		}
+	}
+	if len(axials) != 2 {
+		t.Fatalf("got %d ratio gears, want 2", len(axials))
+	}
+	gap := math.Abs(axials[0] - axials[1])
+	// Two gears two half studs thick, plus a ring's two between them.
+	if gap < 2+RingRoomHalfStuds {
+		t.Errorf("gears %v apart; a ring needs %v of room between them",
+			gap, RingRoomHalfStuds)
+	}
+}
+
+// The overlap check has to see across a shared axis too.
+func TestOverlapIsSeenAcrossACommonLine(t *testing.T) {
+	// Two differently named shafts on the same line, gears in the same place.
+	l := &Layout{Place: map[string]Placement{
+		"a": NewPlacement(geom.Vec3{}, geom.Vec3{X: 1}),
+		"b": NewPlacement(geom.Vec3{}, geom.Vec3{X: 1}),
+	}}
+	stations := []Station{station("a", 24, 0, 2), station("b", 24, 0, 2)}
+	if got := checkOverlap(stations, l); len(got) != 1 || got[0].Level != "FAIL" {
+		t.Errorf("got %+v, want one failure: they are the same place", got)
 	}
 }

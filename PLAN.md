@@ -110,12 +110,18 @@ What is still missing is anything that decides *when* to shift: no centrifugal
 governor, no torque-reactive mechanism, no sequential selector. "Auto shifting"
 therefore means the box is buildable and the shift mechanism is not.
 
-- [ ] place the shifting parts. A coupling is abstract: it constrains the speeds
-      and forces coaxiality, but nothing reaches the file, so a gearbox comes out
-      as gears and beams with no driving ring, fork or lever. Three systems to
-      map: 6539 with lever 6641/51149 and changeover plate 6631; 18947 with
-      selector 35188; 2473 with shifter 4158 and fork 4159, plus the 2474
-      stepper that indexes eighths of a turn to land the drum
+- [x] place the driving ring. A shift now puts a 6539 beside the gear it
+      engages, and the station allocator reserves the room for it. What moves
+      the ring is named in the report rather than placed, since its position
+      follows from the shift linkage and not from the mechanism.
+- [ ] the newer switching systems. Only the classic one can be placed: 18947 of
+      the Chiron and the MT-10's ring, selector 35188, shifter 4158, fork 4159
+      and the 2474 stepper are all absent from the parts mirror this reads, and
+      Rebrickable's numbers are not always LDraw's — 2473 and 2474 resolve to
+      "moved to" stubs there. Worth pinning down before promising them.
+- [ ] one ring per two gears. A ring engages a gear on either side, so a
+      three-speed needs two rings and not three; the report says so but the
+      placement does not do it
 - [ ] a selector element, so the shift itself is part of the mechanism rather
       than an instruction to the builder
 - [ ] a slip element for the other kind of clutch — the old white 24t whose

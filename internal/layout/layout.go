@@ -539,8 +539,14 @@ func sortedPlaced(m map[string]Placement) []string {
 
 // GearThickness in half studs, used to find overlap on a shaft and to leave the
 // free stretches where bearings may go.
+//
+// Measured from the parts rather than recalled: every standard gear is one stud
+// thick, 20 LDU, which is two half studs. The 24t comes out at 19.2 and the
+// rest at exactly 20. An earlier table had the 16t, 24t, 36t and 40t at one
+// half stud, which is half their real width and would let two of them sit 10
+// LDU apart and be called clear.
 var GearThickness = map[int]float64{
-	8: 2, 12: 2, 16: 1, 20: 2, 24: 1, 28: 2, 36: 1, 40: 1,
+	8: 2, 12: 2, 16: 2, 20: 2, 24: 2, 28: 2, 36: 2, 40: 2,
 }
 
 func thicknessOf(teeth int) float64 {
@@ -614,10 +620,10 @@ func (s *stationSet) firstAnchored(shaft string) (stationKey, bool) {
 func SolveStations(m *mech.Mechanism, l *Layout) ([]Station, []mech.Finding) {
 	stations := &stationSet{byKey: map[stationKey]Station{}}
 	findings := anchorBevels(m, l, stations)
-	findings = append(findings, propagateSpurPairs(m, stations)...)
+	findings = append(findings, propagateSpurPairs(m, l, stations, shiftedShafts(m))...)
 
 	result := mergeSharedGears(stations)
-	findings = append(findings, checkOverlap(result)...)
+	findings = append(findings, checkOverlap(result, l)...)
 	findings = append(findings, checkOnLattice(result)...)
 
 	if len(findings) == 0 {
@@ -680,10 +686,33 @@ func anchorBevels(m *mech.Mechanism, l *Layout, stations *stationSet) []mech.Fin
 // pairs are handed successive slots rather than all landing on zero. That is
 // what a multi-speed gearbox needs: three pairs sharing an input shaft have to
 // be spread along it, not stacked in one plane.
-func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding {
+// RingRoomHalfStuds is the space a driving ring needs beside the gear it
+// engages: its hub is two half studs wide.
+const RingRoomHalfStuds = 2.0
+
+// shiftedShafts are those a shift engages, which need room beside their gear
+// for the ring that does the engaging.
+func shiftedShafts(m *mech.Mechanism) map[string]bool {
+	out := map[string]bool{}
+	for _, l := range m.Links {
+		c, ok := l.(mech.Coupling)
+		if !ok || len(c.States) == 0 {
+			continue
+		}
+		out[c.A] = true
+		out[c.B] = true
+	}
+	return out
+}
+
+func propagateSpurPairs(m *mech.Mechanism, l *Layout, stations *stationSet,
+	shifted map[string]bool) []mech.Finding {
 	var findings []mech.Finding
-	// What each shaft already has on it, as spans in half studs.
-	used := map[string][][2]float64{}
+	// What is already on each LINE, as spans in half studs. Keyed by line and
+	// not by shaft name, because the gears of a gearbox ride on differently
+	// named shafts that a coupling holds on one axis — they are as much in each
+	// other's way as if they shared a name.
+	used := map[[6]float64][][2]float64{}
 	for i, link := range m.Links {
 		mesh, ok := link.(mech.Mesh)
 		if !ok || mesh.Kind != mech.Spur {
@@ -711,12 +740,15 @@ func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding 
 			// shafts: take the first whole half stud where both gears clear
 			// whatever is already there. Stepping by a fixed width is not
 			// enough, since the next gear along may be the thicker one.
-			base = firstFreeSlot(used[mesh.A], used[mesh.B],
+			base = firstFreeSlot(used[lineOf(l, mesh.A)], used[lineOf(l, mesh.B)],
 				thicknessOf(mesh.TeethA), thicknessOf(mesh.TeethB))
 		}
 
-		used[mesh.A] = append(used[mesh.A], spanAt(base, thicknessOf(mesh.TeethA)))
-		used[mesh.B] = append(used[mesh.B], spanAt(base, thicknessOf(mesh.TeethB)))
+		lineA, lineB := lineOf(l, mesh.A), lineOf(l, mesh.B)
+		used[lineA] = append(used[lineA],
+			reserve(base, thicknessOf(mesh.TeethA), shifted[mesh.A]))
+		used[lineB] = append(used[lineB],
+			reserve(base, thicknessOf(mesh.TeethB), shifted[mesh.B]))
 
 		for _, side := range []struct {
 			shaft string
@@ -731,6 +763,17 @@ func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding 
 		}
 	}
 	return findings
+}
+
+// reserve is the space a gear takes, plus room for a driving ring when the gear
+// is one a shift engages. Without it three gears pack tight against each other
+// and the ring for the middle one has nowhere to go.
+func reserve(center, thickness float64, shifted bool) [2]float64 {
+	span := spanAt(center, thickness)
+	if shifted {
+		span[1] += RingRoomHalfStuds
+	}
+	return span
 }
 
 func spanAt(center, thickness float64) [2]float64 {
@@ -788,19 +831,25 @@ func mergeSharedGears(stations *stationSet) []Station {
 }
 
 // checkOverlap catches two gears sharing the same stretch of shaft.
-func checkOverlap(stations []Station) []mech.Finding {
-	perShaft := map[string][]Station{}
-	var order []string
+//
+// Grouped by line rather than by shaft name. A coupling makes its two shafts
+// coaxial and a differential's three ports share one axis, so gears on
+// differently named shafts can still be the same place — which is exactly where
+// a gearbox puts them.
+func checkOverlap(stations []Station, l *Layout) []mech.Finding {
+	perShaft := map[[6]float64][]Station{}
+	var order [][6]float64
 	for _, st := range stations {
-		if _, seen := perShaft[st.Shaft]; !seen {
-			order = append(order, st.Shaft)
+		line := lineOf(l, st.Shaft)
+		if _, seen := perShaft[line]; !seen {
+			order = append(order, line)
 		}
-		perShaft[st.Shaft] = append(perShaft[st.Shaft], st)
+		perShaft[line] = append(perShaft[line], st)
 	}
 
 	var findings []mech.Finding
-	for _, shaft := range order {
-		sts := append([]Station(nil), perShaft[shaft]...)
+	for _, line := range order {
+		sts := append([]Station(nil), perShaft[line]...)
 		sort.SliceStable(sts, func(i, j int) bool { return sts[i].Axial < sts[j].Axial })
 		for i := 0; i < len(sts); i++ {
 			for j := i + 1; j < len(sts); j++ {
@@ -808,8 +857,10 @@ func checkOverlap(stations []Station) []mech.Finding {
 				lo2, hi2 := sts[j].Span()
 				if math.Min(hi1, hi2)-math.Max(lo1, lo2) > 1e-6 {
 					findings = append(findings, mech.Finding{Level: "FAIL", Check: "station",
-						Detail: fmt.Sprintf("shaft '%s': %dt at %.2f and %dt at %.2f overlap",
-							shaft, sts[i].Teeth, sts[i].Axial, sts[j].Teeth, sts[j].Axial)})
+						Detail: fmt.Sprintf(
+							"on the line through '%s': %dt at %.2f and %dt at %.2f overlap",
+							sts[i].Shaft, sts[i].Teeth, sts[i].Axial,
+							sts[j].Teeth, sts[j].Axial)})
 				}
 			}
 		}
@@ -827,6 +878,20 @@ func checkOnLattice(stations []Station) []mech.Finding {
 		}
 	}
 	return findings
+}
+
+// LineOf identifies the axis a shaft lies on. Shafts that a coupling or a
+// differential holds coaxial share one.
+func LineOf(l *Layout, shaft string) [6]float64 { return lineOf(l, shaft) }
+
+func lineOf(l *Layout, shaft string) [6]float64 {
+	if l == nil {
+		return [6]float64{}
+	}
+	if p, ok := l.Place[shaft]; ok {
+		return p.Key()
+	}
+	return [6]float64{}
 }
 
 // FreeIntervals are the stretches of a shaft with no gear on them: where the

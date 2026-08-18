@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"brickmesh/internal/geom"
@@ -43,6 +44,32 @@ var GearParts = map[int]string{
 	24: "3648b.dat", // Technic Gear 24 Tooth with Single Axle Hole
 	36: "32498.dat", // Technic Gear 36 Tooth Double Bevel
 	40: "3649.dat",  // Technic Gear 40 Tooth
+}
+
+// DrivingRing is the part that locks a clutch gear to the shaft it rides on.
+//
+// 6539 is the ring of the first switching system, the one in 8466 4x4
+// Off-Roader. Its hub is one stud wide with dog teeth reaching a stud either
+// side, which is how it engages the gear beside it; measured from the part, not
+// recalled. Its axle hole runs along its own Z, as the shadow library says, so
+// it orients like a gear.
+//
+// The newer rings — 18947 of the Chiron and the MT-10's — are not in the parts
+// mirror this reads from, so only the classic system can be placed.
+const (
+	DrivingRing = "6539.dat"
+	// ringHubHalfStuds is how far the ring's center sits from the gear it
+	// engages: its own hub is two half studs, so clearing a gear of the same
+	// width puts it two away.
+	ringHubHalfStuds = 2.0
+)
+
+// SelectorParts are what moves a driving ring. Their position follows from the
+// shift linkage, which the engine does not model, so they are named rather than
+// placed.
+var SelectorParts = []string{
+	"6641 Technic Transmission Changeover Catch",
+	"6631 Technic Plate 2 x 6 with 2 Position Gear Shift",
 }
 
 // Deps are the libraries the pipeline reads from.
@@ -217,6 +244,8 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 			fmt.Sprintf("%dt on shaft '%s'", st.Teeth, st.Shaft))
 	}
 
+	placeDrivingRings(m, res, model)
+
 	if res.Structure != nil {
 		for _, p := range res.Structure.Parts {
 			if err := model.AddLattice(p.Part, ldr.ColorBlack, p.Rot, p.Origin, ""); err != nil {
@@ -225,6 +254,98 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 		}
 	}
 	return model, nil
+}
+
+// placeDrivingRings puts a ring beside each gear a shift engages.
+//
+// A coupling forces its two shafts coaxial, so the ring goes on that shared
+// line, next to the gear it locks. Which side is whichever is free.
+func placeDrivingRings(m *mech.Mechanism, res *Result, model *ldr.Model) {
+	rings := 0
+	for _, link := range m.Links {
+		c, ok := link.(mech.Coupling)
+		if !ok || len(c.States) == 0 {
+			continue // a permanent coupling is a joiner, not a shift
+		}
+		station, found := stationOn(res.Stations, c.B)
+		if !found {
+			station, found = stationOn(res.Stations, c.A)
+		}
+		if !found {
+			continue // nothing to engage: reported by CheckShiftable already
+		}
+		place, ok := res.Layout.Place[station.Shaft]
+		if !ok {
+			continue
+		}
+		rot, ok := alignZTo(place.Direction)
+		if !ok {
+			continue
+		}
+
+		axial, ok := freeSideOf(res.Stations, station, res.Layout)
+		if !ok {
+			res.Findings = append(res.Findings, mech.Finding{
+				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+					"no room beside the %dt on '%s' for a driving ring; the shift for %v "+
+						"has nowhere to go", station.Teeth, station.Shaft, c.States)})
+			continue
+		}
+		pos := place.Point.Scale(synth.HalfStud).
+			Add(place.Direction.Scale(axial * synth.HalfStud))
+		label := c.Name
+		if label == "" {
+			label = fmt.Sprintf("driving ring for %v", c.States)
+		}
+		model.Add(DrivingRing, ldr.ColorRed, rot, pos, label)
+		rings++
+	}
+
+	if rings > 0 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "OK", Check: "parts", Detail: fmt.Sprintf(
+				"%d driving ring(s) placed. What moves them is not placed: %v — their "+
+					"position follows from the shift linkage, which is not modelled. Two "+
+					"rings beside the same gear could be one ring engaging either side.",
+				rings, SelectorParts)})
+	}
+}
+
+// stationOn finds a gear on a shaft.
+func stationOn(stations []layout.Station, shaft string) (layout.Station, bool) {
+	for _, st := range stations {
+		if st.Shaft == shaft {
+			return st, true
+		}
+	}
+	return layout.Station{}, false
+}
+
+// freeSideOf picks a spot beside a gear that nothing else occupies.
+//
+// Judged along the line rather than the named shaft: the whole point of a
+// coupling is that two shafts share an axis, so the gear of another ratio is
+// right there even though it belongs to a differently named shaft.
+func freeSideOf(stations []layout.Station, gear layout.Station, l *layout.Layout) (float64, bool) {
+	line := layout.LineOf(l, gear.Shaft)
+	for _, offset := range []float64{ringHubHalfStuds, -ringHubHalfStuds} {
+		axial := gear.Axial + offset
+		clear := true
+		for _, st := range stations {
+			if layout.LineOf(l, st.Shaft) != line {
+				continue
+			}
+			lo, hi := st.Span()
+			if math.Min(hi, axial+1)-math.Max(lo, axial-1) > 1e-6 {
+				clear = false
+				break
+			}
+		}
+		if clear {
+			return axial, true
+		}
+	}
+	return 0, false
 }
 
 // alignZTo finds a lattice rotation taking a gear's own axis, its local Z, onto

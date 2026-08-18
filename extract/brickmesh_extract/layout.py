@@ -287,7 +287,9 @@ def realize(mech: Mechanism, seed: str | None = None,
 
 # Thickness in half studs. Used to find overlap on the same shaft and to leave
 # the free stretches where the bearings may go.
-GEAR_THICKNESS = {8: 2.0, 12: 2.0, 16: 1.0, 20: 2.0, 24: 1.0, 28: 2.0, 36: 1.0, 40: 1.0}
+# Measured from the parts: every standard gear is one stud thick, 20 LDU, which
+# is two half studs. The 24t comes out at 19.2 and the rest at exactly 20.
+GEAR_THICKNESS = {8: 2.0, 12: 2.0, 16: 2.0, 20: 2.0, 24: 2.0, 28: 2.0, 36: 2.0, 40: 2.0}
 
 
 def effective_radius(teeth: int) -> float:

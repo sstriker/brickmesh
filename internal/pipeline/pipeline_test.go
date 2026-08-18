@@ -189,3 +189,87 @@ func TestEveryGearPartNumberResolves(t *testing.T) {
 		}
 	}
 }
+
+const gearbox = `{
+  "name": "2-speed",
+  "states": ["low", "high"],
+  "shafts": [
+    {"id": "input", "bearings": 2}, {"id": "output", "bearings": 2},
+    {"id": "low", "bearings": 2}, {"id": "high", "bearings": 2}
+  ],
+  "meshes": [
+    {"a": "input", "b": "low", "teeth_a": 16, "teeth_b": 24},
+    {"a": "input", "b": "high", "teeth_a": 24, "teeth_b": 16}
+  ],
+  "couplings": [
+    {"a": "output", "b": "low", "name": "ring low", "states": ["low"]},
+    {"a": "output", "b": "high", "name": "ring high", "states": ["high"]}
+  ],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}`
+
+func TestAGearboxGetsItsDrivingRings(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var rings, gears []geom.Vec3
+	for _, p := range res.Model.Parts {
+		switch p.Name {
+		case DrivingRing:
+			rings = append(rings, p.Pos)
+		case "3648b.dat", "4019.dat":
+			gears = append(gears, p.Pos)
+		}
+	}
+	if len(rings) != 2 {
+		t.Fatalf("got %d driving rings, want one per shift", len(rings))
+	}
+	// A ring engages the gear beside it, so it must not be inside one.
+	for _, r := range rings {
+		for _, g := range gears {
+			if r.Sub(g).Len() < 1e-6 {
+				t.Errorf("a ring landed on top of a gear at %+v", r)
+			}
+		}
+	}
+}
+
+func TestTheSelectorPartsAreNamedRatherThanPlaced(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, gearbox), deps, Options{Restarts: 2, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var said bool
+	for _, f := range res.Findings {
+		if f.Check == "parts" && strings.Contains(f.Detail, "6641") {
+			said = true
+		}
+	}
+	if !said {
+		t.Error("the report should name what moves the rings, since it is not placed")
+	}
+	for _, p := range res.Model.Parts {
+		if strings.HasPrefix(p.Name, "6641") || strings.HasPrefix(p.Name, "6631") {
+			t.Errorf("%s was placed; its position is not determined by the mechanism", p.Name)
+		}
+	}
+}
+
+// A mechanism with no shift gets no rings.
+func TestNoShiftMeansNoRings(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, reduction), deps, Options{Restarts: 2, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range res.Model.Parts {
+		if p.Name == DrivingRing {
+			t.Error("a plain reduction should not get a driving ring")
+		}
+	}
+}
