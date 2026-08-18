@@ -273,25 +273,28 @@ array can become a `Float32Array` view over the same memory instead of a copy
 and a loop. The string pool goes last, since text has no alignment and would
 push whatever followed it off it.
 
-**The measurements, retaken.** The table above says 2764 parts and 22783 ports;
-this extractor finds 2649 usable, of which 135 are tier 1 with 285 ports.
+**The measurements, retaken against the complete library.** The table above
+says 2764 parts and 22783 ports; this extractor finds 2649 usable, of which 135
+are tier 1 with 285 ports and 412 are tier 2 with 1569.
 
-| asset | tier 1 raw | tier 1 gzipped |
-|---|---|---|
-| `catalog.bin` (ports, ids, titles) | 15 KB | 3.9 KB |
-| `meshes.bin` (indexed triangles) | 3.4 MB | 1.0 MB |
+| asset | tier 1 raw | tier 1 gzipped | tier 2 raw | tier 2 gzipped |
+|---|---|---|---|---|
+| `catalog.bin` | 15 KB | 3.9 KB | 63 KB | 13 KB |
+| `meshes.bin` | 4.7 MB | 1.4 MB | 31 MB | 9.4 MB |
 
-Tier 2, which is the cap the notes above suggest for the browser build, comes to
-63 KB of catalogue (13 KB gzipped) and 12.9 MB of triangles — **4.19 MB
-gzipped, against the 4.2 MB estimated**.
+The meshes are indexed rather than a flat run of triangles: LDraw parts are
+built from primitives meeting edge to edge, so the same corner turns up many
+times over, and sharing them is most of why the file is worth generating rather
+than shipping the `.dat`s.
 
-Generating it turned up something that is not a browser problem at all: 17% of
-tier 2 parts have no geometry to read, because the parts mirror is a snapshot
-from before they were released. See findings.md. They are written as empty
-entries so the two files stay aligned, and anything placed from one of them will
-not draw.
+**Tier 2 compressed is 9.4 MB, not the 4.2 MB estimated**, and that is worth
+knowing before answering the open question about capping the browser build
+there. The estimate was not wrong about the parts it saw: it was taken against a
+parts mirror missing 17% of them, and the missing sixth were the newer and more
+detailed ones. `internal/ldraw` now fetches the official library whole, so every
+part has geometry — which also means the newer driving ring system can be
+measured, having been unmeasurable while its axle joiner was a 404. See
+findings.md.
 
-The triangle figures come in under the estimate — 3.4 MB against 5.2 MB raw —
-because the meshes are indexed. LDraw parts are built from primitives that meet
-edge to edge, so the same corner turns up in many triangles, and sharing them is
-most of why the file is worth generating rather than shipping the `.dat`s.
+On these numbers a tier 2 cap saves less than it appears to, and the reason to
+fetch meshes by range rather than shipping them holds either way.
