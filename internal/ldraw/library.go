@@ -56,6 +56,22 @@ func Ensure(dest string) (string, error) {
 		return "", err
 	}
 
+	// One fetch, however many want it. `go test ./...` runs a process per
+	// package and on a cold cache they all miss at once; without this they each
+	// pull 144 MB, which is slow for us and rude to the server. The first to
+	// claim the lock fetches and the rest wait for the tree to appear.
+	//
+	// A lock left behind by something that died would block every later run, so
+	// waiting gives up after a while and fetches anyway. Two fetches is a waste;
+	// a cache that can never be filled again is worse.
+	if locked, err := claim(dest); err == nil && !locked {
+		if root, ok := waitForLibrary(root, libraryWait); ok {
+			return root, nil
+		}
+	} else if err == nil {
+		defer os.Remove(lockPath(dest))
+	}
+
 	// To a file rather than to memory: a zip is read back to front, so it has
 	// to be seekable, and holding 144 MB to avoid a temporary file is a poor
 	// trade on a machine that might not have it to spare.
@@ -109,7 +125,14 @@ func Ensure(dest string) (string, error) {
 		return "", fmt.Errorf("the archive held no parts directory: %w", err)
 	}
 	if err := os.Rename(staging, root); err != nil {
-		return "", err
+		// Someone else got there first. Several processes can be here at once —
+		// `go test ./...` runs a process per package, and on a cold cache they
+		// all miss and all fetch — so losing the race is an ordinary outcome
+		// and not a failure. Their tree is as good as ours.
+		if fi, statErr := os.Stat(filepath.Join(root, "parts")); statErr == nil && fi.IsDir() {
+			return root, nil
+		}
+		return "", fmt.Errorf("putting the library in place: %w", err)
 	}
 	return root, nil
 }
@@ -175,6 +198,37 @@ func (l *Library) findInRoot(name string) (string, bool) {
 		if err == nil {
 			return string(b), true
 		}
+	}
+	return "", false
+}
+
+// libraryWait is how long to wait for another process's download before giving
+// up on it and fetching too. The archive takes a couple of minutes on a good
+// connection and CI is not always on one.
+const libraryWait = 15 * time.Minute
+
+func lockPath(dest string) string { return filepath.Join(dest, ".fetching") }
+
+// claim reports whether this process is the one that should fetch.
+func claim(dest string) (bool, error) {
+	f, err := os.OpenFile(lockPath(dest), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return false, nil // someone else has it
+		}
+		return false, err
+	}
+	return true, f.Close()
+}
+
+// waitForLibrary polls for the tree another process is extracting.
+func waitForLibrary(root string, limit time.Duration) (string, bool) {
+	deadline := time.Now().Add(limit)
+	for time.Now().Before(deadline) {
+		if fi, err := os.Stat(filepath.Join(root, "parts")); err == nil && fi.IsDir() {
+			return root, true
+		}
+		time.Sleep(2 * time.Second)
 	}
 	return "", false
 }

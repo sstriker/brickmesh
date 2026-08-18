@@ -147,11 +147,3 @@ func TestOfflineRefusesToFetch(t *testing.T) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}
 }
-
-func TestCachePathFlattensSearchDirectories(t *testing.T) {
-	l := New("/tmp/cache")
-	// The Python side flattens the same way, so both find the same file.
-	if got := l.cachePath("parts/s/sub.dat"); got != "/tmp/cache/parts__s__sub.dat" {
-		t.Errorf("cachePath = %q", got)
-	}
-}

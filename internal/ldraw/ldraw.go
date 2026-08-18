@@ -35,8 +35,11 @@ const (
 	fetchTimeout = 30 * time.Second
 )
 
-// SearchDirs are tried in order, matching the extractor.
-var SearchDirs = []string{"parts", "p", "parts/s", "p/48", "p/8"}
+// SearchDirs are tried in order, under the library's root.
+//
+// The empty one is the root itself, which is how a flat directory of parts
+// works — the test fixtures are laid out that way, and it costs one stat.
+var SearchDirs = []string{"parts", "p", "parts/s", "p/48", "p/8", ""}
 
 // ErrNotFound reports a part that is in no search directory.
 var ErrNotFound = errors.New("part not found")
@@ -80,33 +83,31 @@ func New(cacheDir string) *Library {
 	root := filepath.Join(cacheDir, LibraryRoot)
 	if fi, err := os.Stat(filepath.Join(root, "parts")); err == nil && fi.IsDir() {
 		l.Root = root
+	} else if fi, err := os.Stat(cacheDir); err == nil && fi.IsDir() {
+		// Or the directory itself, if it is one: that is how the fixtures are
+		// laid out, and how anyone pointing this at an existing LDraw
+		// installation would expect it to behave.
+		l.Root = cacheDir
 	}
 	return l
 }
 
-// cachePath flattens the search-directory separators the same way the Python
-// side does, so both find the same file.
-func (l *Library) cachePath(name string) string {
-	flat := strings.NewReplacer("/", "__", "\\", "__").Replace(name)
-	return filepath.Join(l.CacheDir, flat)
-}
-
-// Fetch returns the text of a .dat, from cache when possible.
+// Fetch returns the text of a .dat from the extracted library.
+//
+// One source, deliberately. There used to be a flat per-part cache consulted
+// first, left over from sharing a directory with the Python extractor, and it
+// outlived its purpose badly: it still held 925 parts fetched from the old
+// mirror, and those files are not the same as the official library's. Reading
+// them in preference meant measuring old geometry on a machine that had them
+// and current geometry on one that did not — which is exactly how the same
+// tests passed here and failed in CI.
 func (l *Library) Fetch(name string) (string, error) {
 	name = strings.ToLower(strings.ReplaceAll(name, "\\", "/"))
-	cp := l.cachePath(name)
-	if b, err := os.ReadFile(cp); err == nil {
-		return string(b), nil
+	if text, ok := l.findInRoot(name); ok {
+		return text, nil
 	}
 	if l.Offline {
 		return "", fmt.Errorf("%w: %s (offline)", ErrNotFound, name)
-	}
-	if err := os.MkdirAll(l.CacheDir, 0o755); err != nil {
-		return "", err
-	}
-
-	if text, ok := l.findInRoot(name); ok {
-		return text, nil
 	}
 
 	// Nothing cached and no library on disk, so go and get one. Once, however

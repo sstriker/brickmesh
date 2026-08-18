@@ -121,7 +121,10 @@ func TestTheModelReadsBackAsGeometry(t *testing.T) {
 	// primitives, so it can only resolve where those live; the model goes in
 	// beside them under a name of its own and comes out again after.
 	name := "brickmesh-roundtrip-test.dat"
-	path := filepath.Join(deps.Lib.CacheDir, name)
+	if deps.Lib.Root == "" {
+		t.Skip("no extracted library to put the model beside")
+	}
+	path := filepath.Join(deps.Lib.Root, name)
 	if err := os.WriteFile(path, []byte(res.Model.Encode()), 0o644); err != nil {
 		t.Fatal(err)
 	}
