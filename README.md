@@ -24,21 +24,27 @@ freedom. A subtractor should have two.
 
 ## Architecture
 
-Python does the data extraction, Go does the computation.
+All Go.
 
 ```text
-extract/     Python. Reads the LDraw parts library and the LDCad shadow
-             library, expands the grids, writes a single catalog file.
-             Run once.
+internal/    The engine. Reads the LDraw parts library and the LDCad shadow
+             library, works out what meshes what, places it, frames it, and
+             writes .ldr and an LDCad animation.
 
-internal/    Go. Index, occupancy grid, search algorithms, .ldr output.
-             Runs on every query.
+cmd/         The commands: brickmesh, brickmesh-extract, brickmesh-assets,
+             brickmesh-torque, and the WebAssembly build behind the page.
+
+web/         The functional layer as a static page.
+
+tests/       A little Python, which runs the emitted Lua under a real Lua
+             runtime. See tests/README.md.
 ```
 
-The split is deliberate. The parsing is full of edge cases that each had to be
-discovered (see `docs/findings.md`); you do not want to write that twice. The
-computation is a tight problem where Go's structs, absent GC pressure and real
-parallelism pay off directly.
+It began in Python and was ported module by module; `docs/findings.md` records
+what each port was checked against — the extractor byte-identical over 2,649
+parts, the collision test matching FCL numerically, torque agreeing across
+eighteen trains. The Python went when the port finished, because a second
+implementation that has fallen behind answers confidently and wrongly.
 
 ## Status
 
@@ -156,21 +162,13 @@ on the command line. `docs/architecture.md` sets out where that is heading.
 
 ## Building
 
-Go 1.22 or newer for the engine, [uv](https://docs.astral.sh/uv/) for the
-extractor. The two halves build and test independently; the Makefile runs both.
+Go 1.22 or newer. [uv](https://docs.astral.sh/uv/) as well, for the one test
+that runs the emitted Lua.
 
 ```console
 make build   # the Go binary, into bin/
-make test    # Go and Python tests
+make test    # the Go tests, and the Lua one
 make lint    # vet, gofmt, staticcheck, complexity lens, ruff
-```
-
-Building the catalog needs numpy and nothing else. The mesh-level modules
-(`holes`, `voxel`, `interfere`, `bevel`) additionally need a collision library,
-which is the `geometry` extra:
-
-```console
-uv sync --extra geometry
 ```
 
 Most tests run offline against synthetic parts under `tests/fixtures/`, and the

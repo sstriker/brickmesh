@@ -58,15 +58,15 @@ class Group:
         self.pos: tuple[float, float, float] | None = None
 
     @method
-    def setOri(self, m):  # noqa: N802 - the name LDCad uses
+    def setOri(self, m):  # LDCad's own spelling
         self.angle, self.axis = m.angle, m.axis
 
     @method
-    def setPos(self, x, y, z):  # noqa: N802
+    def setPos(self, x, y, z):
         self.pos = (x, y, z)
 
     @method
-    def setPosOri(self, m):  # noqa: N802
+    def setPosOri(self, m):
         self.angle, self.axis, self.pos = m.angle, m.axis, m.pos
 
 
@@ -77,15 +77,15 @@ class Matrix:
         self.pos = None
 
     @method
-    def setRotate(self, deg, x, y, z):  # noqa: N802
+    def setRotate(self, deg, x, y, z):
         self.angle, self.axis = deg, (x, y, z)
 
     @method
-    def setPos(self, x, y, z):  # noqa: N802
+    def setPos(self, x, y, z):
         self.pos = (x, y, z)
 
     @method
-    def setTranslate(self, x, y, z):  # noqa: N802
+    def setTranslate(self, x, y, z):
         self.pos = (x, y, z)
 
 
@@ -97,28 +97,28 @@ class Animation:
         self.events: dict[str, str] = {}
 
     @method
-    def setLength(self, seconds):  # noqa: N802
+    def setLength(self, seconds):
         self.length = seconds
 
     @method
-    def setEvent(self, when, fn):  # noqa: N802
+    def setEvent(self, when, fn):
         self.events[when] = fn
 
     @method
-    def getLength(self):  # noqa: N802
+    def getLength(self):
         return self.length
 
     @method
-    def getFrameTime(self):  # noqa: N802
+    def getFrameTime(self):
         return self.frame_time
 
 
 class Subfile:
-    def __init__(self, stub: "Stub") -> None:
+    def __init__(self, stub: Stub) -> None:
         self.stub = stub
 
     @method
-    def getGroup(self, name):  # noqa: N802
+    def getGroup(self, name):
         return self.stub.group(name)
 
 

@@ -76,8 +76,8 @@ jobs:
       - name: Answers match the engine
         run: go test ./internal/calc/ -run Browser -v
 
-  python:
-    name: Python extractor
+  lua:
+    name: Emitted Lua
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -99,103 +99,30 @@ jobs:
         with:
           version: ${{ env.UV_VERSION }}
 
-      # The tests cover the pure-logic modules, which need numpy and nothing
-      # heavier. The mesh dependencies (trimesh, python-fcl, scipy) are the
-      # `geometry` extra and are exercised by the import smoke test below,
-      # rather than being dragged into every matrix entry.
+      # What is left runs the emitted LDCad script under a Lua runtime. See
+      # tests/README.md for why that is the one thing still written in Python.
       - name: Install dependencies
         run: uv sync --frozen
 
       - name: Test
         run: uv run --frozen pytest -rs
 
-  geometry:
-    name: Geometry extra
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          version: ${{ env.UV_VERSION }}
-
-      - name: Install with the geometry extra
-        run: uv sync --frozen --extra geometry
-
-      # Importing every module is a real check: the mesh modules pull trimesh
-      # and python-fcl at import time, so a broken wheel or a renamed symbol
-      # shows up here instead of the first time someone runs the extractor.
-      - name: Import every module
-        run: |
-          uv run --frozen --extra geometry python - <<'PY'
-          import importlib, pkgutil
-          import brickmesh_extract as pkg
-
-          failed = []
-          for mod in pkgutil.iter_modules(pkg.__path__):
-              name = f"{pkg.__name__}.{mod.name}"
-              try:
-                  importlib.import_module(name)
-                  print(f"ok   {name}")
-              except Exception as exc:
-                  failed.append(f"{name}: {exc!r}")
-                  print(f"FAIL {name}: {exc!r}")
-          if failed:
-              raise SystemExit(f"{len(failed)} module(s) failed to import")
-          PY
-
-      # The hole probe needs a collision library, so those tests skip in the
-      # matrix job above. This is where they actually run.
-      - name: Test, including the mesh-level tests
-        run: uv run --frozen --extra geometry pytest -rs
-
   libraries:
-    name: Real LDraw and LDCad libraries
+    name: Against the real libraries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: '3.12'
-
-      # The parity test runs the Go extractor against the Python one over the
-      # whole library, so this job needs both toolchains.
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: go.mod
           cache: true
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          version: ${{ env.UV_VERSION }}
-
-      # The shadow library is ~17 MB extracted and the LDraw parts are fetched
-      # one file at a time from a third-party mirror, so a cold run is the only
-      # one that should ever hit the network.
-      #
-      # The key is content-addressed rather than run-scoped: what gets fetched
-      # is fully determined by the fetch code and by which parts the tests ask
-      # The parts library is now fetched whole rather than a file at a time, so
-      # this cache went from a few megabytes of individual parts to about 600 MB
-      # of extracted tree. That is worth caching rather than downloading 144 MB
-      # and unpacking it on every run, and the key is bumped to v2 because a v1
-      # cache holds the old per-part layout, which is no longer read.
-      #
-      # for, so an exact hit means the cache already holds everything needed and
-      # there is nothing to re-upload. restore-keys still gives a warm start
-      # when one of those does change, and the run afterwards saves the
-      # superset. Bump the version prefix to discard the cache deliberately.
+      # The parts library is fetched whole and extracted, which is 144 MB down
+      # and about 600 MB on disk. Worth caching rather than doing every run.
+      # Bump the version prefix to discard the cache deliberately.
       - name: Cache the parts libraries
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -204,21 +131,17 @@ jobs:
             ~/.cache/brickmesh-shadow
           key: >-
             libraries-v2-${{ hashFiles(
-              'extract/brickmesh_extract/ldraw.py',
-              'extract/brickmesh_extract/snap.py',
               'internal/ldraw/ldraw.go',
               'internal/ldraw/library.go',
-              'internal/shadow/shadow.go',
-              'tests/test_real_libraries.py') }}
+              'internal/shadow/shadow.go') }}
           restore-keys: libraries-v2-
 
-      - name: Install with the geometry extra
-        run: uv sync --frozen --extra geometry
-
+      # Everything that needs real gear teeth: the meshing sweep, the tooth
+      # phase, the clutch measurements, the clearance checks over whole models.
       - name: Test against the real libraries
         env:
           BRICKMESH_LIBRARIES: '1'
-        run: uv run --frozen --extra geometry pytest -rs -m libraries
+        run: go test ./...
 
       - name: Report cache footprint
         if: always()

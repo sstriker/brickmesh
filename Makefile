@@ -1,8 +1,9 @@
-# brickmesh — Go engine + Python extractor.
+# brickmesh — a Go engine, and a little Python that tests it.
 #
-# The two halves meet at exactly one place: the extractor writes
-# data/catalog.json, the engine reads it. So they build and test independently,
-# and this Makefile is the thin layer that runs both.
+# The engine was Python once and was ported; docs/findings.md records what each
+# port was checked against. What is left in tests/ runs the LDCad animation
+# script the engine writes, under a real Lua runtime, because nothing on the Go
+# side can tell whether the text it emits works.
 
 .PHONY: all build test lint fmt clean \
         go-build go-test go-vet go-fmt go-staticcheck go-lint-complexity \
@@ -107,8 +108,7 @@ py-sync:
 py-lock:
 	$(UV) lock
 
-# Tests cover the pure-logic modules, which need numpy and nothing heavier, so
-# the geometry extra stays out of the default test install.
+# Runs the emitted Lua under lupa. See tests/README.md.
 py-test:
 	$(UV) run --frozen pytest -rs
 

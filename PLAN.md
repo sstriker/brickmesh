@@ -176,6 +176,12 @@ therefore means the box is buildable and the shift mechanism is not.
 - [ ] gear thickness comes from a table of seven counts; a part not in it gets
       a default of 2 half studs
 
+## M3 — port to Go — DONE
+
+Every module has a Go counterpart and the Python has been removed. What each
+port was verified against is recorded in docs/findings.md; the one capability
+that went with it, hole inference from geometry, is named there too.
+
 ## M3 — port to Go
 
 Profiling showed the bottleneck was never the language: it was a missing index

@@ -1,42 +1,31 @@
 [project]
-name = "brickmesh-extract"
+name = "brickmesh-checks"
 version = "0.1.0"
-description = "Extractor for brickmesh: reads the LDraw and LDCad shadow libraries into a parts catalog"
+description = "The checks on brickmesh's generated output that are easier to write in Python than in Go"
 authors = [
     { name = "Sander Striker", email = "s.striker@striker.nl" },
 ]
 requires-python = ">=3.12"
-readme = "extract/README.md"
+readme = "tests/README.md"
 license = "Apache-2.0"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-]
 
-# Building the catalog needs numpy and nothing else: catalog.py, snap.py,
-# ldraw.py, mech.py and layout.py are pure array work. The mesh-level modules
-# (holes, voxel, interfere, bevel) are the ones that need a collision library,
-# so those dependencies are an extra rather than a hard requirement.
-dependencies = [
-    "numpy>=1.26",
-]
-
-[project.scripts]
-brickmesh-extract = "brickmesh_extract.build:main"
-
-[project.optional-dependencies]
-geometry = [
-    "scipy>=1.11",
-    "trimesh>=4.0",
-    "python-fcl>=0.7",
-]
+# What is left here is not an implementation. The engine was Python once and was
+# ported to Go module by module; docs/findings.md records what each port was
+# checked against. The Python went when the port finished, because a second
+# implementation that has fallen behind is worse than none — it answers
+# confidently and wrongly.
+#
+# What remains tests the Go. tests/test_animation_lua.py runs the LDCad
+# animation script the engine writes, under a real Lua runtime, against a stub
+# of LDCad's API — because nothing on the Go side can tell whether the text it
+# emits is valid Lua, let alone whether the arithmetic comes out right.
+dependencies = []
 
 [dependency-groups]
 test = [
     "pytest>=8.0",
-    # Runs the animation script brickmesh writes. Generated Lua that nothing
-    # executes is generated Lua nobody has checked.
+    # The Lua runtime. Generated Lua that nothing executes is generated Lua
+    # nobody has checked.
     "lupa>=2.0",
 ]
 dev = [
@@ -46,14 +35,6 @@ dev = [
 
 [tool.uv]
 default-groups = ["test", "dev"]
-
-[build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
-build-backend = "uv_build"
-
-[tool.uv.build-backend]
-module-root = "extract"
-module-name = "brickmesh_extract"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -71,12 +52,4 @@ select = [
     "F",
     "RUF", # ruff-checks
     "UP",  # pyupgrade
-]
-ignore = [
-    # `a = x; b = y` on one line is used deliberately throughout the extractor
-    # to keep paired assignments together; 46 sites, all intentional.
-    "E702",
-    # `l` reads as a link in mech/layout, where it matches the maths being
-    # transcribed. Renaming would obscure more than it clarifies.
-    "E741",
 ]

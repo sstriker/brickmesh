@@ -288,3 +288,37 @@ and `internal/bevel` by stride, and from the same 444 positions they choose
 different winners for that reason alone. The two agree exactly on the 444, which
 is the gap arithmetic; they do not agree on the answer, and neither has been
 checked against a mechanism that was built.
+
+
+## What the Python was, and what it verified before it went
+
+The engine began in Python and was ported to Go module by module. The Python is
+gone now; this is what it proved on the way out, because the proof is the
+durable part and the code was not.
+
+**The extractor was byte-identical.** Both implementations were run over the
+whole shadow library and compared part by part: 2,649 parts and 21,675 ports,
+the same in both. That is what settled the port of the parsing, which is the
+half full of edge cases.
+
+**The collision test matched a third implementation.** The Python used FCL; the
+Go is Möller's triangle test under a bounding-volume hierarchy. They agree on
+the reference numerically — same meshing windows, same spacing, same backlash,
+same free fraction at 60 and 62 LDU — and the Go is about forty-five times
+faster.
+
+**Torque agreed exactly** across eighteen trains, ratios and efficiencies alike.
+
+**The tooth phase agreed** gear by gear, including the 40t's poor sharpness
+reading of 0.2630, which both implementations produce and neither invented.
+
+**The bevel gap arithmetic agreed** on all 444 touching positions, though not on
+which of them to pick — that choice depends on how the surfaces are sampled.
+
+One capability went with it and is worth naming so it is not lost silently:
+`holes.find_holes` inferred a part's holes from its geometry, by pushing a
+cylinder along an axis and clustering where it passed through. That is for parts
+the shadow library says nothing about. It was wired into nothing, and it is the
+`--infer-holes` item in PLAN.md. Reimplementing it in Go means a ray-mesh
+intersection, or a run of empty cells through the voxel grid that
+internal/voxel already builds.
