@@ -96,6 +96,12 @@ func run() error {
 	if err := write(filepath.Join(*out, "catalog.bin"), rawCatalog); err != nil {
 		return err
 	}
+	// The terms travel with the data. Both licences require that anyone the
+	// files reach can find out what they may do with them, and a notice left
+	// behind in a repository does not reach someone who downloaded a file.
+	if err := write(filepath.Join(*out, "LICENSE.txt"), []byte(assetLicense)); err != nil {
+		return err
+	}
 	logf(fmt.Sprintf("catalog.bin: %d parts, %d ports, %s",
 		len(catalog.Parts), portCount(catalog), size(len(rawCatalog))))
 
@@ -174,6 +180,39 @@ func buildMeshes(ctx context.Context, catalog assets.Catalog, maxTier uint8,
 	raw, err = assets.WriteMeshes(meshes)
 	return raw, built, missingIDs, err
 }
+
+// assetLicense is written beside the generated files.
+//
+// Two licences, because the two files are derived from different things and one
+// of them is share-alike. Spelled out rather than pointed at, since whoever
+// ends up with these may have nothing else of the project.
+const assetLicense = `These files are generated from two libraries, and carry their terms.
+
+catalog.bin
+    Where every part's holes and pins are, and which way they point.
+    Derived from the LDCad Shadow Library by Roland Melkert, which is
+    licensed CC BY-SA 4.0 — so this file is too. If you pass it on, or
+    anything made from it, it stays CC BY-SA 4.0.
+    https://creativecommons.org/licenses/by-sa/4.0/
+
+meshes.bin
+    Part geometry, as indexed triangles. Derived from The LDraw Parts
+    Library, redistributable under CCAL 2.0 (Creative Commons Attribution
+    License 2.0) — so this file is too, and it must carry attribution.
+    https://creativecommons.org/licenses/by/2.0/
+
+    The LDraw Parts Library is the work of LDraw.org volunteers. The LDraw
+    Steering Committee holds an attribution to "The LDraw Parts Library"
+    to be sufficient in a derivative work in lieu of a full author list.
+    LDraw is a trademark of the LDraw.org organisation.
+
+Neither library is affiliated with the LEGO Group. LEGO is a trademark of
+the LEGO Group, which does not sponsor, authorize or endorse this project.
+
+The software that generated these files is separate, and is under the
+Apache License 2.0. Reading data under a licence does not put the reader
+under it.
+`
 
 func portCount(c assets.Catalog) int {
 	n := 0

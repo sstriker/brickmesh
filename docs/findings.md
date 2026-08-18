@@ -208,7 +208,13 @@ axle joiner for the 3L driving ring, so the newer shifting system cannot be
 measured at all while this stands — which is why `docs/shifting.md` only has
 figures for the first one.
 
-The fix is to fetch the official library the way the shadow library is already
-fetched, rather than a mirror of part of it. Not done here: it changes what CI
-downloads and caches, and it is a decision about where the project's data comes
-from rather than a bug to quietly patch.
+**Fixed.** `internal/ldraw` now fetches the official library whole —
+`library.ldraw.org/library/updates/complete.zip`, 144 MB, extracted to about
+600 MB of which only `parts/` and `p/` are kept, plus the two licence files. All
+135 tier 1 parts have geometry where 109 did before, and 18947 and 18948 are
+there, so the 3L driving ring system can be measured after all.
+
+The lesson is worth keeping separately from the fix: the gap was invisible for
+as long as nothing asked for every part. Everything that reads geometry read a
+handful, and a handful of old, common parts is exactly the set a stale mirror
+still has.

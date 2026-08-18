@@ -10,15 +10,15 @@
 //	1 plate =  8 LDU (Y)
 //	+Y points DOWN.
 //
-// Parts are fetched one file at a time from a mirror and cached on disk, in the
-// same directory and under the same names the Python extractor uses, so the two
-// share a cache rather than each keeping their own.
+// The library is fetched whole and extracted once — see library.go for why a
+// mirror of part of it was not good enough. Individual parts are also cached
+// flat, in the same directory and under the same names the Python extractor
+// uses, so the two share a cache rather than each keeping their own.
 package ldraw
 
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,7 +31,6 @@ import (
 )
 
 const (
-	Mirror       = "https://raw.githubusercontent.com/mpetrov/ldraw-parts/master"
 	maxDepth     = 24
 	fetchTimeout = 30 * time.Second
 )
@@ -49,9 +48,14 @@ type Library struct {
 	// Offline refuses to fetch, which is what tests want: a miss should
 	// surface as a missing fixture, not as a download.
 	Offline bool
+	// Root is the extracted parts library. Set when one is already in the
+	// cache; otherwise the first miss goes and gets it.
+	Root string
 
-	mu    sync.Mutex
-	geoms map[string]*Geometry
+	mu       sync.Mutex
+	geoms    map[string]*Geometry
+	fetch    sync.Once
+	fetchErr error
 }
 
 // DefaultCacheDir matches the Python extractor's ldraw.CACHE.
@@ -67,11 +71,17 @@ func New(cacheDir string) *Library {
 	if cacheDir == "" {
 		cacheDir = DefaultCacheDir()
 	}
-	return &Library{
+	l := &Library{
 		CacheDir: cacheDir,
 		Client:   &http.Client{Timeout: fetchTimeout},
 		geoms:    make(map[string]*Geometry),
 	}
+	// Use a library that is already there without going to look for one.
+	root := filepath.Join(cacheDir, LibraryRoot)
+	if fi, err := os.Stat(filepath.Join(root, "parts")); err == nil && fi.IsDir() {
+		l.Root = root
+	}
+	return l
 }
 
 // cachePath flattens the search-directory separators the same way the Python
@@ -95,30 +105,32 @@ func (l *Library) Fetch(name string) (string, error) {
 		return "", err
 	}
 
-	var last error
-	for _, dir := range SearchDirs {
-		url := fmt.Sprintf("%s/%s/%s", Mirror, dir, name)
-		resp, err := l.Client.Get(url)
-		if err != nil {
-			last = err
-			continue
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			last = err
-			continue
-		}
-		if resp.StatusCode != http.StatusOK {
-			last = fmt.Errorf("%s: %s", url, resp.Status)
-			continue
-		}
-		if err := os.WriteFile(cp, body, 0o644); err != nil {
-			return "", err
-		}
-		return string(body), nil
+	if text, ok := l.findInRoot(name); ok {
+		return text, nil
 	}
-	return "", fmt.Errorf("%w: %s (%v)", ErrNotFound, name, last)
+
+	// Nothing cached and no library on disk, so go and get one. Once, however
+	// many parts are asked for concurrently: it is a single 144 MB archive, and
+	// two goroutines racing to download it would be a bad way to spend a
+	// morning.
+	l.fetch.Do(func() {
+		root, err := Ensure(l.CacheDir)
+		if err != nil {
+			l.fetchErr = err
+			return
+		}
+		l.mu.Lock()
+		l.Root = root
+		l.mu.Unlock()
+	})
+	if l.fetchErr != nil {
+		return "", fmt.Errorf("%w: %s (%v)", ErrNotFound, name, l.fetchErr)
+	}
+	if text, ok := l.findInRoot(name); ok {
+		return text, nil
+	}
+	return "", fmt.Errorf("%w: %s (in no search directory of %s)",
+		ErrNotFound, name, l.Root)
 }
 
 // Geometry is a resolved part: every vertex and triangle in the part's own

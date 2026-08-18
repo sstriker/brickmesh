@@ -115,8 +115,11 @@ A box can also be told when to shift for itself, on the speed of a shaft it
 watches. The run reports the schedule and checks whether it hunts; see
 [docs/shifting.md](docs/shifting.md).
 
-The parts libraries are fetched on first use, so the first run is slower than
-the rest.
+The parts libraries are fetched on first use: the LDraw parts library as one
+144 MB archive and the LDCad shadow library beside it, both cached under
+`~/.cache`. So the first run is slow and the rest are not. See
+[ATTRIBUTION.md](ATTRIBUTION.md) for what they are and what their licences ask
+of anything you publish from them.
 
 ## In a browser
 

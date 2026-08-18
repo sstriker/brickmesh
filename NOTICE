@@ -6,8 +6,16 @@ Technic mechanisms.
 
 This product does NOT include the LDraw Parts Library or the LDCad Shadow
 Library; both are fetched on first use. See ATTRIBUTION.md for their provenance
-and license terms. The shadow library is CC BY-SA 4.0 and that share-alike
-condition carries through to data files derived from it.
+and license terms.
+
+The LDraw Parts Library is the work of LDraw.org volunteers and is
+redistributable under CCAL 2.0 (Creative Commons Attribution License 2.0). The
+LDCad Shadow Library is by Roland Melkert under CC BY-SA 4.0, and that
+share-alike condition carries through to data files derived from it.
+
+Files generated from either -- the catalogue and the mesh blob that "make
+assets" writes -- carry those terms rather than this one. The generator writes a
+LICENSE.txt beside them saying which applies to which.
 
 LEGO is a trademark of the LEGO Group, which does not sponsor, authorize or
 endorse this project.
