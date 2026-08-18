@@ -411,8 +411,18 @@ func TestAGearboxAnimatesOncePerState(t *testing.T) {
 	if res.Script == nil {
 		t.Fatal("no script")
 	}
-	if len(res.Script.Animations) != 3 {
-		t.Fatalf("got %d animations, want one per state", len(res.Script.Animations))
+	// One per state, plus the one that walks through them.
+	var names []string
+	for _, a := range res.Script.Animations {
+		names = append(names, a.Name)
+	}
+	if len(res.Script.Animations) != 4 {
+		t.Fatalf("got %v, want one per state and a shift", names)
+	}
+	last := res.Script.Animations[3]
+	if last.Name != "shift" || len(last.Segments) != 3 {
+		t.Errorf("got %v with %d segments, want a shift walking all three states",
+			last.Name, len(last.Segments))
 	}
 	if res.Model.Script != "gb.lua" {
 		t.Errorf("the model should reference the script, got %q", res.Model.Script)
@@ -430,6 +440,9 @@ func TestTheAnimatedOutputTurnsAtTheSolvedRatio(t *testing.T) {
 	}
 
 	for _, ani := range res.Script.Animations {
+		if len(ani.Segments) > 0 {
+			continue // the walk through the states, checked state by state above
+		}
 		speeds, ok := m.Solve(ani.Name)
 		if !ok {
 			t.Fatalf("%s does not solve", ani.Name)

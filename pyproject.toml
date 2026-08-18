@@ -35,6 +35,9 @@ geometry = [
 [dependency-groups]
 test = [
     "pytest>=8.0",
+    # Runs the animation script brickmesh writes. Generated Lua that nothing
+    # executes is generated Lua nobody has checked.
+    "lupa>=2.0",
 ]
 dev = [
     "prek>=0.2.0,<0.3",

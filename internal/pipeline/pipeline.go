@@ -116,6 +116,9 @@ type Result struct {
 	Script *ldcad.Script
 
 	axles []axlePlacement
+	// ringSites is where each shift's driving ring sits and slides, kept so
+	// the animation can move it rather than only place it.
+	ringSites []ringSite
 }
 
 // axlePlacement is a shaft worked out but not yet written.
@@ -257,6 +260,7 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 	})
 
 	sites := ringSites(m, res)
+	res.ringSites = sites
 	for _, st := range stations {
 		name, ok := gearAt(st, sites)
 		if !ok {
@@ -311,6 +315,10 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 type ringSite struct {
 	coupling mech.Coupling
 	station  layout.Station
+	// rides is the shaft the ring is splined to, which is the side of the
+	// coupling that is not the gear it engages. It turns with that shaft in
+	// every state, engaged or not — the gear is the part that runs free.
+	rides string
 	// Engaged is where the ring sits when the coupling is engaged, along the
 	// shaft in half studs; Disengaged is where it slides to when it is not.
 	engaged, disengaged float64
@@ -329,8 +337,10 @@ func ringSites(m *mech.Mechanism, res *Result) []ringSite {
 			continue // a permanent coupling is a joiner, not a shift
 		}
 		station, found := stationOn(res.Stations, c.B)
+		rides := c.A
 		if !found {
 			station, found = stationOn(res.Stations, c.A)
+			rides = c.B
 		}
 		if !found {
 			continue // nothing to engage: reported by CheckShiftable already
@@ -348,7 +358,7 @@ func ringSites(m *mech.Mechanism, res *Result) []ringSite {
 		if axial < station.Axial {
 			side = -1
 		}
-		out = append(out, ringSite{coupling: c, station: station,
+		out = append(out, ringSite{coupling: c, station: station, rides: rides,
 			engaged: axial, disengaged: axial + side*clutch.Travel})
 	}
 	return out

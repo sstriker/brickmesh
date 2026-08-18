@@ -4,7 +4,10 @@
 package pipeline
 
 import (
+	"fmt"
 	"strings"
+
+	"brickmesh/internal/geom"
 
 	"brickmesh/internal/ldcad"
 	"brickmesh/internal/ldr"
@@ -43,6 +46,12 @@ func animate(m *mech.Mechanism, res *Result, opts Options) {
 		})
 	}
 	tagParts(res, groupOf)
+	for _, r := range ringGroups(res) {
+		res.Model.Groups = append(res.Model.Groups, ldr.Group{
+			Name: r.group, Center: r.engaged,
+		})
+	}
+	tagRings(res)
 
 	script := &ldcad.Script{
 		Model: m.Name, Seconds: opts.Seconds, InputTurns: opts.InputTurns,
@@ -51,10 +60,14 @@ func animate(m *mech.Mechanism, res *Result, opts Options) {
 	if len(states) == 0 {
 		states = []string{""}
 	}
+	rings := ringGroups(res)
 	for _, state := range states {
-		if ani, ok := animationFor(m, res, groupOf, state); ok {
+		if ani, ok := animationFor(m, res, groupOf, rings, state); ok {
 			script.Animations = append(script.Animations, ani)
 		}
+	}
+	if ani, ok := shiftAnimation(m, res, groupOf, rings, states); ok {
+		script.Animations = append(script.Animations, ani)
 	}
 	if len(script.Animations) == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
@@ -123,7 +136,7 @@ func shaftFromLabel(label string) (string, bool) {
 
 // animationFor works out how fast each group turns in one state.
 func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
-	state string) (ldcad.Animation, bool) {
+	rings []ringGroup, state string) (ldcad.Animation, bool) {
 
 	speeds, ok := m.Solve(state)
 	if !ok {
@@ -133,7 +146,7 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 	if name == "" {
 		name = m.Name
 	}
-	ani := ldcad.Animation{Name: name}
+	ani := ldcad.Animation{Name: name, Sliding: slidingIn(rings, speeds, state)}
 	for _, id := range m.Order() {
 		group, ok := groupOf[id]
 		if !ok {
@@ -149,6 +162,98 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 	}
 	if len(ani.Turning) == 0 {
 		return ldcad.Animation{}, false
+	}
+	return ani, true
+}
+
+// ringGroup is a driving ring's own group: it turns with its shaft like any
+// gear, and slides along it, which no other part does.
+type ringGroup struct {
+	group  string
+	shaft  string // the one it is splined to, whose speed it turns at
+	states []string
+	// axis it turns about, which is also the one it slides along.
+	axis                geom.Vec3
+	engaged, disengaged geom.Vec3
+}
+
+// ringGroups names a group per driving ring and works out its two positions.
+func ringGroups(res *Result) []ringGroup {
+	var out []ringGroup
+	for i, site := range res.ringSites {
+		place, ok := res.Layout.Place[site.station.Shaft]
+		if !ok {
+			continue
+		}
+		base := place.Point.Scale(synth.HalfStud)
+		out = append(out, ringGroup{
+			group:      fmt.Sprintf("ring_%d", i+1),
+			shaft:      site.rides,
+			states:     site.coupling.States,
+			axis:       place.Direction,
+			engaged:    base.Add(place.Direction.Scale(site.engaged * synth.HalfStud)),
+			disengaged: base.Add(place.Direction.Scale(site.disengaged * synth.HalfStud)),
+		})
+	}
+	return out
+}
+
+// tagRings puts each ring in its own group rather than its shaft's, so it can
+// be moved on its own.
+func tagRings(res *Result) {
+	rings := ringGroups(res)
+	k := 0
+	for i := range res.Model.Parts {
+		p := &res.Model.Parts[i]
+		if p.Name != DrivingRing || k >= len(rings) {
+			continue
+		}
+		p.Group = rings[k].group
+		k++
+	}
+}
+
+// slidingIn places every ring for one state: engaged where its coupling is,
+// clear of its gear where it is not.
+func slidingIn(rings []ringGroup, speeds map[string]float64,
+	state string) []ldcad.Sliding {
+
+	var out []ldcad.Sliding
+	for _, r := range rings {
+		at := 1.0 // clear
+		for _, s := range r.states {
+			if s == state {
+				at = 0
+				break
+			}
+		}
+		out = append(out, ldcad.Sliding{
+			Group: r.group, Axis: r.axis, Speed: speeds[r.shaft],
+			Engaged: r.engaged, Disengaged: r.disengaged, At: at,
+		})
+	}
+	return out
+}
+
+// shiftAnimation walks the states in order so a shift can be watched.
+func shiftAnimation(m *mech.Mechanism, res *Result, groupOf map[string]string,
+	rings []ringGroup, states []string) (ldcad.Animation, bool) {
+
+	if len(states) < 2 || len(rings) == 0 {
+		return ldcad.Animation{}, false // nothing shifts, so nothing to watch
+	}
+	ani := ldcad.Animation{Name: "shift"}
+	for _, state := range states {
+		seg, ok := animationFor(m, res, groupOf, rings, state)
+		if !ok {
+			return ldcad.Animation{}, false // a state that does not resolve
+		}
+		if len(ani.Turning) == 0 {
+			ani.Turning = seg.Turning
+		}
+		ani.Segments = append(ani.Segments, ldcad.Segment{
+			State: state, Turning: seg.Turning, Sliding: seg.Sliding,
+		})
 	}
 	return ani, true
 }
