@@ -118,6 +118,24 @@ watches. The run reports the schedule and checks whether it hunts; see
 The parts libraries are fetched on first use, so the first run is slower than
 the rest.
 
+## In a browser
+
+The functional layer — speeds, degrees of freedom, gear centres, loop closure,
+shift schedules — needs no parts library at all, so it runs as a static page
+with the engine compiled to WebAssembly:
+
+```console
+make serve   # then http://localhost:8080
+```
+
+Type a mechanism and the answer follows as you type. Nothing is uploaded; the
+engine runs in the browser, and the page fetches nothing outside its own
+directory. It ships no data derived from the LDraw or LDCad libraries, so
+nothing on it carries their terms.
+
+Placing the gears, finding a frame to hold them, and exporting a model still run
+on the command line. `docs/architecture.md` sets out where that is heading.
+
 ## Building
 
 Go 1.22 or newer for the engine, [uv](https://docs.astral.sh/uv/) for the

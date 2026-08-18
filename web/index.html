@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>brickmesh — will this gear train turn?</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>brickmesh</h1>
+  <p class="tagline">Describe a LEGO Technic gear train and find out whether it
+  turns, what it turns at, and what is wrong with it.</p>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>The mechanism</h2>
+      <div class="examples" id="examples"></div>
+    </div>
+    <textarea id="spec" spellcheck="false" aria-label="mechanism description"></textarea>
+    <p class="hint" id="status">Loading the engine…</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>What it says</h2></div>
+    <div id="answer" class="answer">
+      <p class="hint">Edit the description and the answer follows.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p><strong>This is the functional layer only.</strong> It works out speeds,
+  degrees of freedom, gear centres and shift schedules — everything that needs
+  no parts library. Placing the gears, building a frame to hold them and
+  exporting a model still run on the command line; see
+  <a href="https://github.com/sstriker/legoxplorer">the repository</a>.</p>
+
+  <p>Copyright 2026 Sander Striker. The engine is Apache&nbsp;2.0.
+  <span id="wasm-note"></span>
+  This page ships no data derived from the LDraw or LDCad libraries, so nothing
+  here carries their terms; the parts catalogue does, and is not part of this
+  page. <code>wasm_exec.js</code> is from the Go distribution,
+  © The Go Authors, BSD-3-Clause.</p>
+</footer>
+
+<script src="wasm_exec.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -241,6 +241,24 @@ but it is needed *during* the run, so it cannot wait for "after the search
 completes you know exactly which twelve parts need drawing". That set should
 ship with the index rather than by range request.
 
+**Step 1 is built.** `make serve` puts the functional calculator on
+localhost: `internal/calc` is the whole engine behind one call, JSON in and JSON
+out, and `cmd/brickmesh-wasm` is a boundary of about thirty lines that exports
+it to the page. Nothing testable lives behind the `js && wasm` build tag,
+because nothing behind it can be run by `go test`.
+
+Standard Go, `encoding/json` and all, comes to 2.9 MB — 800 KB gzipped. That is
+a real number for the TinyGo question rather than an estimate, and it is small
+enough that the question does not have to be settled to ship this.
+
+The page is checked the way the Lua is: `internal/calc/wasm_test.go` builds the
+module, runs it under node with the Go distribution's own glue, and compares its
+answer to the one the engine gives directly, for every example in the
+repository. Building that harness immediately found a real bug in the page —
+`go.run` settles only when the module's main returns, and this one never does,
+so awaiting it hangs while not waiting at all calls the export before it exists.
+Both now wait on a flag main sets.
+
 **The measurements need retaking.** The table says 2764 parts and 22783 ports;
 the extractor currently produces 2649 and 21675. A different snapshot or a
 different tier cut — worth settling before anything is sized on it.

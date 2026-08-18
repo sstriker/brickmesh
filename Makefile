@@ -6,7 +6,8 @@
 
 .PHONY: all build test lint fmt clean \
         go-build go-test go-vet go-fmt go-staticcheck go-lint-complexity \
-        py-sync py-test py-lint py-fmt py-lock help
+        py-sync py-test py-lint py-fmt py-lock \
+        web serve help
 
 GO      ?= go
 UV      ?= uv
@@ -20,9 +21,38 @@ help:
 	@echo "test    - run Go and Python tests"
 	@echo "lint    - vet, gofmt check, staticcheck, complexity lens, ruff"
 	@echo "fmt     - format Go and Python sources in place"
+	@echo "web     - build the browser calculator into web/"
+	@echo "serve   - build it and serve web/ on http://localhost:8080"
 	@echo "clean   - remove build output and caches"
 
 build: go-build
+
+# The browser calculator: the functional layer, compiled to WebAssembly.
+#
+# Only the functional layer, which is why it needs no parts library and no
+# network beyond its own directory. wasm_exec.js is vendored from the Go
+# distribution and has to match the compiler that built the module, so it is
+# copied on every build rather than committed once and forgotten.
+web: web/brickmesh.wasm web/wasm_exec.js web/examples
+
+web/brickmesh.wasm: $(shell find internal cmd -name '*.go' 2>/dev/null)
+	GOOS=js GOARCH=wasm $(GO) build -trimpath -ldflags="-s -w" \
+		-o $@ ./cmd/brickmesh-wasm
+
+web/wasm_exec.js: FORCE
+	@cp "$$($(GO) env GOROOT)/lib/wasm/wasm_exec.js" $@ 2>/dev/null || \
+		cp "$$($(GO) env GOROOT)/misc/wasm/wasm_exec.js" $@
+
+# Symlinked rather than copied so the page always shows the examples the tests
+# and the command line use.
+web/examples: FORCE
+	@test -e $@ || ln -s ../examples $@
+
+FORCE:
+
+serve: web
+	@echo "http://localhost:8080 — WebAssembly needs http, not file://"
+	@cd web && python3 -m http.server 8080
 test: go-test py-test
 lint: go-vet go-fmt go-staticcheck go-lint-complexity py-lint
 fmt: py-fmt
@@ -77,5 +107,5 @@ py-fmt:
 	$(UV) run --frozen ruff check --fix .
 
 clean:
-	rm -rf $(BINDIR) .pytest_cache
+	rm -rf $(BINDIR) .pytest_cache web/brickmesh.wasm web/examples
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
