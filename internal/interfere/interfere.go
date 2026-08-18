@@ -247,3 +247,19 @@ func median(v []float64) float64 {
 	}
 	return (s[mid-1] + s[mid]) / 2
 }
+
+// RotAbout is a rotation by an angle in degrees about an arbitrary unit axis.
+//
+// Rodrigues' formula. Rot only handles the principal axes, and a gear's shaft
+// can point along any of the lattice directions.
+func RotAbout(axis geom.Vec3, deg float64) geom.Mat3 {
+	a := axis.Unit()
+	t := deg * math.Pi / 180
+	c, s := math.Cos(t), math.Sin(t)
+	k := 1 - c
+	return geom.Mat3{
+		{c + a.X*a.X*k, a.X*a.Y*k - a.Z*s, a.X*a.Z*k + a.Y*s},
+		{a.Y*a.X*k + a.Z*s, c + a.Y*a.Y*k, a.Y*a.Z*k - a.X*s},
+		{a.Z*a.X*k - a.Y*s, a.Z*a.Y*k + a.X*s, c + a.Z*a.Z*k},
+	}
+}

@@ -194,6 +194,7 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 		return res, err
 	}
 	res.Model = model
+	applyPhase(m, res, deps)
 	if opts.Animate {
 		animate(m, res, opts)
 	}
