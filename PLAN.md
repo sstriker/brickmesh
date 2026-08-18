@@ -314,6 +314,18 @@ LDCad accepts it. Worth opening once.
       between
 - [ ] the shift itself as an animation: ring slides, dog engages, ratio changes
 
+## Open question: bevel engagement
+
+Still open, and now with a measured negative to go with it. The sweep that
+settles spur meshing finds nothing at any of the 444 candidate positions for a
+12t against a differential's ring, because a bevel's teeth do not block and
+clear evenly through a revolution. See docs/findings.md. What is left is a
+heuristic — most points in contact — whose answer depends on how the surfaces
+were sampled.
+
+Settling it needs either a criterion that suits an angled mesh, or one built
+mechanism to check an answer against.
+
 ## Open question: the third grid axis
 
 92 grid specs in the shadow library declare three axes rather than two. The

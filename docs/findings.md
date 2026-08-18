@@ -264,3 +264,27 @@ them different distances apart:
 which multiply out to 0.60, 0.90, 1.00 and 1.50 — four distinct speeds, and
 each gear a 16t or 20t so every one of them can be gripped.
 `examples/gearbox-4-speed-compound.json`.
+
+
+## The meshing sweep does not settle a bevel pair
+
+Spur meshing is settled by turning one gear a full revolution against the other:
+engaged, it is blocked for most of the turn and free in as many narrow windows
+as it has teeth. Two 24t gears show that exactly at 60 LDU.
+
+A 12t double bevel against the 28t ring inside a differential shows it nowhere.
+Sweeping the driver across 1152 positions and keeping the 444 where the two
+surfaces come within 1.2 LDU, not one of them produces the signature. Requiring
+it rejects every candidate.
+
+That is a property of the pair and not of the test. The bevel's teeth meet the
+ring at an angle, so they neither block evenly through the turn nor clear
+evenly, and a criterion built on evenly spaced windows has nothing to find.
+
+So bevel engagement is still decided by the older and weaker rule: among the
+positions where the surfaces touch, the one with the most points in contact.
+That count depends on which vertices were sampled — the Python samples at random
+and `internal/bevel` by stride, and from the same 444 positions they choose
+different winners for that reason alone. The two agree exactly on the 444, which
+is the gap arithmetic; they do not agree on the answer, and neither has been
+checked against a mechanism that was built.

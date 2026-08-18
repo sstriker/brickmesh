@@ -121,6 +121,21 @@ The parts libraries are fetched on first use: the LDraw parts library as one
 [ATTRIBUTION.md](ATTRIBUTION.md) for what they are and what their licences ask
 of anything you publish from them.
 
+## Will it survive being turned?
+
+`brickmesh` answers whether a train turns. `brickmesh-torque` answers whether it
+holds together while it does:
+
+```console
+echo '{"input_ncm": 40, "stages": [
+        {"name": "8t to 24t", "driver_teeth": 8, "driven_teeth": 24}]}' |
+  brickmesh-torque
+```
+
+An XL motor at stall through an 8t puts 100 N on a tooth, and the 8t is the
+classic first thing to strip. The propagation is exact; the limits it is judged
+against are not, and every run prints which of them are estimates.
+
 ## In a browser
 
 The functional layer — speeds, degrees of freedom, gear centres, loop closure,
