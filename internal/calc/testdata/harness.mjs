@@ -16,8 +16,11 @@ const [dir, specFile] = process.argv.slice(2);
 
 globalThis.require = createRequire(import.meta.url);
 globalThis.fs = fs;
-globalThis.crypto = webcrypto;
-globalThis.performance = performance;
+
+// Only what is missing. Newer node has Web Crypto built in and exposes it
+// through a getter with no setter, so assigning over it throws — which is a
+// thing that fails on the runner and not on the machine it was written on.
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
 
 await import(path.resolve(dir, "wasm_exec.js"));
 

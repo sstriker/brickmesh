@@ -77,6 +77,10 @@ jobs:
   deploy:
     name: Deploy
     needs: build
+    # Pages needs the repository to be public, or a plan that allows it for a
+    # private one. Guarded rather than left to fail, so the build above still
+    # checks every push while the repository is private.
+    if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
