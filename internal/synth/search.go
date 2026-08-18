@@ -46,6 +46,23 @@ func BearingRequirements(l *layout.Layout, stations []layout.Station,
 	return BearingRequirementsWith(l, stations, perShaft, reach, nil)
 }
 
+// onLine relabels every station on a placement's line as belonging to the shaft
+// being asked about, so the free-interval search sees all of them.
+func onLine(l *layout.Layout, stations []layout.Station,
+	pl layout.Placement) []layout.Station {
+
+	out := make([]layout.Station, 0, len(stations))
+	for _, st := range stations {
+		p, ok := l.Place[st.Shaft]
+		if !ok || p.Key() != pl.Key() {
+			continue
+		}
+		st.Shaft = "" // the caller asks by shaft; on a line they are all one
+		out = append(out, st)
+	}
+	return out
+}
+
 // BearingRequirementsWith is BearingRequirements told what else is on the
 // shafts, keyed by shaft, in half studs.
 func BearingRequirementsWith(l *layout.Layout, stations []layout.Station,
@@ -67,8 +84,12 @@ func BearingRequirementsWith(l *layout.Layout, stations []layout.Station,
 	var reqs []Requirement
 	for _, id := range shafts {
 		pl := l.Place[id]
+		// Judged along the line rather than the named shaft. Two shafts a
+		// coupling holds together are the same piece of axle, so a gear on one
+		// blocks the other just as surely — and a bearing was being asked for
+		// exactly where another shaft's gear already sat.
 		points := latticePointsAlong(pl,
-			layout.FreeIntervalsWith(stations, id, reach, taken[id]))
+			layout.FreeIntervalsWith(onLine(l, stations, pl), "", reach, taken[id]))
 		if len(points) < perShaft {
 			continue
 		}

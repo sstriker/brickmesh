@@ -196,9 +196,12 @@ func TestStationSpanIsCenteredOnItsAxialPosition(t *testing.T) {
 	}
 }
 
+// The room left is the room beside the gear, less half a beam at each end: a
+// bearing is a point but the beam giving it is a stud thick, and one placed
+// hard against a gear ends up half inside it.
 func TestFreeIntervalsLeavesRoomBesideAGear(t *testing.T) {
 	got := FreeIntervals([]Station{station("a", 24, 0, 2)}, "a", 12)
-	want := [][2]float64{{-12, -1}, {1, 12}}
+	want := [][2]float64{{-12, -2}, {2, 12}}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -207,7 +210,10 @@ func TestFreeIntervalsLeavesRoomBesideAGear(t *testing.T) {
 func TestFreeIntervalsIgnoresOtherShafts(t *testing.T) {
 	stations := []Station{station("a", 24, 0, 2), station("b", 24, 5, 2)}
 	got := FreeIntervals(stations, "b", 8)
-	want := [][2]float64{{-8, 4}, {6, 8}}
+	// Shaft a's gear is not b's business. Each gap is pulled in by half a beam
+	// at the end where b's own gear sits, and left alone at the far end, where
+	// there is nothing to be inside of.
+	want := [][2]float64{{-8, 3}, {7, 8}}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -217,7 +223,7 @@ func TestFreeIntervalsMergesOverlappingGears(t *testing.T) {
 	// Two gears side by side leave one gap each side, not three.
 	stations := []Station{station("a", 24, 0, 2), station("a", 24, 1, 2)}
 	got := FreeIntervals(stations, "a", 10)
-	want := [][2]float64{{-10, -1}, {2, 10}}
+	want := [][2]float64{{-10, -2}, {3, 10}}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("got %v, want %v", got, want)
 	}

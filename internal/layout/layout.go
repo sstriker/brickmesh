@@ -931,15 +931,47 @@ func FreeIntervalsWith(stations []Station, shaft string, reach float64,
 	})
 
 	var free [][2]float64
-	cursor := -reach
+	cursor, bounded := -reach, false
 	for _, span := range occ {
 		if span[0]-cursor > 0.5 {
-			free = append(free, [2]float64{cursor, span[0]})
+			free = append(free, shrink([2]float64{cursor, span[0]}, bounded, true))
 		}
-		cursor = math.Max(cursor, span[1])
+		cursor, bounded = math.Max(cursor, span[1]), true
 	}
 	if reach-cursor > 0.5 {
-		free = append(free, [2]float64{cursor, reach})
+		free = append(free, shrink([2]float64{cursor, reach}, bounded, false))
 	}
-	return free
+	out := free[:0]
+	for _, f := range free {
+		// A gap exactly a beam wide leaves one place to put it, in the middle,
+		// which comes out of the shrink as a single point rather than a range.
+		if f[1] >= f[0] {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// BearingHalf is half the thickness of the beam that will provide a bearing,
+// in half studs.
+const BearingHalf = 1.0
+
+// shrink pulls a gap in by half a beam at each end that something sits against.
+//
+// A bearing is a point, but the beam giving it is a stud thick, so one placed
+// hard against a gear ends up half inside it — which is what put liftarms at
+// the same place on a shaft as the gears.
+//
+// Only at the ends that abut something. The far ends are the limit of how far
+// along the shaft we bothered to look, and nothing is there to be inside of;
+// pulling in from those would only shorten the bearing base, and a short
+// bearing base lets the shaft whip.
+func shrink(span [2]float64, loBounded, hiBounded bool) [2]float64 {
+	if loBounded {
+		span[0] += BearingHalf
+	}
+	if hiBounded {
+		span[1] -= BearingHalf
+	}
+	return span
 }

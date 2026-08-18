@@ -17,63 +17,174 @@ import (
 	"brickmesh/internal/teeth"
 )
 
-// checkTurningClearance turns every part that rides a shaft against everything
-// it is not meant to be inside.
+// checkClearance asks the blunt question: is any part inside any other part.
 //
-// A joiner is 20 LDU across and a beam's hole is 12, so a joiner that lands
-// where a bearing is cannot be built at all — the shaft simply does not go
-// through. A driving ring is 40 across and no more forgiving. That is worth
-// catching in the run rather than in the box of parts.
+// It used to ask a narrower one — does this ring clear its gear, does this
+// joiner clear the structure — and narrow questions are how things get missed.
+// Gears were not on the list, so models came out with beams drawn through them
+// and nothing said a word. Enumerating which parts to compare is a list that is
+// wrong the moment a new kind of part is placed.
 //
-// The search is kept off this space already, but on a voxel lattice and with a
-// little slack. This is the check that decides, because it works on the
-// geometry.
-func checkTurningClearance(ctx context.Context, res *Result, deps Deps) error {
+// So the rule is that nothing shares space, and the exceptions are written down
+// once, in mayBeInside. Every pair, every time. It is O(n^2) in the parts, but
+// the parts number in the tens and a box test rejects nearly all of it.
+func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 	if res.Model == nil || deps.Lib == nil {
 		return nil
 	}
-	var joiners, rings, gears, structure []ldr.Part
-	for _, p := range res.Model.Parts {
-		switch {
-		case p.Name == clutch.Joiner:
-			joiners = append(joiners, p)
-		case p.Name == DrivingRing:
-			rings = append(rings, p)
-		case isAxle(p.Name):
-			// An axle belongs inside a joiner and inside a gear's bore.
-		default:
-			if _, _, ok := gearFromLabel(p.Label); ok {
-				gears = append(gears, p)
-			} else {
-				structure = append(structure, p)
+	parts := res.Model.Parts
+	clashes := 0
+	for i := 0; i < len(parts); i++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		for j := i + 1; j < len(parts); j++ {
+			a, b := parts[i], parts[j]
+			if mayBeInside(a, b) {
+				continue
 			}
+			inside, overlap, err := sharesSpace(ctx, deps, a, b)
+			if err != nil {
+				return err
+			}
+			if !inside {
+				continue
+			}
+			clashes++
+			res.Findings = append(res.Findings, mech.Finding{
+				Level: "FAIL", Check: "clearance", Detail: fmt.Sprintf(
+					"%s at %+v is inside %s at %+v, by %.1f LDU. Nothing may share "+
+						"space with anything but the few fits in mayBeInside",
+					a.Name, a.Pos, b.Name, b.Pos, overlap)})
 		}
 	}
-	if len(joiners)+len(rings) == 0 {
-		return nil
-	}
-
-	// A joiner has business with nothing at all. A ring has business with the
-	// gear it engages — that is the whole point of it — so it is only asked
-	// about the structure.
-	joinerClashes, err := sweepAgainst(ctx, res, deps, joiners,
-		append(append([]ldr.Part(nil), gears...), structure...))
-	if err != nil {
-		return err
-	}
-	ringClashes, err := sweepAgainst(ctx, res, deps, rings, structure)
-	if err != nil {
-		return err
-	}
-	clashes := joinerClashes + ringClashes
-
 	if clashes == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
 			Level: "OK", Check: "clearance", Detail: fmt.Sprintf(
-				"%d joiner(s) and %d ring(s) turn clear of the structure",
-				len(joiners), len(rings))})
+				"no two of the %d parts share space", len(parts))})
 	}
 	return nil
+}
+
+// sharesSpace reports whether two placed parts occupy the same space, and by
+// how much.
+//
+// A part that turns is swept a full revolution rather than tested where it
+// happens to sit: a gear that clears a beam at rest and strikes it a quarter
+// turn later is not a gear that clears a beam.
+func sharesSpace(ctx context.Context, deps Deps, a, b ldr.Part) (bool, float64, error) {
+	alo, ahi, err := placedBox(deps, a)
+	if err != nil {
+		return false, 0, nil
+	}
+	blo, bhi, err := placedBox(deps, b)
+	if err != nil {
+		return false, 0, nil
+	}
+	// Widened to the circle each turning part sweeps out before the boxes are
+	// compared, so the cheap rejection stays sound for something rotating.
+	if turns(a) {
+		alo, ahi, _ = sweptBox(deps, a)
+	}
+	if turns(b) {
+		blo, bhi, _ = sweptBox(deps, b)
+	}
+	overlap := overlapOf(alo, ahi, blo, bhi)
+	if overlap < touchTolerance {
+		return false, 0, nil // apart, or meeting face to face, which is ordinary
+	}
+
+	ma, err := interfere.MeshFor(deps.Lib, a.Name)
+	if err != nil {
+		return false, 0, nil
+	}
+	mb, err := interfere.MeshFor(deps.Lib, b.Name)
+	if err != nil {
+		return false, 0, nil
+	}
+	if turns(a) || turns(b) {
+		rider, ta, other, tb := ma, a, mb, b
+		if !turns(a) {
+			rider, ta, other, tb = mb, b, ma, a
+		}
+		got, err := interfere.MeshLock(ctx,
+			other, collide.Transform{Rot: tb.Rot, Pos: tb.Pos},
+			rider, collide.Transform{Rot: ta.Rot, Pos: ta.Pos},
+			16, interfere.Options{Steps: 72})
+		if err != nil {
+			return false, 0, err
+		}
+		return got.Verdict != interfere.NoEngagement, overlap, nil
+	}
+	return collide.Intersects(ma, collide.Transform{Rot: a.Rot, Pos: a.Pos},
+		mb, collide.Transform{Rot: b.Rot, Pos: b.Pos}), overlap, nil
+}
+
+// mayBeInside is every pair of things meant to occupy the same space.
+//
+// Short on purpose, and every entry is a fit the shadow library describes: an
+// axle in a bore, a ring on the ridges of its joiner, a ring's dogs in a gear's
+// recesses, two gears meshing. Anything else sharing space is a model that
+// cannot be built.
+func mayBeInside(a, b ldr.Part) bool {
+	ka, kb := classOf(a), classOf(b)
+	if ka > kb {
+		ka, kb = kb, ka
+	}
+	switch {
+	case ka == classAxle || kb == classAxle:
+		return true // an axle goes through bores, joiners and beam holes
+	case ka == classGear && kb == classRing:
+		return true // dogs in the recesses: the engagement itself
+	case ka == classGear && kb == classGear:
+		return true // meshing
+	case ka == classRing && kb == classJoiner:
+		return true // the ring is splined to it
+	}
+	return false
+}
+
+// What a part is, for deciding what it may be inside.
+const (
+	classGear = iota
+	classRing
+	classJoiner
+	classAxle
+	classStructure
+)
+
+func classOf(p ldr.Part) int {
+	switch {
+	case p.Name == DrivingRing:
+		return classRing
+	case p.Name == clutch.Joiner:
+		return classJoiner
+	case isAxle(p.Name):
+		return classAxle
+	}
+	if _, _, ok := gearFromLabel(p.Label); ok {
+		return classGear
+	}
+	return classStructure
+}
+
+func isAxle(name string) bool {
+	for _, a := range AxleParts {
+		if a == name {
+			return true
+		}
+	}
+	return false
+}
+
+// turns reports whether a part rides a shaft, and so has to be swept rather
+// than tested where it stands.
+func turns(p ldr.Part) bool {
+	switch classOf(p) {
+	case classGear, classRing, classJoiner:
+		return true
+	}
+	return false
 }
 
 // touchTolerance is how much two parts may share before it is an overlap
@@ -85,59 +196,6 @@ func checkTurningClearance(ctx context.Context, res *Result, deps Deps) error {
 // buried in a beam gives. Boxes that overlap by less than this are touching,
 // and touching is allowed.
 const touchTolerance = 1.0
-
-// sweepAgainst turns each rider a full revolution against each obstacle.
-func sweepAgainst(ctx context.Context, res *Result, deps Deps,
-	riders, obstacles []ldr.Part) (int, error) {
-
-	clashes := 0
-	for _, r := range riders {
-		rider, err := interfere.MeshFor(deps.Lib, r.Name)
-		if err != nil {
-			continue
-		}
-		rlo, rhi, err := sweptBox(deps, r)
-		if err != nil {
-			continue
-		}
-		for _, o := range obstacles {
-			other, err := interfere.MeshFor(deps.Lib, o.Name)
-			if err != nil {
-				continue
-			}
-			olo, ohi, err := placedBox(deps, o)
-			if err != nil || overlapOf(rlo, rhi, olo, ohi) < touchTolerance {
-				continue
-			}
-			got, err := interfere.MeshLock(ctx,
-				other, collide.Transform{Rot: o.Rot, Pos: o.Pos},
-				rider, collide.Transform{Rot: r.Rot, Pos: r.Pos},
-				16, interfere.Options{Steps: 72})
-			if err != nil {
-				return clashes, err
-			}
-			if got.Verdict == interfere.NoEngagement {
-				continue
-			}
-			clashes++
-			res.Findings = append(res.Findings, mech.Finding{
-				Level: "FAIL", Check: "clearance", Detail: fmt.Sprintf(
-					"the %s at %+v runs into the %s at %+v: %s. It rides a shaft "+
-						"and turns, so it needs the space to itself",
-					r.Name, r.Pos, o.Name, o.Pos, got.Verdict)})
-		}
-	}
-	return clashes, nil
-}
-
-func isAxle(name string) bool {
-	for _, a := range AxleParts {
-		if a == name {
-			return true
-		}
-	}
-	return false
-}
 
 // placedBox is a part's bounding box where it stands.
 func placedBox(deps Deps, p ldr.Part) (geom.Vec3, geom.Vec3, error) {

@@ -114,25 +114,22 @@ func TestTouchingIsAllowedAndOverlapIsNot(t *testing.T) {
 
 	// The ring runs 20 LDU each way along its shaft and the beam 10, so at 30
 	// their faces meet exactly.
-	res := &Result{}
-	got, err := sweepAgainst(context.Background(), res, deps, []ldr.Part{ring},
-		[]ldr.Part{beam(30)})
+	inside, _, err := sharesSpace(context.Background(), deps, ring, beam(30))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != 0 {
-		t.Errorf("a beam resting against the end of the ring is right, got %d "+
-			"clash(es): %v", got, res.Findings)
+	if inside {
+		t.Error("a beam resting against the end of the ring is right, not a clash")
 	}
 
 	// Half a stud further in and it is inside the ring.
-	res = &Result{}
-	got, err = sweepAgainst(context.Background(), res, deps, []ldr.Part{ring},
-		[]ldr.Part{beam(20)})
+	inside, overlap, err := sharesSpace(context.Background(), deps, ring, beam(20))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got == 0 {
+	if !inside {
 		t.Error("a beam a half stud inside the ring should be reported")
+	} else if overlap <= 0 {
+		t.Errorf("reported inside but with an overlap of %v", overlap)
 	}
 }

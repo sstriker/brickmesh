@@ -218,7 +218,7 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 		return res, err
 	}
 	opts.Progress.Report(progress.Report{Stage: progress.StageClearance})
-	if err := checkTurningClearance(ctx, res, deps); err != nil {
+	if err := checkClearance(ctx, res, deps); err != nil {
 		return res, err
 	}
 	if opts.Animate {
@@ -234,7 +234,7 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 	}
 	searcher := synth.NewSearcher(deps.Rast, deps.Shadow, opts.Inventory)
 	searcher.Taken = ringSpans(res)
-	searcher.Reserved = ringCells(res, deps)
+	searcher.Reserved = turningCells(res, deps)
 	solutions, err := searcher.Synthesize(ctx, res.Layout, res.Stations, synth.Options{
 		Restarts: opts.Restarts, Seed: opts.Seed, Progress: opts.Progress,
 	})
@@ -641,22 +641,51 @@ func computeAxles(m *mech.Mechanism, res *Result) []axlePlacement {
 	return axles
 }
 
-// ringCells is the space a driving ring and its joiner occupy, as voxels.
+// turningCells is the space every part that turns occupies, as voxels: the
+// gears, the driving rings, and the joiners under them.
 //
-// A beam may not enter it at all. Keeping bearings off that length of shaft is
-// not enough on its own: a beam bridging two lines can cross a shaft anywhere
-// along it, bearing nothing, and land in the middle of a ring.
+// A beam may not enter any of it. Keeping bearings off the length of shaft a
+// part occupies is not enough on its own, and that trap was fallen into twice:
+// a beam bridging two lines crosses a shaft wherever it likes, bearing nothing,
+// and a beam bearing one shaft reaches a gear on another.
 //
 // The cells come from the same rasteriser the candidates do, and are shifted
 // the same way. That matters more than it sounds: a cylinder worked out by hand
 // rounds differently at its edges, and a bearing whose face meets the end of
 // the ring's travel — which is exactly right — comes out sharing a cell with it
 // and is thrown away.
-func ringCells(res *Result, deps Deps) map[geom.Cell]bool {
-	if len(res.ringSites) == 0 || deps.Rast == nil {
+func turningCells(res *Result, deps Deps) map[geom.Cell]bool {
+	if deps.Rast == nil {
 		return nil
 	}
 	out := map[geom.Cell]bool{}
+
+	// Every gear, at its station. Leaving these out let beams be placed through
+	// them: keeping bearings off the length of shaft a gear occupies is not the
+	// same as keeping a beam's body out of the gear, and a beam bearing one
+	// shaft reaches far enough to strike a gear on another.
+	for _, st := range res.Stations {
+		place, ok := res.Layout.Place[st.Shaft]
+		if !ok {
+			continue
+		}
+		name, ok := gearAt(st, res.ringSites)
+		if !ok {
+			continue
+		}
+		rot, ok := rotationIndex(alignZTo(place.Direction))
+		if !ok {
+			continue
+		}
+		at := place.Point.Scale(synth.HalfStud).
+			Add(place.Direction.Scale(st.Axial * synth.HalfStud))
+		one := map[geom.Cell]bool{}
+		markCells(one, deps, name, rot, at)
+		for c := range erode(fill(one, across(place.Direction))) {
+			out[c] = true
+		}
+	}
+
 	for _, site := range res.ringSites {
 		place, ok := res.Layout.Place[site.station.Shaft]
 		if !ok {
