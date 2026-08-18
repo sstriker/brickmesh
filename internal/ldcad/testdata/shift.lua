@@ -7,6 +7,17 @@
   10 seconds of the animation.
 ]]
 
+--Offset that turns a rotation about the origin into one about an axis
+--through q: t = q - R*q. See ldcad.go for why this is needed.
+function brickmeshPivot(qx,qy,qz, dx,dy,dz, deg)
+  local along=qx*dx+qy*dy+qz*dz
+  local ax,ay,az=qx-along*dx, qy-along*dy, qz-along*dz --q across the axis
+  local th=deg*math.pi/180
+  local c,s=math.cos(th),math.sin(th)
+  local cx,cy,cz=dy*az-dz*ay, dz*ax-dx*az, dx*ay-dy*ax --d x a
+  return ax-(ax*c+cx*s), ay-(ay*c+cy*s), az-(az*c+cz*s)
+end
+
 function onStart0()
   local sf=ldc.subfile()
   grp0_0=sf:getGroup("shaft_input")
@@ -26,38 +37,54 @@ function onFrame0()
   local m=ldc.matrix()
 
   --shaft_input turns 1.0000 per turn of the input
-  m:setRotate(input*1.000000, 1, 0, 0)
-  grp0_0:setOri(m)
+  local a=input*1.000000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,0, 1,0,0, a))
+  grp0_0:setPosOri(m)
 
   --shaft_output turns -0.3333 per turn of the input
-  m:setRotate(input*-0.333333, 1, 0, 0)
-  grp0_1:setOri(m)
+  local a=input*-0.333333
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp0_1:setPosOri(m)
 
   --shaft_first turns -0.3333 per turn of the input
-  m:setRotate(input*-0.333333, 1, 0, 0)
-  grp0_2:setOri(m)
+  local a=input*-0.333333
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp0_2:setPosOri(m)
 
   --shaft_second turns -0.6000 per turn of the input
-  m:setRotate(input*-0.600000, 1, 0, 0)
-  grp0_3:setOri(m)
+  local a=input*-0.600000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp0_3:setPosOri(m)
 
   --shaft_third turns -1.0000 per turn of the input
-  m:setRotate(input*-1.000000, 1, 0, 0)
-  grp0_4:setOri(m)
+  local a=input*-1.000000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp0_4:setPosOri(m)
 
   --ring_1 turns with its shaft and sits engaged
-  m:setRotate(input*-0.333333, 1, 0, 0)
-  m:setPos(30, 0, -40)
+  local a=input*-0.333333
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(30,0,-40, 1,0,0, a)
+  m:setPos(px+0, py+0, pz+0)
   ring0_0:setPosOri(m)
 
   --ring_2 turns with its shaft and sits clear of its gear
-  m:setRotate(input*-0.333333, 1, 0, 0)
-  m:setPos(110, 0, -40)
+  local a=input*-0.333333
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(100,0,-40, 1,0,0, a)
+  m:setPos(px+10, py+0, pz+0)
   ring0_1:setPosOri(m)
 
   --ring_3 turns with its shaft and sits clear of its gear
-  m:setRotate(input*-0.333333, 1, 0, 0)
-  m:setPos(180, 0, -40)
+  local a=input*-0.333333
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(170,0,-40, 1,0,0, a)
+  m:setPos(px+10, py+0, pz+0)
   ring0_2:setPosOri(m)
 end
 
@@ -80,38 +107,54 @@ function onFrame1()
   local m=ldc.matrix()
 
   --shaft_input turns 1.0000 per turn of the input
-  m:setRotate(input*1.000000, 1, 0, 0)
-  grp1_0:setOri(m)
+  local a=input*1.000000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,0, 1,0,0, a))
+  grp1_0:setPosOri(m)
 
   --shaft_output turns -0.6000 per turn of the input
-  m:setRotate(input*-0.600000, 1, 0, 0)
-  grp1_1:setOri(m)
+  local a=input*-0.600000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp1_1:setPosOri(m)
 
   --shaft_first turns -0.3333 per turn of the input
-  m:setRotate(input*-0.333333, 1, 0, 0)
-  grp1_2:setOri(m)
+  local a=input*-0.333333
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp1_2:setPosOri(m)
 
   --shaft_second turns -0.6000 per turn of the input
-  m:setRotate(input*-0.600000, 1, 0, 0)
-  grp1_3:setOri(m)
+  local a=input*-0.600000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp1_3:setPosOri(m)
 
   --shaft_third turns -1.0000 per turn of the input
-  m:setRotate(input*-1.000000, 1, 0, 0)
-  grp1_4:setOri(m)
+  local a=input*-1.000000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp1_4:setPosOri(m)
 
   --ring_1 turns with its shaft and sits clear of its gear
-  m:setRotate(input*-0.600000, 1, 0, 0)
-  m:setPos(40, 0, -40)
+  local a=input*-0.600000
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(30,0,-40, 1,0,0, a)
+  m:setPos(px+10, py+0, pz+0)
   ring1_0:setPosOri(m)
 
   --ring_2 turns with its shaft and sits engaged
-  m:setRotate(input*-0.600000, 1, 0, 0)
-  m:setPos(100, 0, -40)
+  local a=input*-0.600000
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(100,0,-40, 1,0,0, a)
+  m:setPos(px+0, py+0, pz+0)
   ring1_1:setPosOri(m)
 
   --ring_3 turns with its shaft and sits clear of its gear
-  m:setRotate(input*-0.600000, 1, 0, 0)
-  m:setPos(180, 0, -40)
+  local a=input*-0.600000
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(170,0,-40, 1,0,0, a)
+  m:setPos(px+10, py+0, pz+0)
   ring1_2:setPosOri(m)
 end
 
@@ -134,38 +177,54 @@ function onFrame2()
   local m=ldc.matrix()
 
   --shaft_input turns 1.0000 per turn of the input
-  m:setRotate(input*1.000000, 1, 0, 0)
-  grp2_0:setOri(m)
+  local a=input*1.000000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,0, 1,0,0, a))
+  grp2_0:setPosOri(m)
 
   --shaft_output turns -1.0000 per turn of the input
-  m:setRotate(input*-1.000000, 1, 0, 0)
-  grp2_1:setOri(m)
+  local a=input*-1.000000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp2_1:setPosOri(m)
 
   --shaft_first turns -0.3333 per turn of the input
-  m:setRotate(input*-0.333333, 1, 0, 0)
-  grp2_2:setOri(m)
+  local a=input*-0.333333
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp2_2:setPosOri(m)
 
   --shaft_second turns -0.6000 per turn of the input
-  m:setRotate(input*-0.600000, 1, 0, 0)
-  grp2_3:setOri(m)
+  local a=input*-0.600000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp2_3:setPosOri(m)
 
   --shaft_third turns -1.0000 per turn of the input
-  m:setRotate(input*-1.000000, 1, 0, 0)
-  grp2_4:setOri(m)
+  local a=input*-1.000000
+  m:setRotate(a, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a))
+  grp2_4:setPosOri(m)
 
   --ring_1 turns with its shaft and sits clear of its gear
-  m:setRotate(input*-1.000000, 1, 0, 0)
-  m:setPos(40, 0, -40)
+  local a=input*-1.000000
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(30,0,-40, 1,0,0, a)
+  m:setPos(px+10, py+0, pz+0)
   ring2_0:setPosOri(m)
 
   --ring_2 turns with its shaft and sits clear of its gear
-  m:setRotate(input*-1.000000, 1, 0, 0)
-  m:setPos(110, 0, -40)
+  local a=input*-1.000000
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(100,0,-40, 1,0,0, a)
+  m:setPos(px+10, py+0, pz+0)
   ring2_1:setPosOri(m)
 
   --ring_3 turns with its shaft and sits engaged
-  m:setRotate(input*-1.000000, 1, 0, 0)
-  m:setPos(170, 0, -40)
+  local a=input*-1.000000
+  m:setRotate(a, 1, 0, 0)
+  local px,py,pz=brickmeshPivot(170,0,-40, 1,0,0, a)
+  m:setPos(px+0, py+0, pz+0)
   ring2_2:setPosOri(m)
 end
 
@@ -216,16 +275,26 @@ function onFrame3()
     return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
-  m:setRotate(angle(speed[1]), 1, 0, 0)
-  grp3_0:setOri(m)
-  m:setRotate(angle(speed[2]), 1, 0, 0)
-  grp3_1:setOri(m)
-  m:setRotate(angle(speed[3]), 1, 0, 0)
-  grp3_2:setOri(m)
-  m:setRotate(angle(speed[4]), 1, 0, 0)
-  grp3_3:setOri(m)
-  m:setRotate(angle(speed[5]), 1, 0, 0)
-  grp3_4:setOri(m)
+  local a0=angle(speed[1])
+  m:setRotate(a0, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,0, 1,0,0, a0))
+  grp3_0:setPosOri(m)
+  local a1=angle(speed[2])
+  m:setRotate(a1, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a1))
+  grp3_1:setPosOri(m)
+  local a2=angle(speed[3])
+  m:setRotate(a2, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a2))
+  grp3_2:setPosOri(m)
+  local a3=angle(speed[4])
+  m:setRotate(a3, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a3))
+  grp3_3:setPosOri(m)
+  local a4=angle(speed[5])
+  m:setRotate(a4, 1, 0, 0)
+  m:setPos(brickmeshPivot(0,0,-40, 1,0,0, a4))
+  grp3_4:setPosOri(m)
 
   --A ring holds its place for most of a segment and moves near the end of it,
   --so the shift is a thing that happens rather than a thing between frames.
@@ -252,22 +321,28 @@ function onFrame3()
   do --ring_1
     local a=where[1][seg+1]
     local at=a+(where[1][nxt+1]-a)*f
-    m:setRotate(angle(ringSpeed[1]), 1, 0, 0)
-    m:setPos(30+(10)*at, 0+(0)*at, -40+(0)*at)
+    local ra=angle(ringSpeed[1])
+    m:setRotate(ra, 1, 0, 0)
+    local px,py,pz=brickmeshPivot(30,0,-40, 1,0,0, ra)
+    m:setPos(px+(10)*at, py+(0)*at, pz+(0)*at)
     ring3_0:setPosOri(m)
   end
   do --ring_2
     local a=where[2][seg+1]
     local at=a+(where[2][nxt+1]-a)*f
-    m:setRotate(angle(ringSpeed[2]), 1, 0, 0)
-    m:setPos(100+(10)*at, 0+(0)*at, -40+(0)*at)
+    local ra=angle(ringSpeed[2])
+    m:setRotate(ra, 1, 0, 0)
+    local px,py,pz=brickmeshPivot(100,0,-40, 1,0,0, ra)
+    m:setPos(px+(10)*at, py+(0)*at, pz+(0)*at)
     ring3_1:setPosOri(m)
   end
   do --ring_3
     local a=where[3][seg+1]
     local at=a+(where[3][nxt+1]-a)*f
-    m:setRotate(angle(ringSpeed[3]), 1, 0, 0)
-    m:setPos(170+(10)*at, 0+(0)*at, -40+(0)*at)
+    local ra=angle(ringSpeed[3])
+    m:setRotate(ra, 1, 0, 0)
+    local px,py,pz=brickmeshPivot(170,0,-40, 1,0,0, ra)
+    m:setPos(px+(10)*at, py+(0)*at, pz+(0)*at)
     ring3_2:setPosOri(m)
   end
 end

@@ -26,12 +26,18 @@ func shiftSample() Script {
 	states := []string{"1st", "2nd", "3rd"}
 
 	turningIn := func(s int) []Turning {
+		// Axes deliberately away from the origin. A group turns about the
+		// model's origin unless told otherwise, so a sample whose shafts all
+		// ran through it would pass whatever the pivot arithmetic did.
 		out := []Turning{
-			{Group: "shaft_input", Axis: x, Speed: 1},
-			{Group: "shaft_output", Axis: x, Speed: ratios[s]},
+			{Group: "shaft_input", Axis: x, Speed: 1,
+				Through: geom.Vec3{Y: 0, Z: 0}},
+			{Group: "shaft_output", Axis: x, Speed: ratios[s],
+				Through: geom.Vec3{Y: 0, Z: -40}},
 		}
 		for i, name := range []string{"first", "second", "third"} {
-			out = append(out, Turning{Group: "shaft_" + name, Axis: x, Speed: ratios[i]})
+			out = append(out, Turning{Group: "shaft_" + name, Axis: x,
+				Speed: ratios[i], Through: geom.Vec3{Y: 0, Z: -40}})
 		}
 		return out
 	}

@@ -168,6 +168,26 @@ def lua_and_stub():
     return runtime, stub
 
 
+def applied(group: Group, point) -> tuple[float, float, float]:
+    """Where a part at `point` ends up, under the transform the group was given.
+
+    LDCad applies a group's placement to its contents as p' = R*p + t, about the
+    model's origin.  So the group's position is an offset and not a location,
+    and asking where a part actually goes means doing that arithmetic.
+    """
+    x, y, z = point
+    ax, ay, az = group.axis
+    th = math.radians(group.angle)
+    c, s_ = math.cos(th), math.sin(th)
+    dot = ax * x + ay * y + az * z
+    # Rodrigues.
+    rx = x * c + (ay * z - az * y) * s_ + ax * dot * (1 - c)
+    ry = y * c + (az * x - ax * z) * s_ + ay * dot * (1 - c)
+    rz = z * c + (ax * y - ay * x) * s_ + az * dot * (1 - c)
+    tx, ty, tz = group.pos or (0.0, 0.0, 0.0)
+    return (rx + tx, ry + ty, rz + tz)
+
+
 def frame(runtime, stub, animation_name: str, t: float) -> Stub:
     """Ask the script for one frame, at a fraction t of the way through."""
     ani = stub.animations[animation_name]
@@ -198,11 +218,14 @@ def test_a_held_state_turns_at_its_own_ratio(lua_and_stub):
 def test_a_ring_sits_against_its_gear_in_its_own_state(lua_and_stub):
     runtime, stub = lua_and_stub
     frame(runtime, stub, "2nd", 0.5)
-    # ring_2 is the one 2nd engages: hard against the gear, at the engaged
-    # position.  The others have slid a half stud clear.
-    assert stub.group("ring_2").pos == pytest.approx((100.0, 0.0, -40.0))
-    assert stub.group("ring_1").pos == pytest.approx((40.0, 0.0, -40.0))
-    assert stub.group("ring_3").pos == pytest.approx((180.0, 0.0, -40.0))
+    # ring_2 is the one 2nd engages: it stays hard against its gear.  The
+    # others have slid a half stud clear of theirs.
+    assert applied(stub.group("ring_2"), (100.0, 0.0, -40.0)) == pytest.approx(
+        (100.0, 0.0, -40.0))
+    assert applied(stub.group("ring_1"), (30.0, 0.0, -40.0)) == pytest.approx(
+        (40.0, 0.0, -40.0))
+    assert applied(stub.group("ring_3"), (170.0, 0.0, -40.0)) == pytest.approx(
+        (180.0, 0.0, -40.0))
 
 
 def test_the_shift_walks_through_the_states(lua_and_stub):
@@ -212,7 +235,8 @@ def test_the_shift_walks_through_the_states(lua_and_stub):
         # Early in a segment, before the ring starts moving on to the next.
         frame(runtime, stub, "shift", i / 3 + 0.05)
         engaged = 30.0 + 70 * i
-        assert stub.group(ring).pos[0] == pytest.approx(engaged), (
+        where = applied(stub.group(ring), (engaged, 0.0, -40.0))
+        assert where[0] == pytest.approx(engaged), (
             f"{ring} should be engaged during segment {i}")
 
 
@@ -222,7 +246,7 @@ def test_the_shift_moves_the_ring_rather_than_teleporting_it(lua_and_stub):
     seen = set()
     for k in range(61):  # 61 so the last sample lands on the segment's end
         frame(runtime, stub, "shift", k / 60 * (1 / 3))
-        seen.add(round(stub.group("ring_1").pos[0], 3))
+        seen.add(round(applied(stub.group("ring_1"), (30.0, 0.0, -40.0))[0], 3))
     assert 30.0 in seen, "ring_1 should start engaged"
     assert 40.0 in seen, "and end the segment clear"
     between = [v for v in seen if 30.0 < v < 40.0]
@@ -254,3 +278,39 @@ def test_the_output_ends_where_the_ratios_say_it_should(lua_and_stub):
     want = sum(r * per_segment for r in (-1 / 3, -0.6, -1.0))
     assert stub.group("shaft_output").angle == pytest.approx(want, abs=1.0)
     assert not math.isnan(stub.group("shaft_output").angle)
+
+
+def test_a_shaft_turns_about_its_own_axis_and_not_the_origin(lua_and_stub):
+    """The bug that made everything but one shaft orbit.
+
+    A group's placement is applied about the model's origin, whatever centre its
+    GROUP_DEF declares.  A shaft whose axis does not pass through the origin
+    therefore has to be given a position that makes up the difference, or its
+    parts swing around the origin instead of spinning in place.
+
+    Any point on the axis must stay exactly where it is, at every angle.
+    """
+    runtime, stub = lua_and_stub
+    on_the_axis = (123.0, 0.0, -40.0)  # shaft_output runs along x at z=-40
+    for t in (0.0, 0.17, 0.33, 0.5, 0.81, 1.0):
+        frame(runtime, stub, "2nd", t)
+        where = applied(stub.group("shaft_output"), on_the_axis)
+        assert where == pytest.approx(on_the_axis, abs=1e-6), (
+            f"at t={t} a point on the shaft's own axis moved to {where}; "
+            "the group is turning about the origin instead"
+        )
+
+
+def test_a_part_off_the_axis_sweeps_a_circle_around_it(lua_and_stub):
+    """And the parts that should move, move the right way: a gear's rim stays
+    at a constant distance from its own shaft, not from the origin."""
+    runtime, stub = lua_and_stub
+    axis_point = (123.0, 0.0, -40.0)
+    rim = (123.0, 20.0, -40.0)  # 20 LDU off the axis
+    for t in (0.0, 0.25, 0.5, 0.75):
+        frame(runtime, stub, "2nd", t)
+        where = applied(stub.group("shaft_output"), rim)
+        radius = math.dist(where, axis_point)
+        assert radius == pytest.approx(20.0, abs=1e-6), (
+            f"at t={t} the rim is {radius:.2f} from its own axis, not 20"
+        )

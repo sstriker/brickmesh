@@ -42,7 +42,11 @@ func TestTheScriptUsesTheLDCadAPI(t *testing.T) {
 		"ani:getFrameTime()",
 		"local m=ldc.matrix()",
 		"m:setRotate(",
-		":setOri(m)",
+		// setPosOri rather than setOri: a group turns about the model's origin,
+		// so its position has to carry the offset that moves the pivot onto its
+		// own axis.
+		":setPosOri(m)",
+		"brickmeshPivot(",
 		"register()",
 	} {
 		if !strings.Contains(out, want) {
@@ -83,7 +87,7 @@ func TestEveryGroupFetchedIsAlsoTurned(t *testing.T) {
 			continue
 		}
 		v := "grp" + name[:strings.Index(name, "=")]
-		if !strings.Contains(out, v+":setOri(m)") {
+		if !strings.Contains(out, v+":setPosOri(m)") {
 			t.Errorf("%s is fetched but never turned", v)
 		}
 	}

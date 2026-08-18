@@ -158,6 +158,7 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 		}
 		ani.Turning = append(ani.Turning, ldcad.Turning{
 			Group: group, Axis: place.Direction, Speed: speeds[id],
+			Through: place.Point.Scale(synth.HalfStud),
 		})
 	}
 	if len(ani.Turning) == 0 {
