@@ -20,6 +20,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"brickmesh/internal/clutch"
 )
 
 // HalfStud in LDU. A center distance lands on a whole half stud when the two
@@ -379,17 +381,9 @@ func (m *Mechanism) checkDOFIn(state string) []Finding {
 		"%d degrees of freedom, %d drives: determined", d, k)}}
 }
 
-// ShiftableTeeth are the tooth counts that come in a driving-ring variant.
-//
-// A shift is made by a driving ring locking a gear to the shaft it rides on,
-// and only some gears have the ridged bore that engages one: 16, 20 (bevel and
-// not) and 24. An 8t or a 40t on a shifted shaft has to be moved some other
-// way — sliding the whole axle, or a clutch of your own devising.
-//
-// Source: Rebrickable's gear guide, which lists the three driving-ring systems
-// (6539 with lever 6641/51149 and changeover plate 6631; 18947 with selector
-// 35188; 2473 with shifter 4158 and fork 4159).
-var ShiftableTeeth = map[int]bool{16: true, 20: true, 24: true}
+// Which tooth counts can be shifted is a fact about the parts, so it is kept
+// with them in internal/clutch and read from there. It was wrong here for a
+// while — 24 was on the list, and no driving ring has ever gripped a 24t gear.
 
 // CheckShiftable reports gears on a shifted shaft that no driving ring can
 // engage.
@@ -421,13 +415,14 @@ func (m *Mechanism) CheckShiftable() []Finding {
 			shaft string
 			teeth int
 		}{{mesh.A, mesh.TeethA}, {mesh.B, mesh.TeethB}} {
-			if !shifted[side.shaft] || ShiftableTeeth[side.teeth] {
+			if !shifted[side.shaft] || clutch.Shiftable(side.teeth) {
 				continue
 			}
 			out = append(out, Finding{"WARN", "shiftable", fmt.Sprintf(
-				"shaft '%s' is shifted but carries a %dt, which has no driving-ring "+
-					"variant. Only 16t, 20t and 24t do; use one of those, or shift it "+
-					"another way.", side.shaft, side.teeth)})
+				"shaft '%s' is shifted but carries a %dt, and no driving ring has a "+
+					"clutch gear that size. %v can be shifted; use one of those, or "+
+					"shift this another way.",
+				side.shaft, side.teeth, clutch.ShiftableTeeth())})
 		}
 	}
 	if len(out) == 0 {

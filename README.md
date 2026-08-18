@@ -100,7 +100,7 @@ up at all.
 `--animate` writes an LDCad animation beside the model:
 
 ```console
-brickmesh --spec examples/gearbox-3-speed.json --out gearbox.ldr --animate
+brickmesh --spec examples/gearbox-2-speed.json --out gearbox.ldr --animate
 ```
 
 Each shaft becomes an LDCad group and the script turns it at the ratio the

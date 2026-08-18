@@ -26,9 +26,9 @@ func TestEveryRingRidesAJoiner(t *testing.T) {
 	var rings, joiners []ldr.Part
 	for _, p := range res.Model.Parts {
 		switch p.Name {
-		case DrivingRing:
+		case clutch.First.Ring:
 			rings = append(rings, p)
-		case clutch.Joiner:
+		case clutch.First.Joiner:
 			joiners = append(joiners, p)
 		}
 	}
@@ -44,7 +44,7 @@ func TestEveryRingRidesAJoiner(t *testing.T) {
 		for _, j := range joiners {
 			// Coaxial, and close enough along the shaft that the ring is on it
 			// at both ends of its travel.
-			if r.Pos.Sub(j.Pos).Len() <= clutch.Travel*10+1e-6 {
+			if r.Pos.Sub(j.Pos).Len() <= (clutch.First.Travel()+clutch.First.JoinerHalf)*10+1e-6 {
 				found = true
 			}
 		}
@@ -64,13 +64,13 @@ func TestTheAxlesMeetInsideTheJoiner(t *testing.T) {
 	}
 
 	for _, a := range res.axles {
-		if a.name == clutch.Joiner {
-			continue
+		if isJoiner(a.name) {
+			continue // this loop is about the axles that butt into them
 		}
 		axis := a.rot.Apply(geom.Vec3{X: 1}).Unit()
 		half := float64(a.studs) * geom.Stud / 2
 		for _, j := range res.axles {
-			if j.name != clutch.Joiner {
+			if !isJoiner(j.name) {
 				continue
 			}
 			d := j.center.Sub(a.center)
@@ -79,7 +79,7 @@ func TestTheAxlesMeetInsideTheJoiner(t *testing.T) {
 				continue
 			}
 			gap := math.Abs(d.Dot(axis))
-			if gap > half+clutch.JoinerHalf*10 {
+			if gap > half+clutch.Second.JoinerHalf*10 {
 				continue // not the joiner this end goes into
 			}
 			// The axle's end, measured from the joiner's center.
@@ -88,7 +88,7 @@ func TestTheAxlesMeetInsideTheJoiner(t *testing.T) {
 				t.Errorf("axle %d at %+v runs %.1f LDU past the stop in the joiner "+
 					"at %+v", a.studs, a.center, end, j.center)
 			}
-			if end < -clutch.JoinerReach*10-1e-6 {
+			if end < -clutch.Second.JoinerReach*10-1e-6 {
 				t.Errorf("axle %d at %+v stops %.1f LDU short of the joiner at %+v, "+
 					"so it never reaches it", a.studs, a.center, -end, j.center)
 			}
@@ -102,7 +102,7 @@ func TestTheAxlesMeetInsideTheJoiner(t *testing.T) {
 func TestTouchingIsAllowedAndOverlapIsNot(t *testing.T) {
 	deps := requireLibraries(t)
 	ring := ldr.Part{
-		Name: DrivingRing, Pos: geom.Vec3{},
+		Name: clutch.First.Ring, Pos: geom.Vec3{},
 		Rot: geom.Mat3{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}},
 	}
 	beam := func(x float64) ldr.Part {

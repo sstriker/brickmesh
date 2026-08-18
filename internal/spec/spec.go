@@ -74,7 +74,12 @@ type Input struct {
 
 // Spec is a whole mechanism.
 type Spec struct {
-	Name          string         `json:"name"`
+	Name string `json:"name"`
+	// Note is for whoever reads the file: why these tooth counts and not
+	// others. Ignored by everything here, which is the point — a description
+	// with no room for the reasoning behind it collects the reasoning in a
+	// commit message nobody finds.
+	Note          string         `json:"note,omitempty"`
 	Shafts        []Shaft        `json:"shafts"`
 	Meshes        []Mesh         `json:"meshes,omitempty"`
 	Differentials []Differential `json:"differentials,omitempty"`

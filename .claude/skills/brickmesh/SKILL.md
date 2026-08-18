@@ -45,12 +45,18 @@ Say this plainly rather than producing something that looks close.
   cannot settle a fit, because in LDraw everything is nominal size and a spline
   that grips reads as a spline that collides. Measured, in `docs/shifting.md`.
   Tell the builder which parts to add; the numbers are below.
-- **A clutch gear only in 16t.** Careful with the word, it means two things.
-  The engage/disengage kind is placed: a shifted 16t station comes out as 6542a
-  rather than the plain 4019. There is no 20t or 24t equivalent in the library —
-  a real one reaches its gear through a driving ring extension (32187, 35186),
-  which is not modelled, and the run warns when a shift lands on one. The other
-  meaning, the old white 24t torque limiter that slips above a force, is not
+- **Two shifted ratios per pair of shafts, and no more.** Only 16t and 20t come
+  with dog clutches, every pair on one pair of shafts must sum to the same tooth
+  count, and that arithmetic leaves exactly two. The 24t cannot be dog-shifted
+  at all — the parts called "Gear 24 Tooth Clutch" are torque limiters with a
+  slipping centre, and read like a plain gear to both driving rings. Ask for
+  more speeds than two and the answer is to compound: two stages of two in
+  series give four. Worked through in `docs/findings.md`.
+- **Clutch gears, both systems.** Careful with the word, it means two things.
+  Both driving-ring systems are placed now, each with its own ring, ridged axle
+  joiner and clutch gears: the first for a 16t, the second for a 16t or 20t. A
+  gearbox may use both at once, and `examples/gearbox-2-speed.json` does. The
+  other meaning of clutch — the torque limiter that slips above a force — is not
   modelled at all: there is no slip element anywhere.
 - **The structure does not always hold together.** Most runs come out rigid now,
   but a `rigidity` warning still turns up — the subtractor example hinges. The
@@ -81,7 +87,7 @@ The run reports the schedule and checks it holds together — most usefully,
 whether the box *hunts*: changing up drops the watched shaft, and if it drops
 past the speed the box changes back down at, it changes down at once and then
 straight back up. Give `down_at` and the run judges it; leave it out and the run
-says how low each one would have to be. `examples/gearbox-3-speed-auto.json` is
+says how low each one would have to be. `examples/gearbox-2-speed-auto.json` is
 a worked one.
 
 With shift points the animation gives each gear as much of its length as the

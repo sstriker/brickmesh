@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math"
 
-	"brickmesh/internal/clutch"
 	"brickmesh/internal/collide"
 	"brickmesh/internal/geom"
 	"brickmesh/internal/interfere"
@@ -155,9 +154,9 @@ const (
 
 func classOf(p ldr.Part) int {
 	switch {
-	case p.Name == DrivingRing:
+	case isRing(p.Name):
 		return classRing
-	case p.Name == clutch.Joiner:
+	case isJoiner(p.Name):
 		return classJoiner
 	case isAxle(p.Name):
 		return classAxle

@@ -59,11 +59,25 @@ var GearParts = map[int]string{
 // recalled. Its axle hole runs along its own Z, as the shadow library says, so
 // it orients like a gear.
 //
-// The newer rings — 18947 of the Chiron and the MT-10's — are not in the parts
-// mirror this reads from, so only the classic system can be placed.
-const (
-	DrivingRing = clutch.Ring
-)
+// Both generations are placed now. Which one a shift gets depends on the gear
+// it has to lock to, and internal/clutch decides that.
+func isRing(name string) bool {
+	for _, s := range clutch.Systems {
+		if s.Ring == name {
+			return true
+		}
+	}
+	return false
+}
+
+func isJoiner(name string) bool {
+	for _, s := range clutch.Systems {
+		if s.Joiner == name {
+			return true
+		}
+	}
+	return false
+}
 
 // SelectorParts are what moves a driving ring. Their position follows from the
 // shift linkage, which the engine does not model, so they are named rather than
@@ -346,6 +360,9 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 type ringSite struct {
 	coupling mech.Coupling
 	station  layout.Station
+	// system is which generation of hardware this shift uses. They do not mix:
+	// a ring of one does not grip the other's gears.
+	system clutch.System
 	// rides is the shaft the ring is splined to, which is the side of the
 	// coupling that is not the gear it engages. It turns with that shaft in
 	// every state, engaged or not — the gear is the part that runs free.
@@ -353,6 +370,8 @@ type ringSite struct {
 	// Engaged is where the ring sits when the coupling is engaged, along the
 	// shaft in half studs; Disengaged is where it slides to when it is not.
 	engaged, disengaged float64
+	// joiner is where the ridged joiner under the ring is centered.
+	joiner float64
 }
 
 // ringSites works out where every shift's driving ring goes.
@@ -376,7 +395,20 @@ func ringSites(m *mech.Mechanism, res *Result) []ringSite {
 		if !found {
 			continue // nothing to engage: reported by CheckShiftable already
 		}
-		axial, ok := freeSideOf(res.Stations, station, res.Layout)
+		// Which hardware can shift this gear at all decides everything after
+		// it: the ring, the joiner under it, the gear itself, and how much
+		// shaft the three of them need.
+		system, ok := clutch.For(station.Teeth)
+		if !ok {
+			res.Findings = append(res.Findings, mech.Finding{
+				Level: "FAIL", Check: "parts", Detail: fmt.Sprintf(
+					"nothing can shift a %dt gear: no driving ring has a clutch gear "+
+						"that size. %v can be shifted; reach this ratio through one of "+
+						"those instead", station.Teeth, clutch.ShiftableTeeth())})
+			continue
+		}
+
+		axial, ok := freeSideOfIn(res.Stations, station, res.Layout, system)
 		if !ok {
 			res.Findings = append(res.Findings, mech.Finding{
 				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
@@ -389,8 +421,15 @@ func ringSites(m *mech.Mechanism, res *Result) []ringSite {
 		if axial < station.Axial {
 			side = -1
 		}
+		// The joiner goes as close to the gear as it can without touching it.
+		// It is a solid sleeve wider than an axle, so it cannot enter the
+		// gear's bore, and pushing it out any further than it has to be only
+		// takes ring off it — the second system's joiner is three studs long
+		// and its ring nearly three, so there is not much to spare.
+		joiner := station.Axial + side*(station.Thickness/2+system.JoinerHalf)
 		out = append(out, ringSite{coupling: c, station: station, rides: rides,
-			engaged: axial, disengaged: axial + side*clutch.Travel})
+			system: system, joiner: joiner,
+			engaged: axial, disengaged: axial + side*system.Travel()})
 	}
 	return out
 }
@@ -402,7 +441,7 @@ func gearAt(st layout.Station, sites []ringSite) (string, bool) {
 		if site.station.Shaft != st.Shaft || site.station.Axial != st.Axial {
 			continue
 		}
-		if name, ok := clutch.Gears[st.Teeth]; ok {
+		if name, ok := site.system.Gears[st.Teeth]; ok {
 			return name, true
 		}
 		break
@@ -430,9 +469,9 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 		if label == "" {
 			label = fmt.Sprintf("driving ring for %v", site.coupling.States)
 		}
-		model.Add(DrivingRing, ldr.ColorRed, rot, pos, label)
+		model.Add(site.system.Ring, ldr.ColorRed, rot, pos, label)
 
-		if _, ok := clutch.Gears[site.station.Teeth]; !ok {
+		if _, ok := site.system.Gears[site.station.Teeth]; !ok {
 			nominal = append(nominal, fmt.Sprintf("%dt on '%s'",
 				site.station.Teeth, site.station.Shaft))
 		}
@@ -455,11 +494,9 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 	if len(nominal) > 0 {
 		res.Findings = append(res.Findings, mech.Finding{
 			Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
-				"%v get a plain gear, not a clutch one: the library has a clutch "+
-					"variant only for the 16t (%v). A real 20t or 24t shift reaches its "+
-					"gear through a driving ring extension (32187, or 35186), which is "+
-					"not modelled — so those rings turn beside their gear without "+
-					"gripping it.", nominal, clutch.Gears)})
+				"%v get a plain gear, not a clutch one, so those rings turn beside "+
+					"their gear without gripping it. %v are the counts that can be "+
+					"shifted", nominal, clutch.ShiftableTeeth())})
 	}
 }
 
@@ -478,14 +515,16 @@ func stationOn(stations []layout.Station, shaft string) (layout.Station, bool) {
 // Judged along the line rather than the named shaft: the whole point of a
 // coupling is that two shafts share an axis, so the gear of another ratio is
 // right there even though it belongs to a differently named shaft.
-func freeSideOf(stations []layout.Station, gear layout.Station, l *layout.Layout) (float64, bool) {
+func freeSideOfIn(stations []layout.Station, gear layout.Station, l *layout.Layout,
+	system clutch.System) (float64, bool) {
+
 	line := layout.LineOf(l, gear.Shaft)
 	for _, side := range []float64{1, -1} {
-		axial := gear.Axial + side*clutch.Engaged
-		// The ring is four half studs long, and it has to stay clear of
-		// everything else on the line once it has slid the whole way out.
-		lo := math.Min(axial, axial+side*clutch.Travel) - 2
-		hi := math.Max(axial, axial+side*clutch.Travel) + 2
+		axial := gear.Axial + side*system.Engaged
+		// The ring has to stay clear of everything else on the line once it has
+		// slid the whole way out.
+		lo := math.Min(axial, axial+side*system.Travel()) - system.RingHalf
+		hi := math.Max(axial, axial+side*system.Travel()) + system.RingHalf
 		clear := true
 		for _, st := range stations {
 			if layout.LineOf(l, st.Shaft) != line || st == gear {
@@ -604,7 +643,8 @@ func computeAxles(m *mech.Mechanism, res *Result) []axlePlacement {
 				continue
 			}
 			axles = append(axles, axlePlacement{
-				name: clutch.Joiner, studs: 2, rot: jrot, center: at(j),
+				name: j.system.Joiner, studs: int(j.system.JoinerHalf * 2 / 2),
+				rot: jrot, center: at(j.center),
 				shaft: l.shaft,
 				label: fmt.Sprintf("joiner for shaft '%s', the ring rides on this",
 					l.shaft),
@@ -699,15 +739,14 @@ func turningCells(res *Result, deps Deps) map[geom.Cell]bool {
 		at := func(halfStuds float64) geom.Vec3 {
 			return origin.Add(place.Direction.Scale(halfStuds * synth.HalfStud))
 		}
-		mid := (site.engaged + site.disengaged) / 2
-
 		one := map[geom.Cell]bool{}
 		// Both ends of the travel and the middle, which is the whole of the
 		// space the ring passes through on a shift.
-		for _, p := range []geom.Vec3{at(site.engaged), at(mid), at(site.disengaged)} {
-			markCells(one, deps, DrivingRing, rot, p)
+		for _, p := range []geom.Vec3{at(site.engaged),
+			at((site.engaged + site.disengaged) / 2), at(site.disengaged)} {
+			markCells(one, deps, site.system.Ring, rot, p)
 		}
-		markCells(one, deps, clutch.Joiner, rot, at(mid))
+		markCells(one, deps, site.system.Joiner, rot, at(site.joiner))
 
 		for c := range erode(fill(one, across(place.Direction))) {
 			out[c] = true
@@ -862,8 +901,10 @@ func ringSpans(res *Result) map[string][][2]float64 {
 		// Widened by a beam's own half thickness. A bearing is a point, but the
 		// beam that provides it is a stud thick, so one placed just outside the
 		// joiner still has material inside it.
-		lo := math.Min(site.engaged, site.disengaged) - clutch.JoinerHalf - bearingHalf
-		hi := math.Max(site.engaged, site.disengaged) + clutch.JoinerHalf + bearingHalf
+		lo := math.Min(site.engaged-site.system.RingHalf,
+			site.joiner-site.system.JoinerHalf) - bearingHalf
+		hi := math.Max(site.disengaged+site.system.RingHalf,
+			site.joiner+site.system.JoinerHalf) + bearingHalf
 		for id, p := range res.Layout.Place {
 			if p.Key() == place.Key() {
 				out[id] = append(out[id], [2]float64{lo, hi})
@@ -878,17 +919,28 @@ func ringSpans(res *Result) map[string][][2]float64 {
 // The joiner is centered on the middle of the ring's travel rather than on
 // either end of it, so the ring stays as far onto it as it can in both
 // positions.
-func joinersOn(res *Result, place layout.Placement) []float64 {
-	var out []float64
+func joinersOn(res *Result, place layout.Placement) []joinerAt {
+	var out []joinerAt
 	for _, site := range res.ringSites {
 		p, ok := res.Layout.Place[site.station.Shaft]
 		if !ok || p.Key() != place.Key() {
 			continue
 		}
-		out = append(out, (site.engaged+site.disengaged)/2*synth.HalfStud)
+		out = append(out, joinerAt{
+			center: site.joiner * synth.HalfStud,
+			system: site.system,
+		})
 	}
-	sort.Float64s(out)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].center < out[j].center })
 	return out
+}
+
+// joinerAt is a cut in a shaft: where it is, and which generation of hardware
+// made it. The two joiners are different lengths, so an axle butting into one
+// has a different length to reach for.
+type joinerAt struct {
+	center float64
+	system clutch.System
 }
 
 // segment is a length of shaft between two fixed points, and how much of it an
@@ -907,29 +959,30 @@ type segment struct {
 	towards float64 // +1 if the axle runs up from outer, -1 if down
 }
 
-func shaftSegments(lo, hi float64, joiners []float64) []segment {
+func shaftSegments(lo, hi float64, joiners []joinerAt) []segment {
 	if len(joiners) == 0 {
 		span := hi - lo
 		return []segment{{min: span, max: math.Inf(1), outer: (lo + hi) / 2}}
 	}
-	reach := clutch.JoinerReach * synth.HalfStud
+	reach := func(j joinerAt) float64 { return j.system.JoinerReach * synth.HalfStud }
 
 	var out []segment
 	first := joiners[0]
 	out = append(out, segment{
-		min: first - reach - lo, max: first - lo,
+		min: first.center - reach(first) - lo, max: first.center - lo,
 		outer: lo, pinned: true, towards: 1,
 	})
 	for i := 1; i < len(joiners); i++ {
-		gap := joiners[i] - joiners[i-1]
+		a, b := joiners[i-1], joiners[i]
+		gap := b.center - a.center
 		out = append(out, segment{
-			min: gap - 2*reach, max: gap,
-			outer: (joiners[i-1] + joiners[i]) / 2,
+			min: gap - reach(a) - reach(b), max: gap,
+			outer: (a.center + b.center) / 2,
 		})
 	}
 	last := joiners[len(joiners)-1]
 	out = append(out, segment{
-		min: hi - last - reach, max: hi - last,
+		min: hi - last.center - reach(last), max: hi - last.center,
 		outer: hi, pinned: true, towards: -1,
 	})
 	return out

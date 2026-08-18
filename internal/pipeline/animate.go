@@ -205,7 +205,7 @@ func tagRings(res *Result) {
 	k := 0
 	for i := range res.Model.Parts {
 		p := &res.Model.Parts[i]
-		if p.Name != DrivingRing || k >= len(rings) {
+		if !isRing(p.Name) || k >= len(rings) {
 			continue
 		}
 		p.Group = rings[k].group

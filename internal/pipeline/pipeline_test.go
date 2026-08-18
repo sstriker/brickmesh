@@ -203,8 +203,8 @@ const gearbox = `{
     {"id": "low", "bearings": 2}, {"id": "high", "bearings": 2}
   ],
   "meshes": [
-    {"a": "input", "b": "low", "teeth_a": 16, "teeth_b": 24},
-    {"a": "input", "b": "high", "teeth_a": 24, "teeth_b": 16}
+    {"a": "input", "b": "low", "teeth_a": 12, "teeth_b": 20},
+    {"a": "input", "b": "high", "teeth_a": 16, "teeth_b": 16}
   ],
   "couplings": [
     {"a": "output", "b": "low", "name": "ring low", "states": ["low"]},
@@ -224,7 +224,7 @@ func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 	var rings []ldr.Part
 	var gears []ldr.Part
 	for _, p := range res.Model.Parts {
-		if p.Name == DrivingRing {
+		if isRing(p.Name) {
 			rings = append(rings, p)
 			continue
 		}
@@ -240,7 +240,7 @@ func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 	// a full revolution against every gear, and anything a ring passes through
 	// is a model that cannot be assembled. Checking only for a shared position
 	// is what let the rings sit inside their gears for as long as they did.
-	ring, err := interfere.MeshFor(deps.Lib, DrivingRing)
+	ring, err := interfere.MeshFor(deps.Lib, rings[0].Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestAShiftedSixteenBecomesAClutchGear(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := clutch.Gears[16]
+	want := clutch.First.Gears[16]
 	var found bool
 	for _, p := range res.Model.Parts {
 		if p.Name == want {
@@ -315,7 +315,7 @@ func TestNoShiftMeansNoRings(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range res.Model.Parts {
-		if p.Name == DrivingRing {
+		if isRing(p.Name) {
 			t.Error("a plain reduction should not get a driving ring")
 		}
 	}
@@ -383,6 +383,9 @@ func TestAnAxleIsLongEnoughForItsShaft(t *testing.T) {
 
 const synthHalfStud = 10.0
 
+// Three states, for the animation tests, which do not care what grips what.
+// Not a buildable shift: the 24t cannot be dog-shifted, and no three ratios can
+// be, on one pair of shafts. See docs/findings.md.
 const gearboxSpec = `{
   "name": "3-speed",
   "states": ["1st", "2nd", "3rd"],

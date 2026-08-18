@@ -218,3 +218,35 @@ The lesson is worth keeping separately from the fix: the gap was invisible for
 as long as nothing asked for every part. Everything that reads geometry read a
 handful, and a handful of old, common parts is exactly the set a stale mirror
 still has.
+
+
+## Two shifted ratios per pair of shafts, and no more
+
+Not a limit of this engine. It follows from three measured facts and a bit of
+arithmetic.
+
+Only 16 and 20 tooth gears come with dog clutches — the first driving-ring
+system has a 16t (6542a, 6542b), the second has a 16t and a 20t (18946, 81346,
+35185). The parts named "Technic Gear 24 Tooth Clutch" are the other kind of
+clutch, a torque limiter with a slipping centre; swept against both rings they
+read exactly like a plain gear at every distance. Neither driving ring extension
+(32187, 35186) changes that.
+
+Every gear pair on one pair of parallel shafts has to sum to the same tooth
+count, because the shafts are a fixed distance apart. So with the driven gear
+restricted to 16 or 20:
+
+| centres | pairs that fit | driven is a clutch gear? |
+|---|---|---|
+| 2 studs (sum 32) | 16+16, 12+20, 20+12, 24+8 | only 16+16 and 12+20 |
+| 2.5 studs (sum 40) | 24+16, 20+20, 16+24 | only 24+16 and 20+20 |
+| 1.5 studs (sum 24) | 8+16, 16+8 | only 8+16 |
+
+Two ratios at two studs, two at two and a half, one at one and a half. Never
+three.
+
+Which is why real gearboxes with more speeds compound: two stages of two in
+series give four, three give eight. The examples here are two-speed because that
+is what a single pair of shafts can do, and `examples/gearbox-2-speed.json`
+uses both driving-ring systems at once — the first for its 16t, the second for
+its 20t — because that is what the gears demand.

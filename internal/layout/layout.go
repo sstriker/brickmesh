@@ -695,7 +695,21 @@ func anchorBevels(m *mech.Mechanism, l *Layout, stations *stationSet) []mech.Fin
 // center. Disengaging slides it one further. Reserving less than that is what
 // used to leave a ring with nowhere to go but through its neighbor. The number
 // comes from internal/clutch, which measures it.
-const RingRoomHalfStuds = clutch.Room
+//
+// Taken from whichever system needs the most, since the layout runs before the
+// hardware for a given shift is chosen and reserving too little is what leaves
+// a ring nowhere to go.
+var RingRoomHalfStuds = mostRoom()
+
+func mostRoom() float64 {
+	var most float64
+	for _, s := range clutch.Systems {
+		if r := s.Room(); r > most {
+			most = r
+		}
+	}
+	return most
+}
 
 // shiftedShafts are those a shift engages, which need room beside their gear
 // for the ring that does the engaging.
