@@ -177,3 +177,38 @@ So the sweep, which settles whether gears mesh and whether a ring clears its
 gear, cannot settle whether a catch has hold of a ring. Anything built on that
 joint has to be placed from the shadow library's axle-hole data and said to be
 placed rather than verified.
+
+## The parts mirror is missing the newer parts
+
+Generating `meshes.bin` turns this up because it is the first thing that asks
+for every part's geometry rather than a handful:
+
+| tier | parts | with geometry | missing |
+|---|---|---|---|
+| 1 | 135 | 109 | 26 (19%) |
+| 2 | 412 | 340 | 72 (17%) |
+
+Every missing one is high-numbered — 18651, 18948, 21755, 22961, 23948, 24122,
+24316, 27940 — and they are absent from the mirror rather than mislooked-up:
+
+```console
+$ curl -o /dev/null -w '%{http_code}\n' .../mpetrov/ldraw-parts/master/parts/3648b.dat
+200
+$ curl -o /dev/null -w '%{http_code}\n' .../mpetrov/ldraw-parts/master/parts/18948.dat
+404
+```
+
+So `internal/ldraw`'s mirror is a snapshot from before those parts were
+released. The shadow library, which comes from LDCad and is fetched whole and
+current, knows about them — which is why they are in the catalogue at all.
+
+This is not only a browser-assets problem. Anything that reads geometry hits it:
+the voxel rasteriser, the interference sweep, the tooth phase. 18948 is the
+axle joiner for the 3L driving ring, so the newer shifting system cannot be
+measured at all while this stands — which is why `docs/shifting.md` only has
+figures for the first one.
+
+The fix is to fetch the official library the way the shadow library is already
+fetched, rather than a mirror of part of it. Not done here: it changes what CI
+downloads and caches, and it is a decision about where the project's data comes
+from rather than a bug to quietly patch.

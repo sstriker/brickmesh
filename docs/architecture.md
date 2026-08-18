@@ -281,6 +281,16 @@ this extractor finds 2649 usable, of which 135 are tier 1 with 285 ports.
 | `catalog.bin` (ports, ids, titles) | 15 KB | 3.9 KB |
 | `meshes.bin` (indexed triangles) | 3.4 MB | 1.0 MB |
 
+Tier 2, which is the cap the notes above suggest for the browser build, comes to
+63 KB of catalogue (13 KB gzipped) and 12.9 MB of triangles — **4.19 MB
+gzipped, against the 4.2 MB estimated**.
+
+Generating it turned up something that is not a browser problem at all: 17% of
+tier 2 parts have no geometry to read, because the parts mirror is a snapshot
+from before they were released. See findings.md. They are written as empty
+entries so the two files stay aligned, and anything placed from one of them will
+not draw.
+
 The triangle figures come in under the estimate — 3.4 MB against 5.2 MB raw —
 because the meshes are indexed. LDraw parts are built from primitives that meet
 edge to edge, so the same corner turns up in many triangles, and sharing them is

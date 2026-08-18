@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"brickmesh/internal/assets"
@@ -113,12 +114,26 @@ func run() error {
 	}
 	logf(fmt.Sprintf("meshes.bin: %d of %d parts have geometry, %s",
 		built, len(catalog.Parts), size(len(rawMeshes))))
-	if missing > 0 {
-		logf(fmt.Sprintf("  %d part(s) had no geometry to read and are empty "+
-			"entries; they keep their index so the two files stay aligned",
-			missing))
+	if len(missing) > 0 {
+		// Named rather than counted. These are parts the shadow library knows
+		// about and the parts mirror does not have, which is a gap in the data
+		// rather than in this program — and one nobody can chase without the
+		// numbers.
+		logf(fmt.Sprintf("  %d part(s) had no geometry to read: %s",
+			len(missing), sample(missing, 8)))
+		logf("  they keep their index as empty entries, so the two files stay " +
+			"aligned; anything placed from one will not draw")
 	}
 	return nil
+}
+
+// sample lists a few of a long list, so a log line stays a line.
+func sample(all []string, n int) string {
+	if len(all) <= n {
+		return strings.Join(all, " ")
+	}
+	return fmt.Sprintf("%s and %d more",
+		strings.Join(all[:n], " "), len(all)-n)
 }
 
 // buildMeshes reads every part's triangles, in the catalog's own order.
@@ -127,7 +142,7 @@ func run() error {
 // left out. Leaving it out would shift every part after it by one, and the
 // index is the only thing tying the two files together.
 func buildMeshes(ctx context.Context, catalog assets.Catalog, maxTier uint8,
-	logf func(string)) (raw []byte, built, missing int, err error) {
+	logf func(string)) (raw []byte, built int, missingIDs []string, err error) {
 
 	lib := ldraw.New("")
 	report := progress.Func(func(r progress.Report) {
@@ -139,7 +154,7 @@ func buildMeshes(ctx context.Context, catalog assets.Catalog, maxTier uint8,
 	meshes := make([]assets.Mesh, len(catalog.Parts))
 	for i, p := range catalog.Parts {
 		if err := ctx.Err(); err != nil {
-			return nil, 0, 0, err
+			return nil, 0, nil, err
 		}
 		report.Report(progress.Report{
 			Stage: "meshes", Done: i + 1, Total: len(catalog.Parts), Note: p.ID,
@@ -149,7 +164,7 @@ func buildMeshes(ctx context.Context, catalog assets.Catalog, maxTier uint8,
 		}
 		g, err := lib.Geometry(p.ID)
 		if err != nil {
-			missing++
+			missingIDs = append(missingIDs, p.ID)
 			continue
 		}
 		meshes[i] = assets.IndexTriangles(g.Tris)
@@ -157,7 +172,7 @@ func buildMeshes(ctx context.Context, catalog assets.Catalog, maxTier uint8,
 	}
 
 	raw, err = assets.WriteMeshes(meshes)
-	return raw, built, missing, err
+	return raw, built, missingIDs, err
 }
 
 func portCount(c assets.Catalog) int {
