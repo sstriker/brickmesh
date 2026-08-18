@@ -1,0 +1,23 @@
+{
+  "name": "3-speed gearbox",
+  "states": ["1st", "2nd", "3rd"],
+  "shafts": [
+    {"id": "input", "bearings": 2},
+    {"id": "output", "bearings": 2},
+    {"id": "gear1", "bearings": 2},
+    {"id": "gear2", "bearings": 2},
+    {"id": "gear3", "bearings": 2}
+  ],
+  "meshes": [
+    {"a": "input", "b": "gear1", "teeth_a": 8, "teeth_b": 24},
+    {"a": "input", "b": "gear2", "teeth_a": 16, "teeth_b": 16},
+    {"a": "input", "b": "gear3", "teeth_a": 24, "teeth_b": 8}
+  ],
+  "couplings": [
+    {"a": "output", "b": "gear1", "name": "dog ring low", "states": ["1st"]},
+    {"a": "output", "b": "gear2", "name": "dog ring mid", "states": ["2nd"]},
+    {"a": "output", "b": "gear3", "name": "dog ring high", "states": ["3rd"]}
+  ],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}

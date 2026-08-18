@@ -5,6 +5,7 @@ package mech
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -50,20 +51,20 @@ func hasFinding(fs []Finding, level, check string) bool {
 }
 
 func TestDOFOfAPlainTrainIsOne(t *testing.T) {
-	if got := simpleTrain().DOF(); got != 1 {
+	if got := simpleTrain().DOF(""); got != 1 {
 		t.Errorf("DOF = %d, want 1", got)
 	}
 }
 
 func TestSubtractorHasTwoDegreesOfFreedom(t *testing.T) {
 	// The whole reason a subtractor works: three shafts, one equation.
-	if got := subtractor().DOF(); got != 2 {
+	if got := subtractor().DOF(""); got != 2 {
 		t.Errorf("DOF = %d, want 2", got)
 	}
 }
 
 func TestSpeedsFollowTheGearRatio(t *testing.T) {
-	sol, ok := simpleTrain().Solve()
+	sol, ok := simpleTrain().Solve("")
 	if !ok {
 		t.Fatal("not solvable")
 	}
@@ -81,7 +82,7 @@ func TestDifferentialCaseIsTheAverageOfItsOutputs(t *testing.T) {
 	m := subtractor()
 	m.Drive("drive", 4)
 	m.Drive("steer", 2)
-	sol, ok := m.Solve()
+	sol, ok := m.Solve("")
 	if !ok {
 		t.Fatal("not solvable")
 	}
@@ -94,7 +95,7 @@ func TestDrivingBothTracksTogetherTurnsTheCaseWithThem(t *testing.T) {
 	m := subtractor()
 	m.Drive("drive", 1)
 	m.Drive("steer", 1)
-	sol, ok := m.Solve()
+	sol, ok := m.Solve("")
 	if !ok {
 		t.Fatal("not solvable")
 	}
@@ -109,7 +110,7 @@ func TestDrivingTheTracksOppositePivotsOnTheSpot(t *testing.T) {
 	m := subtractor()
 	m.Drive("drive", 1)
 	m.Drive("steer", -1)
-	sol, ok := m.Solve()
+	sol, ok := m.Solve("")
 	if !ok {
 		t.Fatal("not solvable")
 	}
@@ -121,7 +122,7 @@ func TestDrivingTheTracksOppositePivotsOnTheSpot(t *testing.T) {
 func TestUnderdrivenMechanismIsUnsolvable(t *testing.T) {
 	m := subtractor()
 	m.Drive("drive", 1)
-	if _, ok := m.Solve(); ok {
+	if _, ok := m.Solve(""); ok {
 		t.Error("two degrees of freedom and one input should not resolve")
 	}
 }
@@ -135,7 +136,7 @@ func TestLockedTrainIsReported(t *testing.T) {
 	m.Mesh("a", "b", 8, 8)
 	m.Mesh("b", "c", 8, 8)
 	m.Mesh("a", "c", 8, 8)
-	if got := m.DOF(); got != 0 {
+	if got := m.DOF(""); got != 0 {
 		t.Errorf("DOF = %d, want 0", got)
 	}
 	if !hasFinding(m.CheckDOF(), "FAIL", "dof") {
@@ -349,4 +350,128 @@ func itoa(v int) string {
 		v /= 10
 	}
 	return string(b)
+}
+
+// --------------------------------------------------------------------------
+// shifting
+// --------------------------------------------------------------------------
+
+// A three-speed box: three gear pairs always meshed, and a dog ring locking one
+// of them to the output at a time.
+func threeSpeed() *Mechanism {
+	m := New("3-speed")
+	for _, s := range []string{"input", "output", "g1", "g2", "g3"} {
+		m.Shaft(s, 2)
+	}
+	m.Mesh("input", "g1", 8, 24)
+	m.Mesh("input", "g2", 16, 16)
+	m.Mesh("input", "g3", 24, 8)
+	for _, st := range []string{"1st", "2nd", "3rd"} {
+		m.State(st)
+	}
+	m.Couple("output", "g1", "dog low", "1st")
+	m.Couple("output", "g2", "dog mid", "2nd")
+	m.Couple("output", "g3", "dog high", "3rd")
+	m.Drive("input", 1)
+	m.Output("output")
+	return m
+}
+
+func TestEachStateSelectsItsOwnRatio(t *testing.T) {
+	m := threeSpeed()
+	want := map[string]float64{"1st": -1.0 / 3.0, "2nd": -1, "3rd": -3}
+	for state, ratio := range want {
+		sol, ok := m.Solve(state)
+		if !ok {
+			t.Fatalf("%s: not solvable", state)
+		}
+		if math.Abs(sol["output"]-ratio) > 1e-9 {
+			t.Errorf("%s: output turns %v per turn of input, want %v",
+				state, sol["output"], ratio)
+		}
+	}
+}
+
+func TestEveryStateTurnsFreely(t *testing.T) {
+	m := threeSpeed()
+	for _, state := range m.States() {
+		if got := m.DOF(state); got != 1 {
+			t.Errorf("%s: %d degrees of freedom, want 1", state, got)
+		}
+	}
+}
+
+// With nothing engaged the gears still turn but the output is free: neutral.
+func TestTheUnnamedStateIsNeutral(t *testing.T) {
+	m := threeSpeed()
+	if got := m.DOF(""); got != 2 {
+		t.Errorf("neutral has %d degrees of freedom, want 2 — the output spins free", got)
+	}
+	if _, ok := m.Solve(""); ok {
+		t.Error("in neutral the output speed is not determined by the input")
+	}
+}
+
+// Engaging two dogs at once locks the box solid, which is what a real gearbox
+// destroys itself doing.
+func TestTwoDogsAtOnceLockTheBox(t *testing.T) {
+	m := threeSpeed()
+	m.Couple("output", "g1", "dog low", "3rd") // also engaged in 3rd now
+	if got := m.DOF("3rd"); got != 0 {
+		t.Errorf("two ratios engaged at once gives %d degrees of freedom, want 0", got)
+	}
+	if !hasFinding(m.CheckDOF(), "FAIL", "dof") {
+		t.Error("a locked state should be reported")
+	}
+}
+
+func TestStatesAreReportedWithTheirName(t *testing.T) {
+	found := map[string]bool{}
+	for _, f := range threeSpeed().CheckStates() {
+		if f.Check != "shift" {
+			continue
+		}
+		for _, state := range []string{"1st", "2nd", "3rd"} {
+			if strings.Contains(f.Detail, state) {
+				found[state] = true
+			}
+		}
+	}
+	if len(found) != 3 {
+		t.Errorf("reported on %v, want all three states", found)
+	}
+}
+
+func TestASingleStateMechanismReportsNoShift(t *testing.T) {
+	if got := simpleTrain().CheckStates(); got != nil {
+		t.Errorf("got %+v, want nothing for a mechanism with one state", got)
+	}
+}
+
+func TestACouplingLocksTwoShaftsTogether(t *testing.T) {
+	m := New("locked pair")
+	m.Shaft("a", 2)
+	m.Shaft("b", 2)
+	m.Couple("a", "b", "permanent")
+	m.Drive("a", 2)
+	sol, ok := m.Solve("")
+	if !ok {
+		t.Fatal("not solvable")
+	}
+	if sol["b"] != 2 {
+		t.Errorf("b turns %v, want the same 2 as a", sol["b"])
+	}
+}
+
+func TestACouplingWithNoStatesIsAlwaysEngaged(t *testing.T) {
+	c := Coupling{A: "a", B: "b"}
+	for _, state := range []string{"", "1st", "anything"} {
+		if !c.EngagedIn(state) {
+			t.Errorf("should be engaged in %q", state)
+		}
+	}
+	only := Coupling{A: "a", B: "b", States: []string{"2nd"}}
+	if only.EngagedIn("1st") || !only.EngagedIn("2nd") {
+		t.Error("a coupling should be engaged only in its own states")
+	}
 }

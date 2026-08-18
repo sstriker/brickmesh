@@ -40,10 +40,10 @@ func TestASpecBecomesAWorkingMechanism(t *testing.T) {
 	if m.Name != "subtractor" {
 		t.Errorf("name %q", m.Name)
 	}
-	if got := m.DOF(); got != 2 {
+	if got := m.DOF(""); got != 2 {
 		t.Errorf("DOF = %d, want 2 for a differential", got)
 	}
-	sol, ok := m.Solve()
+	sol, ok := m.Solve("")
 	if !ok {
 		t.Fatal("not solvable")
 	}
@@ -148,5 +148,76 @@ func TestMalformedSpecsAreRejected(t *testing.T) {
 func TestGarbageIsNotASpec(t *testing.T) {
 	if _, err := Read(strings.NewReader("not json")); err == nil {
 		t.Error("expected an error")
+	}
+}
+
+const gearbox = `{
+  "name": "2-speed",
+  "states": ["low", "high"],
+  "shafts": [
+    {"id": "input", "bearings": 2},
+    {"id": "output", "bearings": 2},
+    {"id": "g1", "bearings": 2},
+    {"id": "g2", "bearings": 2}
+  ],
+  "meshes": [
+    {"a": "input", "b": "g1", "teeth_a": 8, "teeth_b": 24},
+    {"a": "input", "b": "g2", "teeth_a": 24, "teeth_b": 8}
+  ],
+  "couplings": [
+    {"a": "output", "b": "g1", "name": "dog low", "states": ["low"]},
+    {"a": "output", "b": "g2", "name": "dog high", "states": ["high"]}
+  ],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}`
+
+func TestAGearboxSpecSelectsARatioPerState(t *testing.T) {
+	m := build(t, gearbox)
+	if got := m.States(); len(got) != 2 || got[0] != "low" || got[1] != "high" {
+		t.Fatalf("states %v, want low then high in order", got)
+	}
+	for state, want := range map[string]float64{"low": -1.0 / 3.0, "high": -3} {
+		sol, ok := m.Solve(state)
+		if !ok {
+			t.Fatalf("%s: not solvable", state)
+		}
+		if diff := sol["output"] - want; diff > 1e-9 || diff < -1e-9 {
+			t.Errorf("%s: ratio %v, want %v", state, sol["output"], want)
+		}
+	}
+}
+
+func TestACouplingMustNameDeclaredStates(t *testing.T) {
+	s, err := Read(strings.NewReader(`{
+      "name": "x", "states": ["low"],
+      "shafts": [{"id": "a"}, {"id": "b"}],
+      "couplings": [{"a": "a", "b": "b", "states": ["ludicrous"]}]
+    }`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Build(); err == nil {
+		t.Error("a coupling naming an undeclared state should be reported")
+	}
+}
+
+func TestMalformedStatesAreRejected(t *testing.T) {
+	cases := map[string]string{
+		"empty name": `{"name":"x","states":[""],"shafts":[{"id":"a"}]}`,
+		"duplicate":  `{"name":"x","states":["a","a"],"shafts":[{"id":"a"}]}`,
+		"self coupling": `{"name":"x","shafts":[{"id":"a"}],
+                          "couplings":[{"a":"a","b":"a"}]}`,
+		"unknown shaft": `{"name":"x","shafts":[{"id":"a"}],
+                          "couplings":[{"a":"a","b":"ghost"}]}`,
+	}
+	for what, doc := range cases {
+		s, err := Read(strings.NewReader(doc))
+		if err != nil {
+			continue
+		}
+		if _, err := s.Build(); err == nil {
+			t.Errorf("%s: should have been rejected", what)
+		}
 	}
 }

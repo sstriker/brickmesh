@@ -53,6 +53,19 @@ type Differential struct {
 	OutB string `json:"out_b"`
 }
 
+// Coupling locks two coaxial shafts together in the named states.
+//
+// This is how a gearbox is described: the gears are always meshed and always
+// turning, and a shift changes which of them is locked to the output shaft. A
+// gear that freewheels is its own shaft, coupled to the one it rides on only in
+// the states where its ratio is selected. No states means always locked.
+type Coupling struct {
+	A      string   `json:"a"`
+	B      string   `json:"b"`
+	Name   string   `json:"name,omitempty"`
+	States []string `json:"states,omitempty"`
+}
+
 // Input drives a shaft at a given speed.
 type Input struct {
 	Shaft string  `json:"shaft"`
@@ -65,8 +78,12 @@ type Spec struct {
 	Shafts        []Shaft        `json:"shafts"`
 	Meshes        []Mesh         `json:"meshes,omitempty"`
 	Differentials []Differential `json:"differentials,omitempty"`
-	Inputs        []Input        `json:"inputs,omitempty"`
-	Outputs       []string       `json:"outputs,omitempty"`
+	Couplings     []Coupling     `json:"couplings,omitempty"`
+	// States a gearbox can be shifted into, in order. Leave it out for a
+	// mechanism with only one.
+	States  []string `json:"states,omitempty"`
+	Inputs  []Input  `json:"inputs,omitempty"`
+	Outputs []string `json:"outputs,omitempty"`
 }
 
 // Read parses a spec.
@@ -95,6 +112,34 @@ func (s *Spec) Build() (*mech.Mechanism, error) {
 	}
 	m := mech.New(name)
 
+	shafts, err := s.addShafts(m)
+	if err != nil {
+		return nil, err
+	}
+	known := func(what, id string) error {
+		if !shafts[id] {
+			return fmt.Errorf("%s names shaft %q, which is not declared", what, id)
+		}
+		return nil
+	}
+
+	if err := s.addMeshes(m, known); err != nil {
+		return nil, err
+	}
+	if err := s.addDifferentials(m, known); err != nil {
+		return nil, err
+	}
+	states, err := s.addStates(m)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.addCouplings(m, known, states); err != nil {
+		return nil, err
+	}
+	return m, s.addDrive(m, known)
+}
+
+func (s *Spec) addShafts(m *mech.Mechanism) (map[string]bool, error) {
 	seen := map[string]bool{}
 	for _, sh := range s.Shafts {
 		if sh.ID == "" {
@@ -110,64 +155,105 @@ func (s *Spec) Build() (*mech.Mechanism, error) {
 		}
 		m.ShaftIn(sh.ID, sh.Bearings, domain)
 	}
+	return seen, nil
+}
 
-	known := func(what, id string) error {
-		if !seen[id] {
-			return fmt.Errorf("%s names shaft %q, which is not declared", what, id)
-		}
-		return nil
-	}
+type knownFunc func(what, id string) error
 
-	for _, mesh0 := range s.Meshes {
-		if err := known("a mesh", mesh0.A); err != nil {
-			return nil, err
+func (s *Spec) addMeshes(m *mech.Mechanism, known knownFunc) error {
+	for _, mesh := range s.Meshes {
+		if err := known("a mesh", mesh.A); err != nil {
+			return err
 		}
-		if err := known("a mesh", mesh0.B); err != nil {
-			return nil, err
+		if err := known("a mesh", mesh.B); err != nil {
+			return err
 		}
-		if mesh0.A == mesh0.B {
-			return nil, fmt.Errorf("a mesh joins shaft %q to itself", mesh0.A)
+		if mesh.A == mesh.B {
+			return fmt.Errorf("a mesh joins shaft %q to itself", mesh.A)
 		}
-		if mesh0.TeethA <= 0 || mesh0.TeethB <= 0 {
-			return nil, fmt.Errorf("mesh %s/%s needs a tooth count on both sides",
-				mesh0.A, mesh0.B)
+		if mesh.TeethA <= 0 || mesh.TeethB <= 0 {
+			return fmt.Errorf("mesh %s/%s needs a tooth count on both sides",
+				mesh.A, mesh.B)
 		}
-		kind := mesh0.Kind
+		kind := mesh.Kind
 		if kind == "" {
 			kind = mech.Spur
 		}
 		switch kind {
 		case mech.Spur, mech.Bevel, mech.Worm, mech.Chain:
 		default:
-			return nil, fmt.Errorf("mesh %s/%s: unknown kind %q", mesh0.A, mesh0.B, kind)
+			return fmt.Errorf("mesh %s/%s: unknown kind %q", mesh.A, mesh.B, kind)
 		}
-		backlash := mesh0.BacklashDeg
+		backlash := mesh.BacklashDeg
 		if backlash == 0 {
 			backlash = 5
 		}
-		m.MeshOf(mesh0.A, mesh0.B, mesh0.TeethA, mesh0.TeethB, kind, backlash)
+		m.MeshOf(mesh.A, mesh.B, mesh.TeethA, mesh.TeethB, kind, backlash)
 	}
+	return nil
+}
 
+func (s *Spec) addDifferentials(m *mech.Mechanism, known knownFunc) error {
 	for _, d := range s.Differentials {
 		for _, id := range []string{d.Case, d.OutA, d.OutB} {
 			if err := known("a differential", id); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		m.Differential(d.Case, d.OutA, d.OutB)
 	}
+	return nil
+}
 
+func (s *Spec) addStates(m *mech.Mechanism) (map[string]bool, error) {
+	declared := map[string]bool{}
+	for _, st := range s.States {
+		if st == "" {
+			return nil, fmt.Errorf("a state needs a name")
+		}
+		if declared[st] {
+			return nil, fmt.Errorf("state %q is declared twice", st)
+		}
+		declared[st] = true
+		m.State(st)
+	}
+	return declared, nil
+}
+
+func (s *Spec) addCouplings(m *mech.Mechanism, known knownFunc, states map[string]bool) error {
+	for _, c := range s.Couplings {
+		if err := known("a coupling", c.A); err != nil {
+			return err
+		}
+		if err := known("a coupling", c.B); err != nil {
+			return err
+		}
+		if c.A == c.B {
+			return fmt.Errorf("a coupling joins shaft %q to itself", c.A)
+		}
+		for _, st := range c.States {
+			if !states[st] {
+				return fmt.Errorf("coupling %s/%s names state %q, which is not declared",
+					c.A, c.B, st)
+			}
+		}
+		m.Couple(c.A, c.B, c.Name, c.States...)
+	}
+	return nil
+}
+
+func (s *Spec) addDrive(m *mech.Mechanism, known knownFunc) error {
 	for _, in := range s.Inputs {
 		if err := known("an input", in.Shaft); err != nil {
-			return nil, err
+			return err
 		}
 		m.Drive(in.Shaft, in.Speed)
 	}
 	for _, out := range s.Outputs {
 		if err := known("an output", out); err != nil {
-			return nil, err
+			return err
 		}
 		m.Output(out)
 	}
-	return m, nil
+	return nil
 }

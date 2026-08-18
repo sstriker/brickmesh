@@ -36,10 +36,14 @@ Do not ask about tooth counts. Choosing them is the work.
 
 Say this plainly rather than producing something that looks close.
 
-- **No clutches, dog rings, freewheels or selectable paths.** The functional
-  model is a single fixed graph of meshes and differentials, so a *shifting*
-  gearbox cannot be represented at all — not merely unsupported, unexpressible.
-  A single-ratio train, a differential, a subtractor: all fine.
+- **Nothing decides when to shift.** Gearboxes are expressible — states and dog
+  rings, see below — and each state is checked and its ratio reported. What is
+  missing is anything that *chooses* a state: no centrifugal governor, no
+  torque-reactive mechanism, no sequential selector. "Auto shifting" therefore
+  means: build the box, and the shift mechanism is yours to design.
+- **The structure does not hold together.** Expect a `connectivity` warning on
+  nearly every run; see the table below. The gears are right, the frame is not
+  finished.
 - **No tooth phase in the output.** Gears land at the right centers but are not
   turned to interleave, so a rendered model shows teeth overlapping. The
   geometry of the centers is right; the visual is not.
@@ -89,6 +93,53 @@ Functional only — no positions, no part numbers:
 }
 ```
 
+### Gearboxes
+
+A shifting gearbox is a set of **states** and a **coupling** per ratio. The
+gears are always meshed and always turning; a shift changes which of them is
+locked to the output. So a gear that freewheels is its own shaft, coupled to
+the output only in the state where its ratio is selected:
+
+```json
+{
+  "name": "3-speed",
+  "states": ["1st", "2nd", "3rd"],
+  "shafts": [
+    {"id": "input", "bearings": 2}, {"id": "output", "bearings": 2},
+    {"id": "g1", "bearings": 2}, {"id": "g2", "bearings": 2}, {"id": "g3", "bearings": 2}
+  ],
+  "meshes": [
+    {"a": "input", "b": "g1", "teeth_a": 8, "teeth_b": 24},
+    {"a": "input", "b": "g2", "teeth_a": 16, "teeth_b": 16},
+    {"a": "input", "b": "g3", "teeth_a": 24, "teeth_b": 8}
+  ],
+  "couplings": [
+    {"a": "output", "b": "g1", "name": "dog low", "states": ["1st"]},
+    {"a": "output", "b": "g2", "name": "dog mid", "states": ["2nd"]},
+    {"a": "output", "b": "g3", "name": "dog high", "states": ["3rd"]}
+  ],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}
+```
+
+That reports a ratio per state, and fails any state that locks up — engaging
+two dog rings at once gives zero degrees of freedom, which is what a real
+gearbox destroys itself doing.
+
+Two things follow from the model, and both are useful when choosing counts:
+
+- **Every pair on a shared pair of shafts needs the same center distance**, so
+  the tooth counts of each ratio must sum to the *same* total. 8+24, 16+16 and
+  24+8 all sum to 32, which is why those three make a clean three-speed box.
+- A coupling implies the two shafts are **coaxial** — a gear rides on the shaft
+  it can be locked to — and the geometric layer places them on one line.
+
+Leave `states` out for a mechanism with only one. A coupling with no `states`
+is permanently locked, which is a shaft joiner rather than a shift.
+
+### Other fields
+
 `kind` on a mesh is `spur` by default; `bevel`, `worm` and `chain` are the
 others. `domain` on a shaft is `technic-studless` by default; use
 `technic-brick` for a studded subassembly. Unknown keys are rejected, so a typo
@@ -126,6 +177,7 @@ Findings come worst first, one line per check.
 | `center dist` | Tooth counts do not sum to a multiple of 8. Change a gear. |
 | `loop closure` | Three shafts in a ring whose triangle does not close on the lattice. |
 | `station` | Two gears want the same stretch of one shaft, or a bevel pair's shafts do not intersect. |
+| `shift` | A state whose speeds do not resolve: it selects nothing definite. |
 | `layout` | No arrangement of these shafts lands on the lattice at all. |
 | `structure` | Nothing was found that bears every shaft. Widen the inventory or the span. |
 | `parts` | A gear or shaft was left out of the file — no part number for that tooth count, or a shaft not along a lattice direction. |

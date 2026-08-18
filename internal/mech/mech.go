@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 )
 
 // HalfStud in LDU. A center distance lands on a whole half stud when the two
@@ -48,6 +49,9 @@ type Link interface {
 	Equation(index map[string]int, n int) []float64
 	// Shafts lists the shafts the link touches.
 	Shafts() []string
+	// EngagedIn reports whether the link constrains anything in a given state.
+	// Gears are always meshed; only a coupling comes and goes.
+	EngagedIn(state string) bool
 }
 
 // Mesh is a gear pair. Externally meshing, so the direction of rotation
@@ -62,6 +66,10 @@ type Mesh struct {
 func (m Mesh) Reverses() bool { return m.Kind == Spur || m.Kind == Bevel }
 
 func (m Mesh) Shafts() []string { return []string{m.A, m.B} }
+
+// EngagedIn is always true: gears that mesh, mesh. What a gearbox changes is
+// which gear is locked to its shaft, not which teeth touch.
+func (m Mesh) EngagedIn(string) bool { return true }
 
 // CenterDistanceHalfStuds is only meaningful for parallel shafts.
 func (m Mesh) CenterDistanceHalfStuds() (float64, bool) {
@@ -95,11 +103,53 @@ type Differential struct {
 
 func (d Differential) Shafts() []string { return []string{d.Case, d.OutA, d.OutB} }
 
+// EngagedIn is always true; a differential has no disengaged state.
+func (d Differential) EngagedIn(string) bool { return true }
+
 func (d Differential) Equation(index map[string]int, n int) []float64 {
 	row := make([]float64, n)
 	row[index[d.Case]] = 2
 	row[index[d.OutA]] = -1
 	row[index[d.OutB]] = -1
+	return row
+}
+
+// Coupling locks two coaxial shafts together, one to one.
+//
+// This is the dog ring of a gearbox. The gears themselves are always meshed and
+// always turning; what a shift changes is which of them is locked to the output
+// shaft. A gear that freewheels is therefore its own shaft, coupled to the one
+// it rides on only in the states where its ratio is selected.
+//
+// Because the gear rides on the shaft, the two are coaxial: the geometric layer
+// puts them on one line, as it does the ports of a differential.
+type Coupling struct {
+	A, B string
+	Name string // for reporting: "dog ring", "clutch"
+	// States it is engaged in. Empty means always, which is a permanent
+	// coupling rather than a shift.
+	States []string
+}
+
+func (c Coupling) Shafts() []string { return []string{c.A, c.B} }
+
+func (c Coupling) EngagedIn(state string) bool {
+	if len(c.States) == 0 {
+		return true
+	}
+	for _, s := range c.States {
+		if s == state {
+			return true
+		}
+	}
+	return false
+}
+
+// Equation is w_a - w_b = 0: locked together, turning as one.
+func (c Coupling) Equation(index map[string]int, n int) []float64 {
+	row := make([]float64, n)
+	row[index[c.A]] = 1
+	row[index[c.B]] = -1
 	return row
 }
 
@@ -112,10 +162,13 @@ type Finding struct {
 
 // Mechanism is the graph of shafts and the transmissions between them.
 type Mechanism struct {
-	Name     string
-	order    []string // insertion order, which fixes the matrix columns
-	shafts   map[string]*Shaft
-	Links    []Link
+	Name   string
+	order  []string // insertion order, which fixes the matrix columns
+	shafts map[string]*Shaft
+	Links  []Link
+	// states a gearbox can be shifted into, in order. Empty for a mechanism
+	// with only one, which is most of them.
+	states   []string
 	Inputs   map[string]float64
 	inOrder  []string
 	Outputs  []string
@@ -167,6 +220,35 @@ func (m *Mechanism) Differential(caseID, outA, outB string) {
 	m.Links = append(m.Links, Differential{Case: caseID, OutA: outA, OutB: outB})
 }
 
+// Couple locks two coaxial shafts together in the named states. No states means
+// always.
+func (m *Mechanism) Couple(a, b, name string, states ...string) {
+	m.Links = append(m.Links, Coupling{A: a, B: b, Name: name, States: states})
+}
+
+// State declares a position the mechanism can be shifted into. The order is
+// kept, since first, second and third read better than an alphabetical list.
+func (m *Mechanism) State(name string) {
+	for _, s := range m.states {
+		if s == name {
+			return
+		}
+	}
+	m.states = append(m.states, name)
+}
+
+// States lists the declared states. A mechanism with none has exactly one
+// unnamed state, in which every unconditional link is engaged.
+func (m *Mechanism) States() []string { return append([]string(nil), m.states...) }
+
+// statesToCheck is the declared states, or the single unnamed one.
+func (m *Mechanism) statesToCheck() []string {
+	if len(m.states) == 0 {
+		return []string{""}
+	}
+	return m.states
+}
+
 // Drive fixes a shaft's speed.
 func (m *Mechanism) Drive(id string, speed float64) {
 	if !m.inputSet[id] {
@@ -186,25 +268,31 @@ func (m *Mechanism) index() map[string]int {
 	return idx
 }
 
-func (m *Mechanism) matrix() [][]float64 {
+// matrix is the constraints that hold in a state. A link that is not engaged
+// there constrains nothing, which is exactly what a disengaged dog ring does.
+func (m *Mechanism) matrix(state string) [][]float64 {
 	idx, n := m.index(), len(m.order)
 	rows := make([][]float64, 0, len(m.Links))
 	for _, l := range m.Links {
+		if !l.EngagedIn(state) {
+			continue
+		}
 		rows = append(rows, l.Equation(idx, n))
 	}
 	return rows
 }
 
-// DOF is the number of shafts minus the rank of the constraints.
-func (m *Mechanism) DOF() int {
-	return len(m.order) - rank(m.matrix())
+// DOF is the number of shafts minus the rank of the constraints in a state.
+// Pass "" for a mechanism that has only one.
+func (m *Mechanism) DOF(state string) int {
+	return len(m.order) - rank(m.matrix(state))
 }
 
 // Solve returns the speed of every shaft given the driven ones, or ok=false
 // when the system is underdetermined or inconsistent.
-func (m *Mechanism) Solve() (map[string]float64, bool) {
+func (m *Mechanism) Solve(state string) (map[string]float64, bool) {
 	idx, n := m.index(), len(m.order)
-	rows := m.matrix()
+	rows := m.matrix(state)
 	rhs := make([]float64, len(rows))
 	for _, id := range m.inOrder {
 		row := make([]float64, n)
@@ -238,9 +326,28 @@ func (m *Mechanism) Solve() (map[string]float64, bool) {
 }
 
 // CheckDOF reports whether the mechanism can move, and whether it is driven the
-// right number of times.
+// right number of times — in every state it can be shifted into.
 func (m *Mechanism) CheckDOF() []Finding {
-	d, k := m.DOF(), len(m.inOrder)
+	var out []Finding
+	for _, state := range m.statesToCheck() {
+		for _, f := range m.checkDOFIn(state) {
+			f.Detail = withState(state, f.Detail)
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// withState labels a finding when there is more than one state to tell apart.
+func withState(state, detail string) string {
+	if state == "" {
+		return detail
+	}
+	return fmt.Sprintf("in %q: %s", state, detail)
+}
+
+func (m *Mechanism) checkDOFIn(state string) []Finding {
+	d, k := m.DOF(state), len(m.inOrder)
 	switch {
 	case d == 0:
 		return []Finding{{"FAIL", "dof",
@@ -256,6 +363,44 @@ func (m *Mechanism) CheckDOF() []Finding {
 	}
 	return []Finding{{"OK", "dof", fmt.Sprintf(
 		"%d degrees of freedom, %d drives: determined", d, k)}}
+}
+
+// CheckStates reports what each state does, which for a gearbox is the ratio it
+// selects. A state that leaves the output unsolvable is a state that does not
+// select anything.
+func (m *Mechanism) CheckStates() []Finding {
+	if len(m.states) == 0 {
+		return nil
+	}
+	var out []Finding
+	for _, state := range m.states {
+		sol, ok := m.Solve(state)
+		if !ok {
+			out = append(out, Finding{"WARN", "shift", withState(state,
+				"the speeds do not resolve; this state selects nothing definite")})
+			continue
+		}
+		out = append(out, Finding{"OK", "shift", withState(state, ratioReport(m, sol))})
+	}
+	return out
+}
+
+// ratioReport describes the outputs in terms of the inputs.
+func ratioReport(m *Mechanism, sol map[string]float64) string {
+	if len(m.Outputs) == 0 || len(m.inOrder) == 0 {
+		return "solved"
+	}
+	in := sol[m.inOrder[0]]
+	parts := make([]string, 0, len(m.Outputs))
+	for _, out := range m.Outputs {
+		if in == 0 {
+			parts = append(parts, fmt.Sprintf("%s at %.3f", out, sol[out]))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s turns %.3f per turn of %s",
+			out, sol[out]/in, m.inOrder[0]))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // CheckBearings wants two bearing points per shaft. Fewer than two means it
@@ -454,5 +599,6 @@ func (m *Mechanism) RunChecks() []Finding {
 	out = append(out, m.CheckDomains()...)
 	out = append(out, m.CheckCenterDistances()...)
 	out = append(out, m.CheckClosure()...)
+	out = append(out, m.CheckStates()...)
 	return out
 }

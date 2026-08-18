@@ -88,6 +88,33 @@ search does — wiring it into the repair phase is the first item below.
 
 Acceptance: synthesized structures report `M <= 0` from `rigidity.analyze`.
 
+## M5 — shifting mechanisms
+
+Done: a mechanism can have **states**, and a **coupling** locks two coaxial
+shafts together in the states it names. The gears are always meshed and always
+turning; a shift changes which of them is locked to the output. So a gear that
+freewheels is its own shaft, coupled only where its ratio is selected.
+
+The kinematic checks run per state — a three-speed box reports three ratios,
+and engaging two dog rings at once reads as zero degrees of freedom, which is
+what a real gearbox destroys itself doing. The geometric checks run once, since
+the parts are physically present whatever state it is in.
+
+Writing it exposed a bug in the station solver. It propagated a plane from any
+station already on a shaft, so a second gear pair sharing a shaft stacked into
+the first one's plane. That equality only ever held for the two gears *of a
+pair*; only a bevel anchor is absolute. Unanchored pairs now take successive
+slots along the shaft, which is what lets a gearbox lay out at all.
+
+What is still missing is anything that decides *when* to shift: no centrifugal
+governor, no torque-reactive mechanism, no sequential selector. "Auto shifting"
+therefore means the box is buildable and the shift mechanism is not.
+
+- [ ] a selector element, so the shift itself is part of the mechanism rather
+      than an instruction to the builder
+- [ ] gear thickness comes from a table of seven counts; a part not in it gets
+      a default of 2 half studs
+
 ## M3 — port to Go
 
 Profiling showed the bottleneck was never the language: it was a missing index

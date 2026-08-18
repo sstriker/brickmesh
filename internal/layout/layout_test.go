@@ -5,6 +5,7 @@ package layout
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"brickmesh/internal/geom"
@@ -248,26 +249,79 @@ func TestSolveStationsPutsASpurPairInOnePlane(t *testing.T) {
 	}
 }
 
-func TestSolveStationsFlagsOverlapOnAShaft(t *testing.T) {
-	// Two gears at the same station on one shaft, from two separate meshes.
-	m := mech.New("crowded")
-	for _, s := range []string{"a", "b", "c"} {
+// Two pairs sharing a shaft are two different gears at two different places
+// along it. Stacking them in one plane was the old behavior and it is what
+// makes a multi-speed gearbox impossible to lay out.
+func TestPairsSharingAShaftAreSpreadAlongIt(t *testing.T) {
+	m := mech.New("two-speed")
+	for _, s := range []string{"input", "a", "b"} {
 		m.Shaft(s, 2)
 	}
-	m.Mesh("a", "b", 8, 24)
-	m.Mesh("a", "c", 20, 20)
-	sols := Realize(m, Options{MaxSolutions: 1, Span: 1})
+	m.Mesh("input", "a", 8, 24)
+	m.Mesh("input", "b", 24, 8)
+
+	sols := Realize(m, Options{MaxSolutions: 1, Span: 2})
 	if len(sols) == 0 {
-		t.Skip("no layout for this graph")
+		t.Fatal("no layout")
 	}
-	_, findings := SolveStations(m, sols[0])
-	found := false
-	for _, f := range findings {
-		if f.Check == "station" && f.Level == "FAIL" {
-			found = true
+	stations, findings := SolveStations(m, sols[0])
+
+	var onInput []float64
+	for _, st := range stations {
+		if st.Shaft == "input" {
+			onInput = append(onInput, st.Axial)
 		}
 	}
-	if !found {
-		t.Errorf("expected an overlap report, got %+v", findings)
+	if len(onInput) != 2 {
+		t.Fatalf("got %d gears on the input shaft, want 2", len(onInput))
+	}
+	if onInput[0] == onInput[1] {
+		t.Errorf("both gears landed at %v; they have to be spread", onInput[0])
+	}
+	for _, f := range findings {
+		if f.Level == "FAIL" {
+			t.Errorf("unexpected failure: %+v", f)
+		}
+	}
+}
+
+// Both gears of one pair still share a plane: that equality is real.
+func TestBothGearsOfAPairShareAPlane(t *testing.T) {
+	m := twoShaftMech(8, 24)
+	sols := Realize(m, Options{MaxSolutions: 1, Span: 1})
+	if len(sols) == 0 {
+		t.Fatal("no layout")
+	}
+	stations, _ := SolveStations(m, sols[0])
+	if len(stations) != 2 {
+		t.Fatalf("got %d stations, want 2", len(stations))
+	}
+	if math.Abs(stations[0].Axial-stations[1].Axial) > 1e-9 {
+		t.Errorf("a meshing pair must share a plane, got %v and %v",
+			stations[0].Axial, stations[1].Axial)
+	}
+}
+
+// Overlap detection itself still works when two gears genuinely share space.
+func TestOverlapOnAShaftIsReported(t *testing.T) {
+	stations := []Station{
+		station("a", 24, 0, 2),
+		station("a", 24, 0.5, 2),
+	}
+	findings := checkOverlap(stations)
+	if len(findings) != 1 || findings[0].Level != "FAIL" {
+		t.Fatalf("got %+v, want one failure", findings)
+	}
+	if !strings.Contains(findings[0].Detail, "overlap") {
+		t.Errorf("detail = %q", findings[0].Detail)
+	}
+}
+
+func TestGearsThatOnlyTouchAreNotAnOverlap(t *testing.T) {
+	// Centers two apart, each two thick: they meet exactly, which is how gears
+	// sit side by side on a shaft.
+	stations := []Station{station("a", 24, 0, 2), station("a", 24, 2, 2)}
+	if got := checkOverlap(stations); len(got) != 0 {
+		t.Errorf("got %+v, want nothing", got)
 	}
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/mech"
@@ -221,11 +222,16 @@ func classify(m *mech.Mechanism, shafts []string) classing {
 		}
 		return x
 	}
+	// Ports of a differential share a line, and so do the two halves of a
+	// coupling: a gear that a dog ring locks to a shaft is riding on it.
 	for _, l := range m.Links {
-		if d, ok := l.(mech.Differential); ok {
-			for _, other := range []string{d.OutA, d.OutB} {
-				parent[find(other)] = find(d.Case)
+		switch v := l.(type) {
+		case mech.Differential:
+			for _, other := range []string{v.OutA, v.OutB} {
+				parent[find(other)] = find(v.Case)
 			}
+		case mech.Coupling:
+			parent[find(v.B)] = find(v.A)
 		}
 	}
 
@@ -582,9 +588,17 @@ func (s *stationSet) put(k stationKey, st Station) {
 	s.byKey[k] = st
 }
 
-func (s *stationSet) firstFor(shaft string) (stationKey, bool) {
+// firstAnchored finds a station on a shaft whose position is absolute rather
+// than chosen.
+//
+// Only a bevel pair anchors: its shafts intersect in a point, so its gears have
+// nowhere else to be. A spur pair's plane is free, and two spur pairs sharing a
+// shaft are two different gears at two different places along it — which is
+// what a gearbox is. Propagating from any station at all would stack them.
+func (s *stationSet) firstAnchored(shaft string) (stationKey, bool) {
 	for _, k := range s.order {
-		if s.byKey[k].Shaft == shaft {
+		st := s.byKey[k]
+		if st.Shaft == shaft && strings.HasPrefix(st.Origin, "bevel") {
 			return k, true
 		}
 	}
@@ -661,16 +675,23 @@ func anchorBevels(m *mech.Mechanism, l *Layout, stations *stationSet) []mech.Fin
 }
 
 // propagateSpurPairs puts both gears of a parallel pair in one plane.
+//
+// A pair with nothing anchoring it is free to sit anywhere along its shafts, so
+// pairs are handed successive slots rather than all landing on zero. That is
+// what a multi-speed gearbox needs: three pairs sharing an input shaft have to
+// be spread along it, not stacked in one plane.
 func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding {
 	var findings []mech.Finding
+	// The next free center on each shaft, in half studs.
+	nextCenter := map[string]float64{}
 	for i, link := range m.Links {
 		mesh, ok := link.(mech.Mesh)
 		if !ok || mesh.Kind != mech.Spur {
 			continue
 		}
 		var base float64
-		ka, foundA := stations.firstFor(mesh.A)
-		kb, foundB := stations.firstFor(mesh.B)
+		ka, foundA := stations.firstAnchored(mesh.A)
+		kb, foundB := stations.firstAnchored(mesh.B)
 		switch {
 		case foundA && !foundB:
 			base = stations.byKey[ka].Axial
@@ -685,7 +706,22 @@ func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding 
 							"(%.2f and %.2f) - they do not mesh", mesh.A, mesh.B, a, b)})
 			}
 			base = a
+		default:
+			// Neither end is fixed: take the next slot clear of whatever is
+			// already on either shaft, rounded onto the lattice.
+			base = math.Ceil(math.Max(nextCenter[mesh.A], nextCenter[mesh.B]))
 		}
+
+		// Advance both shafts past this pair. Stepping by the thicker of the
+		// two gears guarantees the next pair cannot overlap it.
+		end := base + math.Max(thicknessOf(mesh.TeethA), thicknessOf(mesh.TeethB))
+		if end > nextCenter[mesh.A] {
+			nextCenter[mesh.A] = end
+		}
+		if end > nextCenter[mesh.B] {
+			nextCenter[mesh.B] = end
+		}
+
 		for _, side := range []struct {
 			shaft string
 			teeth int
