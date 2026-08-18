@@ -20,6 +20,7 @@ import (
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/layout"
+	"brickmesh/internal/ldcad"
 	"brickmesh/internal/ldr"
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
@@ -98,6 +99,12 @@ type Options struct {
 	Seed          int64
 	Inventory     []part.Beam
 	SkipStructure bool
+	// Animate adds LDCad groups and an animation script turning every shaft at
+	// the ratio the mechanism solved for.
+	Animate    bool
+	ScriptName string
+	Seconds    float64
+	InputTurns float64
 }
 
 // Result is what the run found, stage by stage.
@@ -108,6 +115,8 @@ type Result struct {
 	Structure *synth.Solution
 	Axles     []rigidity.Axle
 	Model     *ldr.Model
+	// Script is the animation, when one was asked for.
+	Script *ldcad.Script
 
 	axles []axlePlacement
 }
@@ -169,7 +178,7 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 
 	// Worked out before the structural search, because the rigidity check needs
 	// to know the shafts are there: they are what ties the bearings together.
-	res.axles = computeAxles(res)
+	res.axles = computeAxles(m, res)
 	for _, a := range res.axles {
 		res.Axles = append(res.Axles, a.axle)
 	}
@@ -185,6 +194,9 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 		return res, err
 	}
 	res.Model = model
+	if opts.Animate {
+		animate(m, res, opts)
+	}
 	return res, nil
 }
 
@@ -390,7 +402,17 @@ func freeSideOf(stations []layout.Station, gear layout.Station, l *layout.Layout
 // of one shaft together: a bearing's hole faces along its shaft, so no beam
 // laid between two of them can be pinned to either, and the shaft itself is
 // what actually connects them.
-func computeAxles(res *Result) []axlePlacement {
+func computeAxles(m *mech.Mechanism, res *Result) []axlePlacement {
+	// An axle belongs to the shaft the gears are locked to, not to whichever
+	// happened to be seen first: on a gearbox's layshaft that is the output,
+	// and calling it "first gear's shaft" would animate the wrong thing.
+	owner := map[string]bool{}
+	for _, l := range m.Links {
+		if c, ok := l.(mech.Coupling); ok && len(c.States) > 0 {
+			owner[c.A] = true
+		}
+	}
+
 	type line struct {
 		place  layout.Placement
 		lo, hi float64 // extent along the shaft, in half studs
@@ -411,10 +433,22 @@ func computeAxles(res *Result) []axlePlacement {
 		}
 		l.lo = math.Min(l.lo, axial)
 		l.hi = math.Max(l.hi, axial)
+		if owner[shaft] && !owner[l.shaft] {
+			l.shaft = shaft
+		}
 	}
 
 	for _, st := range res.Stations {
 		note(st.Shaft, st.Axial)
+	}
+	// A shaft that gears are locked to may carry none of its own, so it would
+	// otherwise never be seen — and it is the one that turns at the selected
+	// ratio.
+	for id := range owner {
+		if place, ok := res.Layout.Place[id]; ok {
+			_ = place
+			note(id, 0)
+		}
 	}
 	// The bearings are the far ends of what the shaft has to reach.
 	for _, r := range synth.BearingRequirements(res.Layout, res.Stations, 2, 8) {

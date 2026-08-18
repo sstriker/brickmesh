@@ -335,3 +335,138 @@ func TestAnAxleIsLongEnoughForItsShaft(t *testing.T) {
 }
 
 const synthHalfStud = 10.0
+
+const gearboxSpec = `{
+  "name": "3-speed",
+  "states": ["1st", "2nd", "3rd"],
+  "shafts": [
+    {"id": "input", "bearings": 2}, {"id": "output", "bearings": 2},
+    {"id": "g1", "bearings": 2}, {"id": "g2", "bearings": 2}, {"id": "g3", "bearings": 2}
+  ],
+  "meshes": [
+    {"a": "input", "b": "g1", "teeth_a": 8, "teeth_b": 24},
+    {"a": "input", "b": "g2", "teeth_a": 12, "teeth_b": 20},
+    {"a": "input", "b": "g3", "teeth_a": 16, "teeth_b": 16}
+  ],
+  "couplings": [
+    {"a": "output", "b": "g1", "states": ["1st"]},
+    {"a": "output", "b": "g2", "states": ["2nd"]},
+    {"a": "output", "b": "g3", "states": ["3rd"]}
+  ],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}`
+
+func TestAGearboxAnimatesOncePerState(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, gearboxSpec), deps, Options{
+		Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Script == nil {
+		t.Fatal("no script")
+	}
+	if len(res.Script.Animations) != 3 {
+		t.Fatalf("got %d animations, want one per state", len(res.Script.Animations))
+	}
+	if res.Model.Script != "gb.lua" {
+		t.Errorf("the model should reference the script, got %q", res.Model.Script)
+	}
+}
+
+// The point of the export: what turns on screen is the ratio the mechanism
+// solved for, not an approximation of it.
+func TestTheAnimatedOutputTurnsAtTheSolvedRatio(t *testing.T) {
+	deps := requireLibraries(t)
+	m := build(t, gearboxSpec)
+	res, err := Run(m, deps, Options{Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, ani := range res.Script.Animations {
+		speeds, ok := m.Solve(ani.Name)
+		if !ok {
+			t.Fatalf("%s does not solve", ani.Name)
+		}
+		var found bool
+		for _, turn := range ani.Turning {
+			if turn.Group != "shaft_output" {
+				continue
+			}
+			found = true
+			if math.Abs(turn.Speed-speeds["output"]) > 1e-9 {
+				t.Errorf("%s: animating the output at %v, solved %v",
+					ani.Name, turn.Speed, speeds["output"])
+			}
+		}
+		if !found {
+			t.Errorf("%s: the output shaft is not animated", ani.Name)
+		}
+	}
+}
+
+// The freewheeling gears keep turning in every state — they are always meshed.
+func TestTheIdleGearsKeepTurning(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, gearboxSpec), deps, Options{
+		Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ani := range res.Script.Animations {
+		for _, turn := range ani.Turning {
+			if strings.HasPrefix(turn.Group, "shaft_g") && turn.Speed == 0 {
+				t.Errorf("%s: %s stands still, but it is always meshed",
+					ani.Name, turn.Group)
+			}
+		}
+	}
+}
+
+func TestEveryTurningGroupIsDeclaredInTheModel(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, gearboxSpec), deps, Options{
+		Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := map[string]bool{}
+	for _, g := range res.Model.Groups {
+		declared[g.Name] = true
+	}
+	for _, ani := range res.Script.Animations {
+		for _, turn := range ani.Turning {
+			if !declared[turn.Group] {
+				t.Errorf("the script turns %q, which the model never declares", turn.Group)
+			}
+		}
+	}
+	// And every declared group has at least one part in it, or it turns nothing.
+	inUse := map[string]bool{}
+	for _, p := range res.Model.Parts {
+		if p.Group != "" {
+			inUse[p.Group] = true
+		}
+	}
+	for name := range declared {
+		if !inUse[name] {
+			t.Errorf("group %q is declared but holds no parts", name)
+		}
+	}
+}
+
+func TestNoAnimationUnlessAsked(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, reduction), deps, Options{Restarts: 2, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Script != nil || res.Model.Script != "" || len(res.Model.Groups) != 0 {
+		t.Error("the model should stay plain LDraw unless an animation was asked for")
+	}
+}

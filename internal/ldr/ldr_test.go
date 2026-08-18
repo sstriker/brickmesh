@@ -136,3 +136,70 @@ func partLines(t *testing.T, out string) []string {
 	}
 	return lines
 }
+
+func TestGroupsAreDeclaredAndReferenced(t *testing.T) {
+	m := New("gearbox")
+	m.Groups = []Group{
+		{Name: "shaft_input", Center: geom.Vec3{}},
+		{Name: "shaft_output", Center: geom.Vec3{Z: -40}},
+	}
+	m.Add("3647.dat", ColorMain, geom.Rotations[0], geom.Vec3{}, "")
+	m.Parts[0].Group = "shaft_input"
+	m.Add("3648b.dat", ColorMain, geom.Rotations[0], geom.Vec3{Z: -40}, "")
+	m.Parts[1].Group = "shaft_output"
+	m.Add("3705.dat", ColorMain, geom.Rotations[0], geom.Vec3{}, "") // ungrouped
+	out := m.Encode()
+
+	if !strings.Contains(out, "[LID=0]") || !strings.Contains(out, "[LID=1]") {
+		t.Error("both groups should be declared, with ids in order")
+	}
+	if !strings.Contains(out, "[name=shaft_output] [center=0 0 -40]") {
+		t.Errorf("the group's center is what it turns about:\n%s", out)
+	}
+
+	// A GROUP_NXT applies to the line after it, so it has to sit directly
+	// above the part it claims and nowhere else.
+	lines := strings.Split(out, "\n")
+	for i, l := range lines {
+		if !strings.HasPrefix(l, "0 !LDCAD GROUP_NXT") {
+			continue
+		}
+		if i+1 >= len(lines) || !strings.HasPrefix(lines[i+1], "1 ") {
+			t.Errorf("a GROUP_NXT is not followed by a part line:\n%s", out)
+		}
+	}
+	if got := strings.Count(out, "GROUP_NXT"); got != 2 {
+		t.Errorf("got %d GROUP_NXT lines, want 2: the third part has no group", got)
+	}
+}
+
+func TestGroupIDsAreDistinctAndStable(t *testing.T) {
+	seen := map[string]string{}
+	for _, name := range []string{
+		"shaft_input", "shaft_output", "shaft_first", "shaft_second", "shaft_third",
+		"a", "b", "ab", "ba",
+	} {
+		id := groupID(name)
+		if len(id) != 11 {
+			t.Errorf("%s: id %q is %d characters", name, id, len(id))
+		}
+		if other, clash := seen[id]; clash {
+			t.Errorf("%s and %s share the id %q", name, other, id)
+		}
+		seen[id] = name
+		if groupID(name) != id {
+			t.Errorf("%s: the id changed between calls", name)
+		}
+	}
+}
+
+func TestTheScriptIsReferencedWhenSet(t *testing.T) {
+	m := New("m")
+	if strings.Contains(m.Encode(), "SCRIPT") {
+		t.Error("no script, no SCRIPT line")
+	}
+	m.Script = "m.lua"
+	if !strings.Contains(m.Encode(), "0 !LDCAD SCRIPT [source=m.lua]") {
+		t.Error("the script should be referenced from the header")
+	}
+}

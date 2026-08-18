@@ -97,6 +97,18 @@ The result is LDraw, which Stud.io opens directly. `--check` stops after the
 checks and writes nothing, which is the quick way to ask whether an idea holds
 up at all.
 
+`--animate` writes an LDCad animation beside the model:
+
+```console
+brickmesh --spec examples/gearbox-3-speed.json --out gearbox.ldr --animate
+```
+
+Each shaft becomes an LDCad group and the script turns it at the ratio the
+functional layer solved for, so what moves on screen is the mechanism the model
+actually is rather than an impression of it. A gearbox gets one animation per
+state — and its idle gears keep turning in every one, because they are always
+meshed.
+
 The parts libraries are fetched on first use, so the first run is slower than
 the rest.
 

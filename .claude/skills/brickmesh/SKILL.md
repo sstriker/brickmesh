@@ -57,7 +57,10 @@ Say this plainly rather than producing something that looks close.
 - **No tooth phase in the output.** Gears land at the right centers but are not
   turned to interleave, so a rendered model shows teeth overlapping. The
   geometry of the centers is right; the visual is not.
-- **No animation export.** Stud.io opens the file; nothing animates it yet.
+- **The animation shows rotation only.** `--animate` writes an LDCad script
+  turning every shaft at its solved ratio, one animation per gearbox state. It
+  does not move the driving rings, so a shift is something you switch between
+  rather than watch happen.
 - **Bevel engagement is unresolved.** See the open question in `PLAN.md`. Avoid
   bevel pairs where a spur pair will do, and flag it when one is unavoidable.
 
@@ -191,6 +194,11 @@ Then build:
 ```console
 go run ./cmd/brickmesh --spec mechanism.json --out mechanism.ldr --seed 1
 ```
+
+For something to watch rather than only measure, add `--animate`: it writes a
+`.lua` beside the model and references it, so opening the model in LDCad offers
+the animations by name. `--seconds` and `--turns` set the length and how far
+the input turns over it.
 
 `--seed` makes the structural search reproducible. `--restarts` trades time for
 a smaller structure. `--force` writes a model despite a failed check, which is

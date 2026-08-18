@@ -39,6 +39,17 @@ type Part struct {
 	Rot   geom.Mat3
 	Pos   geom.Vec3
 	Label string // emitted as a comment above the line, when set
+	Group string // the group it belongs to, for animation
+}
+
+// Group is a set of parts LDCad can move as one.
+//
+// Center is what it turns about, which for a shaft is a point on its axis. A
+// script reaches a group by name, so the names are the interface between the
+// model and the animation.
+type Group struct {
+	Name   string
+	Center geom.Vec3
 }
 
 // Model is a list of placed parts.
@@ -46,6 +57,10 @@ type Model struct {
 	Name   string
 	Author string
 	Parts  []Part
+	// Groups declared in the file. Order fixes the ids the part lines refer to.
+	Groups []Group
+	// Script is a Lua file LDCad runs with this model, if any.
+	Script string
 }
 
 // New starts a model.
@@ -84,11 +99,30 @@ func (m *Model) Encode() string {
 	fmt.Fprintf(&b, "0 Name: %s.ldr\n", sanitize(name))
 	fmt.Fprintf(&b, "0 Author: %s\n", author)
 	b.WriteString("0 !LDRAW_ORG Model\n")
+	if m.Script != "" {
+		fmt.Fprintf(&b, "0 !LDCAD SCRIPT [source=%s]\n", m.Script)
+	}
 	b.WriteString("\n")
+
+	ids := make(map[string]int, len(m.Groups))
+	for i, g := range m.Groups {
+		ids[g.Name] = i
+		fmt.Fprintf(&b, "0 !LDCAD GROUP_DEF [topLevel=true] [LID=%d] [GID=%s] "+
+			"[name=%s] [center=%s %s %s]\n",
+			i, groupID(g.Name), g.Name,
+			trim(g.Center.X), trim(g.Center.Y), trim(g.Center.Z))
+	}
+	if len(m.Groups) > 0 {
+		b.WriteString("\n")
+	}
 
 	for _, p := range m.Parts {
 		if p.Label != "" {
 			fmt.Fprintf(&b, "0 // %s\n", p.Label)
+		}
+		// A GROUP_NXT applies to the line that follows it.
+		if id, ok := ids[p.Group]; ok && p.Group != "" {
+			fmt.Fprintf(&b, "0 !LDCAD GROUP_NXT [ids=%d] [nrs=0]\n", id)
 		}
 		b.WriteString(line(p))
 		b.WriteString("\n")
@@ -124,6 +158,28 @@ func trim(v float64) string {
 		return "0" // never "-0", which some parsers dislike
 	}
 	return fmt.Sprintf("%g", v)
+}
+
+// groupID is the globally unique id LDCad wants for a group. Derived from the
+// name so that exporting the same model twice gives the same file, rather than
+// a new id every time.
+func groupID(name string) string {
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	var h uint64 = 1469598103934665603
+	for i := 0; i < len(name); i++ {
+		h ^= uint64(name[i])
+		h *= 1099511628211
+	}
+	out := make([]byte, 11)
+	for i := range out {
+		// Re-mix each round, or the tail of the id degenerates into one or two
+		// repeated characters once the value gets small.
+		h ^= h >> 33
+		h *= 0xff51afd7ed558ccd
+		h ^= h >> 29
+		out[i] = alphabet[h%uint64(len(alphabet))]
+	}
+	return string(out)
 }
 
 func sanitize(name string) string {

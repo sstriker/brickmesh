@@ -275,6 +275,31 @@ shows up alongside, but the wording of the closure finding is optimistic. Worth
 deciding whether closure should require every pairwise distance to be on the
 lattice, which would reduce the documented seven.
 
+## M6 — the animated export — DONE
+
+`--animate` writes an LDCad animation beside the model. Each shaft becomes a
+group, and the script turns it at the ratio the functional layer solved for, so
+what moves is the mechanism rather than an impression of it. A gearbox gets one
+animation per state, and its idle gears keep turning in every one because they
+are always meshed.
+
+The syntax was taken from LDCad itself rather than guessed: its examples under
+`AppData/Roaming/LDCad/examples` are the reference. Animation is not a meta
+command — the model declares `GROUP_DEF` and tags part lines with `GROUP_NXT`,
+names a script with `!LDCAD SCRIPT [source=...]`, and the Lua reaches the groups
+by name. The calls used here are the ones in the 5510 example: `ldc.animation`,
+`setLength`, `setEvent`, `ldc.subfile`, `getGroup`, `ldc.matrix`, `setRotate`
+in degrees about an axis, and `setOri`, which that example is explicit about
+being absolute rather than incremental.
+
+Not verified by running it: there is no Lua interpreter on this machine, so the
+tests check the file's structure and that the solved ratios reach it, not that
+LDCad accepts it. Worth opening once.
+
+- [ ] move the driving rings, so a shift can be watched rather than switched
+      between
+- [ ] the shift itself as an animation: ring slides, dog engages, ratio changes
+
 ## Open question: the third grid axis
 
 92 grid specs in the shadow library declare three axes rather than two. The

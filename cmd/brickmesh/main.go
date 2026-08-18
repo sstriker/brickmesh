@@ -44,6 +44,10 @@ func run() error {
 		seed      = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
 		span      = flag.Int("span", 4, "how far along each shaft to search, in half studs")
 		force     = flag.Bool("force", false, "write a model even when a check failed")
+		animate   = flag.Bool("animate", false,
+			"also write an LDCad animation script turning every shaft at its solved ratio")
+		seconds = flag.Float64("seconds", 10, "length of the animation")
+		turns   = flag.Float64("turns", 4, "turns of the input shaft over the animation")
 	)
 	flag.Parse()
 
@@ -71,10 +75,20 @@ func run() error {
 		return err
 	}
 
+	out := *outPath
+	if out == "" {
+		out = trimExt(*specPath) + ".ldr"
+	}
+	scriptName := trimExt(filepath.Base(out)) + ".lua"
+
 	res, err := pipeline.Run(m, deps, pipeline.Options{
 		Restarts: *restarts, Seed: *seed, Span: *span,
 		Inventory:     part.Beams,
 		SkipStructure: *checkOnly,
+		Animate:       *animate && !*checkOnly,
+		ScriptName:    scriptName,
+		Seconds:       *seconds,
+		InputTurns:    *turns,
 	})
 	if err != nil {
 		return err
@@ -94,14 +108,20 @@ func run() error {
 		return fmt.Errorf("nothing to write")
 	}
 
-	out := *outPath
-	if out == "" {
-		out = trimExt(*specPath) + ".ldr"
-	}
 	if err := os.WriteFile(out, []byte(res.Model.Encode()), 0o644); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "wrote %s (%d parts)\n", out, len(res.Model.Parts))
+
+	if res.Script != nil {
+		// Beside the model, which is where the SCRIPT line looks for it.
+		scriptPath := filepath.Join(filepath.Dir(out), scriptName)
+		if err := os.WriteFile(scriptPath, []byte(res.Script.Render()), 0o644); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "wrote %s (%d animation(s))\n",
+			scriptPath, len(res.Script.Animations))
+	}
 	return nil
 }
 
