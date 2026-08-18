@@ -134,3 +134,46 @@ materialising only the best candidates, gave 55x.
 In Go that last trick becomes unnecessary: structs in a slice are cheap enough
 to keep every candidate. That is not only faster but more correct, since
 truncating on a heuristic can cut away the right answer.
+
+## The driving ring, measured
+
+The ring is 40 LDU along its shaft against a gear's 20, so their faces meet at
+30 LDU between centers. That is also where they engage: at exactly 30 the sweep
+finds a 16-tooth clutch gear (6542a, 6542b) blocked for most of a revolution
+with sixteen free windows 22.5 degrees apart, one per clutch tooth, which is the
+ring's dogs sitting in the gear's recesses. At 31 LDU every gear is free at
+every angle.
+
+The plain gears show no such signature at any distance. 4019 gives four windows
+90 degrees apart, which is its axle hole and not a clutch; 3648b and 32269 give
+none. A driving ring beside a plain gear is scenery, and the only gear in the
+library with clutch teeth is the 16t. Real 20t and 24t shifts reach their gear
+through a driving ring extension (32187, or 35186 with its eight clutch teeth).
+
+Slicing the ring across its axis, rather than reading off where its vertices
+happen to sit, gives the profile the shift linkage has to work with:
+
+| z, LDU | radius | what it is |
+|---|---|---|
+| ±10 to ±20 | 15 | the hub |
+| ±6 to ±8 | 20 | the rims |
+| −4 to +4 | 13 | **the groove**, 8 LDU wide |
+
+## The catch does not fit, and cannot be made to
+
+The changeover catch (6641) is a bar 52 LDU long and 20 by 18 across, with two
+axle holes at right angles: one at [0 0 -20] along its own X, one at [0 0 -2]
+along its own Z. It is 20 across and the ring's groove is 26 in diameter, so it
+cannot encircle the groove however it is turned.
+
+Searching every lattice rotation and every position on a 2 LDU grid gives 34,992
+placements in which the catch surrounds the ring's center. Every one of them
+intersects the ring. That is not a bug in the search — the same sweep reproduces
+the 24t reference exactly — it is what an interference fit looks like in
+idealised geometry. Real LEGO parts flex and are moulded with clearance; LDraw
+models them at nominal size.
+
+So the sweep, which settles whether gears mesh and whether a ring clears its
+gear, cannot settle whether a catch has hold of a ring. Anything built on that
+joint has to be placed from the shadow library's axle-hole data and said to be
+placed rather than verified.
