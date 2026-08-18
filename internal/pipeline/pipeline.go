@@ -412,11 +412,14 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 	}
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
-			"%d driving ring(s) placed, each a half stud short of three from its "+
-				"gear's center so its dogs sit in the recesses. What moves them is not "+
-				"placed: %v — their position follows from the shift linkage, which is "+
-				"not modelled. Two rings beside the same gear could be one ring "+
-				"engaging either side.", len(sites), SelectorParts)})
+			"%d driving ring(s) placed, each three half studs from its gear's "+
+				"center so its dogs sit in the recesses. What moves them is not "+
+				"placed: %v, and neither is the ridged axle joiner (6538a) a ring is "+
+				"splined to. Those are fits, and the sweep that settles whether gears "+
+				"mesh cannot settle a fit: in LDraw a spline that grips reads as a "+
+				"spline that collides. See docs/shifting.md. Two rings beside the "+
+				"same gear could be one ring engaging either side.",
+			len(sites), SelectorParts)})
 
 	if len(nominal) > 0 {
 		res.Findings = append(res.Findings, mech.Finding{

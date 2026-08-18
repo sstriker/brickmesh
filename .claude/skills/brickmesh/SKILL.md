@@ -36,33 +36,56 @@ Do not ask about tooth counts. Choosing them is the work.
 
 Say this plainly rather than producing something that looks close.
 
-- **Nothing decides when to shift.** Gearboxes are expressible — states and dog
-  rings, see below — and each state is checked and its ratio reported. What is
-  missing is anything that *chooses* a state: no centrifugal governor, no
-  torque-reactive mechanism, no sequential selector. "Auto shifting" therefore
-  means: build the box, and the shift mechanism is yours to design.
-- **No shifting parts are placed.** A coupling is abstract: it constrains the
-  speeds and forces the two shafts coaxial, but nothing goes into the file. A
-  gearbox model comes out as gears and beams with no driving ring, no shifter
-  fork and no lever — those are yours to add. The part numbers are below so you
-  can say which.
-- **No clutch gear either.** Careful with the word: it means two different
-  things, and the model has neither. The old white 24t clutch gear is a torque
-  limiter whose inner axle slips above a force; there is no slip element. The
-  other "clutch gears" are the engage/disengage kind, which is what a coupling
-  represents abstractly — but as above, the part is not placed.
-- **The structure does not hold together.** Expect a `connectivity` warning on
-  nearly every run; see the table below. The gears are right, the frame is not
-  finished.
-- **No tooth phase in the output.** Gears land at the right centers but are not
-  turned to interleave, so a rendered model shows teeth overlapping. The
-  geometry of the centers is right; the visual is not.
-- **The animation shows rotation only.** `--animate` writes an LDCad script
-  turning every shaft at its solved ratio, one animation per gearbox state. It
-  does not move the driving rings, so a shift is something you switch between
-  rather than watch happen.
+- **The shift linkage is not placed.** The driving rings are, and the clutch
+  gear they lock to where the library has one — but nothing that *moves* a
+  ring: no changeover catch, no shift gate, and not even the ridged axle joiner
+  the ring is splined to. This is a limit of what can be checked rather than an
+  oversight. Those are fits, parts meant to be inside one another, and the
+  interference sweep that settles whether gears mesh cannot settle a fit: in
+  LDraw everything is nominal size, so a spline that grips reads as a spline
+  that collides. Measured both ways, in `docs/shifting.md`. Tell the builder
+  which parts to add; the numbers are below.
+- **A clutch gear only in 16t.** Careful with the word, it means two things.
+  The engage/disengage kind is placed: a shifted 16t station comes out as 6542a
+  rather than the plain 4019. There is no 20t or 24t equivalent in the library —
+  a real one reaches its gear through a driving ring extension (32187, 35186),
+  which is not modelled, and the run warns when a shift lands on one. The other
+  meaning, the old white 24t torque limiter that slips above a force, is not
+  modelled at all: there is no slip element anywhere.
+- **The structure does not always hold together.** Most runs come out rigid now,
+  but a `rigidity` warning still turns up — the subtractor example hinges. The
+  gears are right; the frame may need a joint adding.
+- **Only two ways to decide a shift.** By hand, or on the speed of a watched
+  shaft. Both are described in `docs/shifting.md`, along with the many ways
+  builders actually do it — governors, torque reaction, ratchets and sequential
+  drums, pneumatics, gravity, motors — none of which are modelled. If someone
+  asks for one of those, build the box and say the trigger is theirs to design.
 - **Bevel engagement is unresolved.** See the open question in `PLAN.md`. Avoid
   bevel pairs where a spur pair will do, and flag it when one is unavoidable.
+
+## Shifting on its own
+
+A box can be told when to change up. `shift_points` watches a shaft and names
+the speed at which each gear gives way to the next, the way an automatic shifts
+on engine speed:
+
+```json
+"shift_points": {
+  "watch": "input",
+  "up_at":   [1.0, 1.6],
+  "down_at": [0.45, 0.8]
+}
+```
+
+The run reports the schedule and checks it holds together — most usefully,
+whether the box *hunts*: changing up drops the watched shaft, and if it drops
+past the speed the box changes back down at, it changes down at once and then
+straight back up. Give `down_at` and the run judges it; leave it out and the run
+says how low each one would have to be. `examples/gearbox-3-speed-auto.json` is
+a worked one.
+
+With shift points the animation gives each gear as much of its length as the
+schedule says it is held for, instead of dividing the time equally.
 
 ## The rules worth knowing before choosing tooth counts
 
@@ -197,8 +220,9 @@ go run ./cmd/brickmesh --spec mechanism.json --out mechanism.ldr --seed 1
 
 For something to watch rather than only measure, add `--animate`: it writes a
 `.lua` beside the model and references it, so opening the model in LDCad offers
-the animations by name. `--seconds` and `--turns` set the length and how far
-the input turns over it.
+the animations by name. A gearbox gets one per state plus a `shift` that walks
+through them, sliding each ring between engaged and clear. `--seconds` and
+`--turns` set the length and how far the input turns over it.
 
 `--seed` makes the structural search reproducible. `--restarts` trades time for
 a smaller structure. `--force` writes a model despite a failed check, which is

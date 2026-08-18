@@ -107,7 +107,13 @@ Each shaft becomes an LDCad group and the script turns it at the ratio the
 functional layer solved for, so what moves on screen is the mechanism the model
 actually is rather than an impression of it. A gearbox gets one animation per
 state — and its idle gears keep turning in every one, because they are always
-meshed.
+meshed — plus one that walks through the states, sliding each driving ring
+between engaged and clear so the shift is something you watch rather than
+something that happens between two files.
+
+A box can also be told when to shift for itself, on the speed of a shaft it
+watches. The run reports the schedule and checks whether it hunts; see
+[docs/shifting.md](docs/shifting.md).
 
 The parts libraries are fetched on first use, so the first run is slower than
 the rest.
