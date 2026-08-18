@@ -42,6 +42,29 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # The two files a browser build reads: the port index it fetches whole,
+      # and the triangles it fetches by range. Tier 1 only — the common parts —
+      # which is 15 KB and 4.7 MB against tier 2's 31 MB.
+      #
+      # Both are derived from the LDraw and LDCad libraries and carry their
+      # terms. The generator writes a LICENSE.txt beside them saying which
+      # applies to which, and it is published with them.
+      - name: Cache the parts libraries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cache/brickmesh-ldraw
+            ~/.cache/brickmesh-shadow
+          key: >-
+            libraries-v2-${{ hashFiles(
+              'internal/ldraw/ldraw.go',
+              'internal/ldraw/library.go',
+              'internal/shadow/shadow.go') }}
+          restore-keys: libraries-v2-
+
+      - name: Generate the catalogue and the meshes
+        run: go run ./cmd/brickmesh-assets --out site/data --tier 1
+
       - name: Build the WebAssembly module
         run: |
           GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" \
@@ -64,7 +87,7 @@ jobs:
              web/brickmesh.wasm site/
           cp examples/*.json site/examples/
           touch site/.nojekyll
-          ls -l site site/examples
+          ls -l site site/examples site/data
 
       # Prove the thing that is about to be published actually answers, rather
       # than merely compiling. Same check the Go tests run, against the same
