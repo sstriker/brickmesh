@@ -682,8 +682,8 @@ func anchorBevels(m *mech.Mechanism, l *Layout, stations *stationSet) []mech.Fin
 // be spread along it, not stacked in one plane.
 func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding {
 	var findings []mech.Finding
-	// The next free center on each shaft, in half studs.
-	nextCenter := map[string]float64{}
+	// What each shaft already has on it, as spans in half studs.
+	used := map[string][][2]float64{}
 	for i, link := range m.Links {
 		mesh, ok := link.(mech.Mesh)
 		if !ok || mesh.Kind != mech.Spur {
@@ -707,20 +707,16 @@ func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding 
 			}
 			base = a
 		default:
-			// Neither end is fixed: take the next slot clear of whatever is
-			// already on either shaft, rounded onto the lattice.
-			base = math.Ceil(math.Max(nextCenter[mesh.A], nextCenter[mesh.B]))
+			// Neither end is fixed, so the pair may sit anywhere along its
+			// shafts: take the first whole half stud where both gears clear
+			// whatever is already there. Stepping by a fixed width is not
+			// enough, since the next gear along may be the thicker one.
+			base = firstFreeSlot(used[mesh.A], used[mesh.B],
+				thicknessOf(mesh.TeethA), thicknessOf(mesh.TeethB))
 		}
 
-		// Advance both shafts past this pair. Stepping by the thicker of the
-		// two gears guarantees the next pair cannot overlap it.
-		end := base + math.Max(thicknessOf(mesh.TeethA), thicknessOf(mesh.TeethB))
-		if end > nextCenter[mesh.A] {
-			nextCenter[mesh.A] = end
-		}
-		if end > nextCenter[mesh.B] {
-			nextCenter[mesh.B] = end
-		}
+		used[mesh.A] = append(used[mesh.A], spanAt(base, thicknessOf(mesh.TeethA)))
+		used[mesh.B] = append(used[mesh.B], spanAt(base, thicknessOf(mesh.TeethB)))
 
 		for _, side := range []struct {
 			shaft string
@@ -735,6 +731,31 @@ func propagateSpurPairs(m *mech.Mechanism, stations *stationSet) []mech.Finding 
 		}
 	}
 	return findings
+}
+
+func spanAt(center, thickness float64) [2]float64 {
+	return [2]float64{center - thickness/2, center + thickness/2}
+}
+
+// firstFreeSlot is the lowest whole half stud at which a pair of gears clears
+// everything already on both shafts.
+func firstFreeSlot(usedA, usedB [][2]float64, thickA, thickB float64) float64 {
+	const limit = 64 // a shaft that long is a different problem
+	for base := 0.0; base < limit; base++ {
+		if clearOf(usedA, spanAt(base, thickA)) && clearOf(usedB, spanAt(base, thickB)) {
+			return base
+		}
+	}
+	return limit
+}
+
+func clearOf(used [][2]float64, span [2]float64) bool {
+	for _, u := range used {
+		if math.Min(u[1], span[1])-math.Max(u[0], span[0]) > 1e-6 {
+			return false
+		}
+	}
+	return true
 }
 
 // mergeSharedGears folds duplicates together. Two gears with the same tooth

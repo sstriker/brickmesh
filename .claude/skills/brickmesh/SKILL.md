@@ -41,6 +41,16 @@ Say this plainly rather than producing something that looks close.
   missing is anything that *chooses* a state: no centrifugal governor, no
   torque-reactive mechanism, no sequential selector. "Auto shifting" therefore
   means: build the box, and the shift mechanism is yours to design.
+- **No shifting parts are placed.** A coupling is abstract: it constrains the
+  speeds and forces the two shafts coaxial, but nothing goes into the file. A
+  gearbox model comes out as gears and beams with no driving ring, no shifter
+  fork and no lever — those are yours to add. The part numbers are below so you
+  can say which.
+- **No clutch gear either.** Careful with the word: it means two different
+  things, and the model has neither. The old white 24t clutch gear is a torque
+  limiter whose inner axle slips above a force; there is no slip element. The
+  other "clutch gears" are the engage/disengage kind, which is what a coupling
+  represents abstractly — but as above, the part is not placed.
 - **The structure does not hold together.** Expect a `connectivity` warning on
   nearly every run; see the table below. The gears are right, the frame is not
   finished.
@@ -127,13 +137,36 @@ That reports a ratio per state, and fails any state that locks up — engaging
 two dog rings at once gives zero degrees of freedom, which is what a real
 gearbox destroys itself doing.
 
-Two things follow from the model, and both are useful when choosing counts:
+Three things follow, and all of them matter when choosing counts:
 
 - **Every pair on a shared pair of shafts needs the same center distance**, so
-  the tooth counts of each ratio must sum to the *same* total. 8+24, 16+16 and
-  24+8 all sum to 32, which is why those three make a clean three-speed box.
+  the tooth counts of each ratio must sum to the *same* total. 16+24, 20+20 and
+  24+16 all sum to 40, which is why those three make a clean three-speed box at
+  2.5 studs between the shafts.
+- **Only 16t, 20t and 24t can be shifted by a driving ring.** Those are the
+  gears made with the ridged bore a ring engages; an 8t or 40t on a shifted
+  shaft has to be moved another way. The engine warns about this — `shiftable`
+  in the table below — but it cannot know your intent, so it is a warning and
+  not a refusal.
 - A coupling implies the two shafts are **coaxial** — a gear rides on the shaft
   it can be locked to — and the geometric layer places them on one line.
+
+### The shifting parts, for when you tell the builder what to use
+
+The engine does not place these. There are three driving-ring systems, all
+using the same 4-ridge interlock (the newest ring has 8 ridges and is still
+compatible, engaging sooner):
+
+| system | driving ring | moved by |
+| --- | --- | --- |
+| 8466 4x4 Off-Roader | 6539 | 6641 / 51149 on a lever, guided by 6631 changeover plate |
+| Bugatti Chiron | 18947 | 35188 selector |
+| Yamaha MT-10 SP | 2473 | 4158 gear shifter with groove, 4159 shifter fork |
+
+Two extension pieces exist, one 4-ridge and one 8-ridge, to lengthen any of
+them. The MT-10 system also uses 2474, an 8-tooth gear stepper — despite the
+name it is not for meshing, it indexes eighths of a turn so the drum lands where
+it engages the ring.
 
 Leave `states` out for a mechanism with only one. A coupling with no `states`
 is permanently locked, which is a shaft joiner rather than a shift.
@@ -178,6 +211,7 @@ Findings come worst first, one line per check.
 | `loop closure` | Three shafts in a ring whose triangle does not close on the lattice. |
 | `station` | Two gears want the same stretch of one shaft, or a bevel pair's shafts do not intersect. |
 | `shift` | A state whose speeds do not resolve: it selects nothing definite. |
+| `shiftable` | A gear on a shifted shaft with no driving-ring variant. Warning: the engine does not know how you mean to shift it. |
 | `layout` | No arrangement of these shafts lands on the lattice at all. |
 | `structure` | Nothing was found that bears every shaft. Widen the inventory or the span. |
 | `parts` | A gear or shaft was left out of the file — no part number for that tooth count, or a shaft not along a lattice direction. |

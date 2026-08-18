@@ -365,6 +365,64 @@ func (m *Mechanism) checkDOFIn(state string) []Finding {
 		"%d degrees of freedom, %d drives: determined", d, k)}}
 }
 
+// ShiftableTeeth are the tooth counts that come in a driving-ring variant.
+//
+// A shift is made by a driving ring locking a gear to the shaft it rides on,
+// and only some gears have the ridged bore that engages one: 16, 20 (bevel and
+// not) and 24. An 8t or a 40t on a shifted shaft has to be moved some other
+// way — sliding the whole axle, or a clutch of your own devising.
+//
+// Source: Rebrickable's gear guide, which lists the three driving-ring systems
+// (6539 with lever 6641/51149 and changeover plate 6631; 18947 with selector
+// 35188; 2473 with shifter 4158 and fork 4159).
+var ShiftableTeeth = map[int]bool{16: true, 20: true, 24: true}
+
+// CheckShiftable reports gears on a shifted shaft that no driving ring can
+// engage.
+//
+// This is a warning rather than a failure because the engine does not model the
+// selector: it knows a coupling exists, not how you mean to work it. But if the
+// intent is a driving ring, these are the gears that cannot.
+func (m *Mechanism) CheckShiftable() []Finding {
+	shifted := map[string]bool{}
+	for _, l := range m.Links {
+		c, ok := l.(Coupling)
+		if !ok || len(c.States) == 0 {
+			continue // permanent couplings are not shifts
+		}
+		shifted[c.A] = true
+		shifted[c.B] = true
+	}
+	if len(shifted) == 0 {
+		return nil
+	}
+
+	var out []Finding
+	for _, l := range m.Links {
+		mesh, ok := l.(Mesh)
+		if !ok {
+			continue
+		}
+		for _, side := range []struct {
+			shaft string
+			teeth int
+		}{{mesh.A, mesh.TeethA}, {mesh.B, mesh.TeethB}} {
+			if !shifted[side.shaft] || ShiftableTeeth[side.teeth] {
+				continue
+			}
+			out = append(out, Finding{"WARN", "shiftable", fmt.Sprintf(
+				"shaft '%s' is shifted but carries a %dt, which has no driving-ring "+
+					"variant. Only 16t, 20t and 24t do; use one of those, or shift it "+
+					"another way.", side.shaft, side.teeth)})
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, Finding{"OK", "shiftable",
+			"every shifted gear has a driving-ring variant"})
+	}
+	return out
+}
+
 // CheckStates reports what each state does, which for a gearbox is the ratio it
 // selects. A state that leaves the output unsolvable is a state that does not
 // select anything.
@@ -600,5 +658,6 @@ func (m *Mechanism) RunChecks() []Finding {
 	out = append(out, m.CheckCenterDistances()...)
 	out = append(out, m.CheckClosure()...)
 	out = append(out, m.CheckStates()...)
+	out = append(out, m.CheckShiftable()...)
 	return out
 }

@@ -110,8 +110,17 @@ What is still missing is anything that decides *when* to shift: no centrifugal
 governor, no torque-reactive mechanism, no sequential selector. "Auto shifting"
 therefore means the box is buildable and the shift mechanism is not.
 
+- [ ] place the shifting parts. A coupling is abstract: it constrains the speeds
+      and forces coaxiality, but nothing reaches the file, so a gearbox comes out
+      as gears and beams with no driving ring, fork or lever. Three systems to
+      map: 6539 with lever 6641/51149 and changeover plate 6631; 18947 with
+      selector 35188; 2473 with shifter 4158 and fork 4159, plus the 2474
+      stepper that indexes eighths of a turn to land the drum
 - [ ] a selector element, so the shift itself is part of the mechanism rather
       than an instruction to the builder
+- [ ] a slip element for the other kind of clutch — the old white 24t whose
+      inner axle gives way above a force. Different thing entirely from the
+      engage/disengage gears, and it shares only the name
 - [ ] gear thickness comes from a table of seven counts; a part not in it gets
       a default of 2 half studs
 

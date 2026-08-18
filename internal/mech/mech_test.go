@@ -475,3 +475,52 @@ func TestACouplingWithNoStatesIsAlwaysEngaged(t *testing.T) {
 		t.Error("a coupling should be engaged only in its own states")
 	}
 }
+
+// Only 16t, 20t and 24t have a driving-ring variant, so those are the only
+// gears a dog ring can lock to a shaft.
+func TestAGearWithNoDrivingRingVariantIsFlagged(t *testing.T) {
+	m := New("bad shift")
+	for _, s := range []string{"input", "output", "g"} {
+		m.Shaft(s, 2)
+	}
+	m.Mesh("input", "g", 24, 8) // an 8t on the shifted shaft
+	m.State("high")
+	m.Couple("output", "g", "dog", "high")
+
+	fs := m.CheckShiftable()
+	if len(fs) != 1 || fs[0].Level != "WARN" {
+		t.Fatalf("got %+v, want one warning", fs)
+	}
+	if !strings.Contains(fs[0].Detail, "8t") {
+		t.Errorf("the warning should name the gear: %q", fs[0].Detail)
+	}
+}
+
+func TestShiftableGearsPass(t *testing.T) {
+	m := New("good shift")
+	for _, s := range []string{"input", "output", "g"} {
+		m.Shaft(s, 2)
+	}
+	m.Mesh("input", "g", 24, 16)
+	m.State("high")
+	m.Couple("output", "g", "dog", "high")
+	fs := m.CheckShiftable()
+	if len(fs) != 1 || fs[0].Level != "OK" {
+		t.Errorf("got %+v", fs)
+	}
+}
+
+// A permanent coupling is a shaft joiner, not a shift, so no driving ring is
+// implied and any gear will do.
+func TestAPermanentCouplingIsNotAShift(t *testing.T) {
+	m := New("joined")
+	for _, s := range []string{"a", "b"} {
+		m.Shaft(s, 2)
+	}
+	m.Shaft("g", 2)
+	m.Mesh("a", "g", 24, 8)
+	m.Couple("b", "g", "joiner")
+	if got := m.CheckShiftable(); got != nil {
+		t.Errorf("got %+v, want nothing for a mechanism with no shift", got)
+	}
+}
