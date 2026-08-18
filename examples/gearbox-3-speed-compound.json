@@ -1,11 +1,10 @@
 {
-  "name": "4-speed compound gearbox",
-  "note": "Two shifting stages in series. One pair of shafts can only give two shifted ratios -- every pair on it sums to the same tooth count, and only 16t and 20t come as clutch gears -- so four speeds means two stages. The stages are set two studs and two and a half studs apart so their ratios differ: 0.60 and 1.00 against 1.50 and 1.00, which multiply out to four distinct speeds rather than three.",
+  "name": "3-speed compound gearbox",
+  "note": "Two shifting stages in series, both two studs apart. One pair of shafts gives two ratios and no more, so more speeds means more stages -- but the stages cannot be spaced differently to vary their ratios, because only a whole number of studs can be framed with beams, and of those only two studs has clutch gears at both ends. So both stages give 0.60 and 1.00, and the four combinations collapse to three speeds: 0.36, 0.60 and 1.00. Third and fourth would be the same gear.",
   "states": [
     "1st",
     "2nd",
-    "3rd",
-    "4th"
+    "3rd"
   ],
   "shafts": [
     {
@@ -53,14 +52,14 @@
     {
       "a": "mid",
       "b": "s2low",
-      "teeth_a": 24,
-      "teeth_b": 16
+      "teeth_a": 12,
+      "teeth_b": 20
     },
     {
       "a": "mid",
       "b": "s2high",
-      "teeth_a": 20,
-      "teeth_b": 20
+      "teeth_a": 16,
+      "teeth_b": 16
     }
   ],
   "couplings": [
@@ -78,26 +77,24 @@
       "b": "s1high",
       "name": "stage 1 ring, high",
       "states": [
-        "3rd",
-        "4th"
-      ]
-    },
-    {
-      "a": "output",
-      "b": "s2high",
-      "name": "stage 2 ring, low",
-      "states": [
-        "1st",
         "3rd"
       ]
     },
     {
       "a": "output",
       "b": "s2low",
+      "name": "stage 2 ring, low",
+      "states": [
+        "1st"
+      ]
+    },
+    {
+      "a": "output",
+      "b": "s2high",
       "name": "stage 2 ring, high",
       "states": [
         "2nd",
-        "4th"
+        "3rd"
       ]
     }
   ],

@@ -205,6 +205,7 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 
 	// Where the rings go decides where the shafts are cut, so it is settled
 	// before the axles rather than when the model is drawn.
+	checkFraming(res)
 	res.ringSites = ringSites(m, res)
 	// Worked out before the structural search, because the rigidity check needs
 	// to know the shafts are there: they are what ties the bearings together.
@@ -319,6 +320,21 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 			Level: "OK", Check: "structure", Detail: fmt.Sprintf(
 				"%d structure(s) rejected for parts overlapping before this one",
 				rejected)})
+	}
+	// Stiffening happens here rather than inside the search: it is the one
+	// solution that will be used, and doing it to every restart costs minutes
+	// for an answer that is thrown away sixty times over.
+	stiffened, err := searcher.StiffenToRigid(chosen.Parts)
+	if err != nil {
+		return fmt.Errorf("stiffening the structure: %w", err)
+	}
+	if added := len(stiffened) - len(chosen.Parts); added > 0 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "OK", Check: "structure", Detail: fmt.Sprintf(
+				"%d beam(s) added to stop it hinging", added)})
+		chosen.Parts = stiffened
+		chosen.Count = len(stiffened)
+		chosen.BBoxStud3 = searcher.BoundingVolume(stiffened)
 	}
 	res.Structure = chosen
 	res.Findings = append(res.Findings, mech.Finding{

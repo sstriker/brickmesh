@@ -103,3 +103,39 @@ func examples(t *testing.T) []string {
 	}
 	return found
 }
+
+// Bearing every shaft is not the same as holding together, and holding together
+// is not the same as not folding up. All three were separate warnings for a long
+// time; this is the assertion that they stay gone.
+func TestEveryExampleHoldsTogetherAndDoesNotHinge(t *testing.T) {
+	deps := requireLibraries(t)
+	for _, path := range examples(t) {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			doc, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, err := spec.Read(strings.NewReader(string(doc)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, err := s.Build()
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := Run(context.Background(), m, deps, Options{Restarts: 8, Seed: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, f := range res.Findings {
+				if f.Level == "OK" {
+					continue
+				}
+				switch f.Check {
+				case "rigidity", "connectivity", "structure", "framing", "clearance":
+					t.Errorf("%s: %s", f.Check, f.Detail)
+				}
+			}
+		})
+	}
+}

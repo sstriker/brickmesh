@@ -16,6 +16,127 @@ import (
 // so a structure needing more than this is not one bridge short — it is wrong.
 const maxRepairRounds = 12
 
+// StiffenToRigid adds beams until the structure stops hinging.
+//
+// Connectivity and rigidity are different things and the repair used to stop at
+// the first: every part attached to something, but the whole able to fold like a
+// parallelogram. Grubler counts that — a planar frame of n parts with j pin
+// joints has 3(n-1) - 2j degrees of freedom left, and anything above zero
+// hinges.
+//
+// So each round adds one beam that pins to two holes already in the structure,
+// which is a new joint and one degree of freedom fewer. Preferring the beam
+// whose two holes are furthest apart is what makes it triangulate rather than
+// double up on a joint that is already there.
+func (s *Searcher) StiffenToRigid(chosen []Placed) ([]Placed, error) {
+	for round := 0; round < maxRepairRounds; round++ {
+		joints, err := rigidity.FindJoints(s.Axes, chosen, s.Inventory)
+		if err != nil {
+			return nil, err
+		}
+		if m, _ := rigidity.Mobility(len(chosen), joints); m <= 0 {
+			return chosen, nil
+		}
+		brace, err := s.brace(chosen)
+		if err != nil {
+			return nil, err
+		}
+		if brace == nil {
+			return chosen, nil // nothing else fits; reported as hinging
+		}
+		chosen = append(chosen, *brace)
+	}
+	return chosen, nil
+}
+
+// brace finds a beam that pins to the structure in two places at once.
+func (s *Searcher) brace(chosen []Placed) (*Placed, error) {
+	all := make([]int, len(chosen))
+	for i := range all {
+		all[i] = i
+	}
+	holes := s.holeRefs(chosen, all)
+	positions, err := s.holesOf(chosen, all)
+	if err != nil {
+		return nil, err
+	}
+
+	occupied := map[geom.Cell]bool{}
+	for _, p := range chosen {
+		cells, err := s.absoluteCells(p)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range cells {
+			occupied[c] = true
+		}
+	}
+
+	options, err := s.ConnectorsBetween(positions, positions)
+	if err != nil {
+		return nil, err
+	}
+	// Longest first: a brace across the whole frame triangulates it, while a
+	// short one beside an existing joint adds a part and no stiffness.
+	sort.SliceStable(options, func(i, j int) bool {
+		return s.counts[options[i].Part] > s.counts[options[j].Part]
+	})
+
+	for _, cand := range options {
+		if s.reserves(mustCells(s, cand)) {
+			continue
+		}
+		cells, err := s.absoluteCells(cand)
+		if err != nil {
+			return nil, err
+		}
+		shared := 0
+		for _, c := range cells {
+			if occupied[c] {
+				shared++
+			}
+		}
+		smaller := len(cells)
+		if len(occupied) < smaller {
+			smaller = len(occupied)
+		}
+		if shared != 0 && float64(shared) > ContactFraction*float64(smaller) {
+			continue
+		}
+		// Two joints, not one: a beam pinned in a single place is a flag, not a
+		// brace, and leaves the mobility exactly where it was.
+		candHoles := s.holeRefs([]Placed{cand}, []int{0})
+		if pinnedAt(candHoles, holes) < 2 {
+			continue
+		}
+		out := cand
+		return &out, nil
+	}
+	return nil, nil
+}
+
+func mustCells(s *Searcher, p Placed) []geom.Cell {
+	cells, err := s.absoluteCells(p)
+	if err != nil {
+		return nil
+	}
+	return cells
+}
+
+// pinnedAt counts how many distinct holes of the structure a candidate could
+// take a pin to.
+func pinnedAt(cand, targets []hole) int {
+	seen := map[geom.Vec3]bool{}
+	for _, c := range cand {
+		for _, t := range targets {
+			if joins([]hole{c}, []hole{t}) {
+				seen[t.pos] = true
+			}
+		}
+	}
+	return len(seen)
+}
+
 // RepairConnectivity adds beams until the structure is one whole.
 //
 // The cover is complete by this point, so every shaft is borne; what is left is

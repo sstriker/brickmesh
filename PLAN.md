@@ -67,16 +67,30 @@ Two caveats came out of writing them:
   signature as a hole. Every such hit lies outside the part, so position alone
   separates them, but `find_holes` does not do it for you.
 
-## M2 — finish structural synthesis
+## M2 — finish structural synthesis — DONE
 
-The covering search finds structures that bear every shaft but do not hang
-together; the rigidity check correctly reports them as loose pieces, and the
-pipeline now runs that check on what it built, so every run says so out loud.
+Every example now comes out in one piece and rigid, with no warnings at all.
+Three separate things had to be true, and they were separate warnings for a
+long time: bearing every shaft, holding together, and not folding up.
 
-The repair phase cannot fix it on its own: it bridges with straight beams, which
-only join pieces whose holes already line up. Two bearings on parallel shafts
-need a connector that steps sideways, and that is what `internal/connect`'s A*
-search does — wiring it into the repair phase is the first item below.
+The last of those is the one that was missing. `StiffenToRigid` keeps adding
+beams while Grübler says the frame still has a degree of freedom, choosing the
+longest brace that pins in two places at once, which triangulates rather than
+doubling up on a joint that already exists. It runs on the chosen solution
+rather than inside the search: sixty restarts each stiffening an answer that is
+then thrown away costs minutes for nothing.
+
+The connectivity half turned out to be mostly a layout question rather than a
+search one. Two parallel shafts an odd half stud apart cannot share a beam, and
+no chain of beams reaches between them either — their holes fall on sublattices
+half a stud out of step. `checkFraming` now says so before the search runs,
+because the answer is a different spacing and not more searching. This is the
+rule in docs/findings.md from the other end: a gear pair whose teeth sum to a
+multiple of 8 lands on a valid centre distance, but only a multiple of 16 lands
+on one you can frame.
+
+`internal/connect`'s A* search is still not wired in. It was the plan for this,
+and it turned out not to be what was wrong.
 
 - [x] a joint is now what a joint is: two holes facing the same way, on one
       axis line, within a pin's reach of each other. Holes at the very same

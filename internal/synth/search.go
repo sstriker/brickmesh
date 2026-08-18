@@ -641,6 +641,12 @@ func less(a, b geom.Vec3) bool {
 }
 
 // boundingVolume is the box the whole structure occupies, in cubic studs.
+// BoundingVolume is boundingVolume, for a caller that has changed the parts
+// after the search returned them.
+func (s *Searcher) BoundingVolume(parts []Placed) float64 {
+	return s.boundingVolume(parts)
+}
+
 func (s *Searcher) boundingVolume(parts []Placed) float64 {
 	if len(parts) == 0 {
 		return 0
