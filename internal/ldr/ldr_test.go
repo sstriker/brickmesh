@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Sander Striker
+
+package ldr
+
+import (
+	"strconv"
+	"strings"
+	"testing"
+
+	"brickmesh/internal/geom"
+)
+
+func TestHeaderNamesTheModel(t *testing.T) {
+	m := New("subtractor")
+	out := m.Encode()
+	for _, want := range []string{
+		"0 subtractor\n", "0 Name: subtractor.ldr\n", "0 Author: brickmesh\n",
+		"0 !LDRAW_ORG Model\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	if !strings.HasSuffix(out, "0\n") {
+		t.Error("a model file should end with a bare 0")
+	}
+}
+
+func TestAPartLineHasTheLDrawShape(t *testing.T) {
+	m := New("m")
+	m.Add("3648b.dat", ColorLightGray, geom.Rotations[0], geom.Vec3{X: 20, Y: -8, Z: 40}, "")
+	line := partLines(t, m.Encode())[0]
+
+	fields := strings.Fields(line)
+	// 1, color, x y z, nine matrix entries, name.
+	if len(fields) != 15 {
+		t.Fatalf("got %d fields, want 15: %q", len(fields), line)
+	}
+	if fields[0] != "1" {
+		t.Errorf("line type %q, want 1", fields[0])
+	}
+	if fields[1] != strconv.Itoa(ColorLightGray) {
+		t.Errorf("color %q", fields[1])
+	}
+	if fields[14] != "3648b.dat" {
+		t.Errorf("part %q", fields[14])
+	}
+	// Position comes before the matrix.
+	if fields[2] != "20" || fields[3] != "-8" || fields[4] != "40" {
+		t.Errorf("position %v", fields[2:5])
+	}
+}
+
+// A point of the part has to land at M*p + t, so the matrix is written row by
+// row. Reading it back and applying it is the check.
+func TestTheMatrixIsWrittenRowByRow(t *testing.T) {
+	rot := geom.Rotations[7]
+	m := New("m")
+	m.Add("3001.dat", ColorMain, rot, geom.Vec3{X: 5, Y: 6, Z: 7}, "")
+	fields := strings.Fields(partLines(t, m.Encode())[0])
+
+	var got geom.Mat3
+	for r := 0; r < 3; r++ {
+		for c := 0; c < 3; c++ {
+			v, err := strconv.ParseFloat(fields[5+r*3+c], 64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got[r][c] = v
+		}
+	}
+	p := geom.Vec3{X: 1, Y: 2, Z: 3}
+	if got.Apply(p).Sub(rot.Apply(p)).Len() > 1e-9 {
+		t.Errorf("matrix round-tripped wrongly: %v vs %v", got, rot)
+	}
+}
+
+func TestTheDatSuffixIsAdded(t *testing.T) {
+	m := New("m")
+	m.Add("3648b", ColorMain, geom.Rotations[0], geom.Vec3{}, "")
+	if !strings.HasSuffix(partLines(t, m.Encode())[0], "3648b.dat") {
+		t.Error("a part name should end up with .dat")
+	}
+}
+
+func TestLabelsBecomeComments(t *testing.T) {
+	m := New("m")
+	m.Add("3648b.dat", ColorMain, geom.Rotations[0], geom.Vec3{}, "24t on the drive shaft")
+	if !strings.Contains(m.Encode(), "0 // 24t on the drive shaft\n") {
+		t.Error("the label should be emitted as a comment")
+	}
+}
+
+// Some parsers dislike "-0", which is easy to produce from a rotation.
+func TestNegativeZeroIsWrittenPlainly(t *testing.T) {
+	m := New("m")
+	m.Add("3001.dat", ColorMain, geom.Mat3{{-0, 0, 0}, {0, -0, 0}, {0, 0, -0}},
+		geom.Vec3{X: -0}, "")
+	if strings.Contains(partLines(t, m.Encode())[0], "-0 ") {
+		t.Error("no field should be written as -0")
+	}
+}
+
+func TestAddLatticeRefusesAnImpossibleRotation(t *testing.T) {
+	m := New("m")
+	if err := m.AddLattice("3001.dat", ColorMain, 99, geom.Vec3{}, ""); err == nil {
+		t.Error("expected an error outside the 24 rotations")
+	}
+	if err := m.AddLattice("3001.dat", ColorMain, 3, geom.Vec3{}, ""); err != nil {
+		t.Errorf("rotation 3 should be fine: %v", err)
+	}
+	if len(m.Parts) != 1 {
+		t.Errorf("the rejected part should not have been added")
+	}
+}
+
+func TestAnEmptyModelIsStillAValidFile(t *testing.T) {
+	out := New("").Encode()
+	if !strings.HasPrefix(out, "0 model\n") {
+		t.Errorf("an unnamed model should still get a name:\n%s", out)
+	}
+	if len(partLines(t, out)) != 0 {
+		t.Error("no parts expected")
+	}
+}
+
+// partLines pulls the type-1 lines out of an encoded model.
+func partLines(t *testing.T, out string) []string {
+	t.Helper()
+	var lines []string
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "1 ") {
+			lines = append(lines, l)
+		}
+	}
+	return lines
+}

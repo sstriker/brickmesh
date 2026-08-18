@@ -1,0 +1,11 @@
+{
+  "name": "subtractor",
+  "shafts": [
+    {"id": "case", "bearings": 2},
+    {"id": "left", "bearings": 2},
+    {"id": "right", "bearings": 2}
+  ],
+  "differentials": [{"case": "case", "out_a": "left", "out_b": "right"}],
+  "inputs": [{"shaft": "left", "speed": 1.0}, {"shaft": "right", "speed": 1.0}],
+  "outputs": ["case"]
+}

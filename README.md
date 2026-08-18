@@ -63,6 +63,43 @@ Not finished:
 
 See [PLAN.md](PLAN.md) for the prioritized work queue and what is already done.
 
+## Running it
+
+A mechanism is described functionally — shafts and what connects them, no
+positions and no part numbers, because that is the only level at which it can
+be stated before it has been worked out:
+
+```json
+{
+  "name": "reduction",
+  "shafts": [{"id": "input", "bearings": 2}, {"id": "output", "bearings": 2}],
+  "meshes": [{"a": "input", "b": "output", "teeth_a": 8, "teeth_b": 24}],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}
+```
+
+```console
+brickmesh --spec examples/reduction.json --out reduction.ldr
+```
+
+It runs the layers in order and reports what each one found:
+
+```text
+  OK    [dof         ] 1 degrees of freedom, 1 drives: determined
+  OK    [bearings    ] every shaft borne at both ends
+  OK    [center dist ] every spur pair lands on a whole half stud
+  OK    [station     ] 2 gear stations determined, no conflicts
+  OK    [structure   ] 2 parts bear the shafts, 23.5 cubic studs
+```
+
+The result is LDraw, which Stud.io opens directly. `--check` stops after the
+checks and writes nothing, which is the quick way to ask whether an idea holds
+up at all.
+
+The parts libraries are fetched on first use, so the first run is slower than
+the rest.
+
 ## Building
 
 Go 1.22 or newer for the engine, [uv](https://docs.astral.sh/uv/) for the

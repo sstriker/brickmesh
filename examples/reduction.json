@@ -1,0 +1,12 @@
+{
+  "name": "8t-24t reduction",
+  "shafts": [
+    {"id": "input", "bearings": 2},
+    {"id": "output", "bearings": 2}
+  ],
+  "meshes": [
+    {"a": "input", "b": "output", "teeth_a": 8, "teeth_b": 24}
+  ],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}
