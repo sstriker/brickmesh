@@ -56,6 +56,7 @@ func (s *Searcher) bridgeBetween(chosen []Placed, a, b []int) (*Placed, error) {
 	if err != nil {
 		return nil, err
 	}
+	refsA, refsB := s.holeRefs(chosen, a), s.holeRefs(chosen, b)
 
 	occupied := map[geom.Cell]bool{}
 	total := 0
@@ -96,26 +97,74 @@ func (s *Searcher) bridgeBetween(chosen []Placed, a, b []int) (*Placed, error) {
 		if total < smaller {
 			smaller = total
 		}
-		if shared == 0 || float64(shared) <= ContactFraction*float64(smaller) {
-			out := cand
-			return &out, nil
+		if shared != 0 && float64(shared) > ContactFraction*float64(smaller) {
+			continue
 		}
+		// A bridge that reaches without being pinnable to both is not a bridge.
+		// Checking it here is what keeps the repair from piling on parts that
+		// change nothing.
+		candHoles := s.holeRefs([]Placed{cand}, []int{0})
+		if !joins(candHoles, refsA) || !joins(candHoles, refsB) {
+			continue
+		}
+		out := cand
+		return &out, nil
 	}
 	return nil, nil
 }
 
+// hole is a port with the direction it faces, which is what decides whether a
+// pin can pass through it and another.
+type hole struct {
+	pos  geom.Vec3
+	axis geom.Vec3
+}
+
 func (s *Searcher) holesOf(chosen []Placed, idx []int) (map[geom.Vec3]bool, error) {
 	out := map[geom.Vec3]bool{}
-	for _, i := range idx {
-		pts, _, err := part.WorldHoles(s.Axes, chosen[i], s.counts[chosen[i].Part])
-		if err != nil {
-			return nil, err
-		}
-		for _, p := range pts {
-			out[p.Round(3)] = true
-		}
+	for _, h := range s.holeRefs(chosen, idx) {
+		out[h.pos.Round(3)] = true
 	}
 	return out, nil
+}
+
+func (s *Searcher) holeRefs(chosen []Placed, idx []int) []hole {
+	var out []hole
+	for _, i := range idx {
+		pts, axis, err := part.WorldHoles(s.Axes, chosen[i], s.counts[chosen[i].Part])
+		if err != nil {
+			continue
+		}
+		for _, p := range pts {
+			out = append(out, hole{pos: p.Round(3), axis: axis})
+		}
+	}
+	return out
+}
+
+// joins reports whether a candidate could take a pin to any of these holes.
+//
+// Both conditions matter and the second is the one that catches wishful
+// bridges: the holes must face the same way, and the gap between them must lie
+// ALONG that shared direction. A beam laid across two holes that face along the
+// line separating them cannot be pinned to either, however exactly it reaches.
+func joins(cand []hole, targets []hole) bool {
+	for _, c := range cand {
+		for _, t := range targets {
+			if math.Abs(math.Abs(c.axis.Dot(t.axis))-1) > 1e-6 {
+				continue
+			}
+			d := t.pos.Sub(c.pos)
+			along := d.Dot(c.axis)
+			if d.Sub(c.axis.Scale(along)).Len() > 1e-6 {
+				continue
+			}
+			if math.Abs(along) <= rigidity.PinReach+1e-6 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *Searcher) absoluteCells(p Placed) ([]geom.Cell, error) {
@@ -217,15 +266,24 @@ func (s *Searcher) beamsSpanning(ha, hb geom.Vec3, span int) ([]Placed, error) {
 			if math.Abs(r.Apply(local).Dot(d)) > 1e-6 {
 				continue
 			}
-			for _, off := range offsets {
-				origin := ha.Sub(r.Apply(off))
-				if !origin.OnLattice(HalfStud) {
-					continue
+			// A bridge whose holes land exactly on the targets sits in the
+			// same plane as the parts it joins, and runs straight through
+			// them. Real construction lays it alongside and pins through, so
+			// the sideways offsets are tried as well: a part's width along the
+			// hole axis, either way, which is within a pin's reach.
+			holeAxis := r.Apply(local)
+			for _, shift := range []float64{0, part.Stud, -part.Stud} {
+				beside := holeAxis.Scale(shift)
+				for _, off := range offsets {
+					origin := ha.Add(beside).Sub(r.Apply(off))
+					if !origin.OnLattice(HalfStud) {
+						continue
+					}
+					if !spansBoth(r, origin, offsets, ha.Add(beside), hb.Add(beside)) {
+						continue
+					}
+					out = append(out, Placed{Part: beam.Part, Rot: ri, Origin: origin.Round(3)})
 				}
-				if !spansBoth(r, origin, offsets, ha, hb) {
-					continue
-				}
-				out = append(out, Placed{Part: beam.Part, Rot: ri, Origin: origin.Round(3)})
 			}
 		}
 	}

@@ -4,6 +4,7 @@
 package synth
 
 import (
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"brickmesh/internal/layout"
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/part"
+	"brickmesh/internal/rigidity"
 	"brickmesh/internal/voxel"
 )
 
@@ -238,25 +240,32 @@ func TestConnectorsSpanTwoHolesOnALine(t *testing.T) {
 	if len(got) == 0 {
 		t.Fatal("nothing spans two holes two studs apart")
 	}
-	// Every connector really has to reach both.
+	// Every connector has to reach both — either landing on the holes, or
+	// lying alongside within a pin's reach along the hole axis, which is how
+	// two parts are actually joined.
 	for _, p := range got {
-		holes, _, err := part.WorldHoles(s.Axes, p, 5)
+		holes, axis, err := part.WorldHoles(s.Axes, p, 5)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var reachesA, reachesB bool
-		for _, h := range holes {
-			if h.Len() < 1e-6 {
-				reachesA = true
-			}
-			if h.Sub(geom.Vec3{Z: 40}).Len() < 1e-6 {
-				reachesB = true
-			}
-		}
-		if !reachesA || !reachesB {
-			t.Errorf("%+v does not span both holes", p)
+		if !reaches(holes, axis, geom.Vec3{}) || !reaches(holes, axis, geom.Vec3{Z: 40}) {
+			t.Errorf("%+v reaches neither hole, even by pin", p)
 		}
 	}
+}
+
+// reaches reports whether any of a part's holes could take a pin to the target:
+// on the same axis line, and within a pin's span along it.
+func reaches(holes []geom.Vec3, axis, target geom.Vec3) bool {
+	for _, h := range holes {
+		d := target.Sub(h)
+		along := d.Dot(axis)
+		across := d.Sub(axis.Scale(along))
+		if across.Len() < 1e-6 && math.Abs(along) <= rigidity.PinReach+1e-6 {
+			return true
+		}
+	}
+	return false
 }
 
 func TestNothingSpansHolesThatDoNotLineUp(t *testing.T) {

@@ -34,6 +34,16 @@ import (
 
 const tol = 1e-6
 
+// PinReach is how far apart two holes can be along their shared axis and still
+// take one pin.
+//
+// A standard Technic pin is 40 LDU end to end — its shadow entry is a centered
+// cylinder of sections 2+16+4+16+2 — so it spans 20 either side of its middle
+// and reaches the hole planes of two parts lying against each other, which are
+// 20 apart. Holes at the very same point are the degenerate case of the same
+// thing.
+const PinReach = 40.0
+
 // Joint is a pin through two parts' coincident holes.
 type Joint struct {
 	A, B  int
@@ -79,15 +89,32 @@ func FindJoints(src part.AxisSource, parts []part.Placed, inventory []part.Beam)
 			}
 			for _, a := range data[i].pts {
 				for _, b := range data[j].pts {
-					if a.Sub(b).Len() < tol {
-						out = append(out, Joint{A: i, B: j,
-							Point: round3(a), Axis: round3(abs3(data[i].axis))})
+					if !withinPinReach(a, b, data[i].axis) {
+						continue
 					}
+					out = append(out, Joint{A: i, B: j,
+						Point: round3(a), Axis: round3(abs3(data[i].axis))})
 				}
 			}
 		}
 	}
 	return out, nil
+}
+
+// withinPinReach reports whether two holes line up well enough for one pin.
+//
+// They have to be on the SAME axis line, not merely parallel ones: the offset
+// across the axis must be nothing, or the pin would have to bend. Along the
+// axis they may be up to a pin's reach apart, which is what lets two beams lie
+// against each other and still be joined.
+func withinPinReach(a, b, axis geom.Vec3) bool {
+	d := b.Sub(a)
+	along := d.Dot(axis)
+	across := d.Sub(axis.Scale(along))
+	if across.Len() > tol {
+		return false
+	}
+	return math.Abs(along) <= PinReach+tol
 }
 
 // Components groups parts that are joined, directly or through others.

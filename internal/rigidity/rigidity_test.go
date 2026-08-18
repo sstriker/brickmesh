@@ -190,3 +190,49 @@ func TestMissingHoleAxisIsAnError(t *testing.T) {
 		t.Error("expected an error when the hole axis is unknown")
 	}
 }
+
+// A pin joins two holes that face the same way and sit on one axis line. That
+// covers both cases: holes at the very same point, and two parts lying against
+// each other with their hole planes a part's width apart.
+func TestPartsLyingAgainstEachOtherAreJoined(t *testing.T) {
+	// Beams offset along their hole axis by 20 LDU: side by side, pinned.
+	parts := []part.Placed{
+		beam("beam3", geom.Vec3{}),
+		beam("beam3", geom.Vec3{Y: 20}),
+	}
+	joints, err := FindJoints(holesAlongY{}, parts, inventory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(joints) != 3 {
+		t.Errorf("got %d joints, want 3 — every hole lines up with its neighbour",
+			len(joints))
+	}
+}
+
+func TestHolesTooFarApartAlongTheAxisAreNotJoined(t *testing.T) {
+	// Further than one pin can span.
+	parts := []part.Placed{
+		beam("beam3", geom.Vec3{}),
+		beam("beam3", geom.Vec3{Y: PinReach + 10}),
+	}
+	joints, _ := FindJoints(holesAlongY{}, parts, inventory)
+	if len(joints) != 0 {
+		t.Errorf("got %d joints across %v LDU; a pin reaches %v",
+			len(joints), PinReach+10, PinReach)
+	}
+}
+
+// The condition that catches wishful bridges: a gap ACROSS the hole axis
+// cannot be pinned, however small.
+func TestHolesOffsetAcrossTheAxisAreNotJoined(t *testing.T) {
+	parts := []part.Placed{
+		beam("beam3", geom.Vec3{}),
+		beam("beam3", geom.Vec3{X: 20}), // holes face Y, offset along X
+	}
+	joints, _ := FindJoints(holesAlongY{}, parts, inventory)
+	if len(joints) != 0 {
+		t.Errorf("got %d joints; the holes are on parallel lines, not one line",
+			len(joints))
+	}
+}

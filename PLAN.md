@@ -78,10 +78,32 @@ only join pieces whose holes already line up. Two bearings on parallel shafts
 need a connector that steps sideways, and that is what `internal/connect`'s A*
 search does — wiring it into the repair phase is the first item below.
 
-- [ ] connection phase: call `internal/connect` from `synth`'s repair rather
-      than the straight-beam bridge. The A* search is written and tested; what
-      is missing is handing it the two loose pieces and taking its chain back.
-      A straight beam only joins parts whose holes are already collinear.
+- [x] a joint is now what a joint is: two holes facing the same way, on one
+      axis line, within a pin's reach of each other. Holes at the very same
+      point were only the degenerate case, and treating them as the whole of it
+      meant two parts lying against each other — the normal way to build —
+      counted as unconnected. The repair also refuses a bridge that reaches
+      without being pinnable to both ends, which stopped it piling on parts
+      that changed nothing.
+- [ ] the bearings of one shaft cannot be joined by a straight beam, and this
+      is geometry rather than a gap in the search. A bearing's hole faces along
+      its shaft, and the two bearings sit apart ALONG that same direction, so a
+      pin between them would have to run down the shaft's own line. What
+      actually joins them is either a frame reaching around, which needs the A*
+      search, or the shaft itself — see below.
+- [ ] model the shafts. They are real parts, they are not in the output, and
+      they are what physically ties two bearings together. Their absence is why
+      the connectivity report is bleaker than the build would be. An axle
+      through two bearings is a turning joint rather than a fixed one, so the
+      mobility formula has an opinion about it.
+- [ ] wiring `internal/connect` in needs richer ports first. The A* search
+      matches ports by position, but a port is a point in the catalog while the
+      shadow library describes a segment: a pin's entry is a centered cylinder
+      of sections 2+16+4+16+2, 40 LDU end to end. Without that extent nothing
+      can express a pin reaching between two parts lying against each other.
+      Beams are worse: 32523 declares ONE hole and leaves the rest to the
+      part's own geometry, so the default catalog has a single port for a
+      three-hole beam and `--infer-holes` is opt-in.
 - [ ] count the pins that hole-to-hole joins require; they are real parts and
       currently invisible in both the cost and the output
 - [ ] feed rigidity back in as a hard constraint rather than a post-check
