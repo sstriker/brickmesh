@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -27,9 +28,9 @@ import (
 // The search is kept off this space already, but on a voxel lattice and with a
 // little slack. This is the check that decides, because it works on the
 // geometry.
-func checkTurningClearance(res *Result, deps Deps) {
+func checkTurningClearance(ctx context.Context, res *Result, deps Deps) error {
 	if res.Model == nil || deps.Lib == nil {
-		return
+		return nil
 	}
 	var joiners, rings, gears, structure []ldr.Part
 	for _, p := range res.Model.Parts {
@@ -49,16 +50,22 @@ func checkTurningClearance(res *Result, deps Deps) {
 		}
 	}
 	if len(joiners)+len(rings) == 0 {
-		return
+		return nil
 	}
 
 	// A joiner has business with nothing at all. A ring has business with the
 	// gear it engages — that is the whole point of it — so it is only asked
 	// about the structure.
-	clashes := 0
-	clashes += sweepAgainst(res, deps, joiners, append(append([]ldr.Part(nil),
-		gears...), structure...))
-	clashes += sweepAgainst(res, deps, rings, structure)
+	joinerClashes, err := sweepAgainst(ctx, res, deps, joiners,
+		append(append([]ldr.Part(nil), gears...), structure...))
+	if err != nil {
+		return err
+	}
+	ringClashes, err := sweepAgainst(ctx, res, deps, rings, structure)
+	if err != nil {
+		return err
+	}
+	clashes := joinerClashes + ringClashes
 
 	if clashes == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
@@ -66,6 +73,7 @@ func checkTurningClearance(res *Result, deps Deps) {
 				"%d joiner(s) and %d ring(s) turn clear of the structure",
 				len(joiners), len(rings))})
 	}
+	return nil
 }
 
 // touchTolerance is how much two parts may share before it is an overlap
@@ -79,7 +87,9 @@ func checkTurningClearance(res *Result, deps Deps) {
 const touchTolerance = 1.0
 
 // sweepAgainst turns each rider a full revolution against each obstacle.
-func sweepAgainst(res *Result, deps Deps, riders, obstacles []ldr.Part) int {
+func sweepAgainst(ctx context.Context, res *Result, deps Deps,
+	riders, obstacles []ldr.Part) (int, error) {
+
 	clashes := 0
 	for _, r := range riders {
 		rider, err := interfere.MeshFor(deps.Lib, r.Name)
@@ -99,10 +109,13 @@ func sweepAgainst(res *Result, deps Deps, riders, obstacles []ldr.Part) int {
 			if err != nil || overlapOf(rlo, rhi, olo, ohi) < touchTolerance {
 				continue
 			}
-			got := interfere.MeshLock(
+			got, err := interfere.MeshLock(ctx,
 				other, collide.Transform{Rot: o.Rot, Pos: o.Pos},
 				rider, collide.Transform{Rot: r.Rot, Pos: r.Pos},
 				16, interfere.Options{Steps: 72})
+			if err != nil {
+				return clashes, err
+			}
 			if got.Verdict == interfere.NoEngagement {
 				continue
 			}
@@ -114,7 +127,7 @@ func sweepAgainst(res *Result, deps Deps, riders, obstacles []ldr.Part) int {
 					r.Name, r.Pos, o.Name, o.Pos, got.Verdict)})
 		}
 	}
-	return clashes
+	return clashes, nil
 }
 
 func isAxle(name string) bool {

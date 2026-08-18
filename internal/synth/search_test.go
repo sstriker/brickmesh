@@ -4,6 +4,7 @@
 package synth
 
 import (
+	"context"
 	"math"
 	"path/filepath"
 	"testing"
@@ -131,7 +132,7 @@ func TestCandidatesRefuseAnOffLatticePoint(t *testing.T) {
 func TestSynthesizeCoversEveryRequirement(t *testing.T) {
 	s := searcher(t)
 	l := oneShaft()
-	sols, err := s.Synthesize(l, nil, Options{Restarts: 4, Seed: 1})
+	sols, err := s.Synthesize(context.Background(), l, nil, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestSynthesizeCoversEveryRequirement(t *testing.T) {
 
 func TestSolutionsComeBackSmallestFirst(t *testing.T) {
 	s := searcher(t)
-	sols, err := s.Synthesize(oneShaft(), nil, Options{Restarts: 8, Seed: 7})
+	sols, err := s.Synthesize(context.Background(), oneShaft(), nil, Options{Restarts: 8, Seed: 7})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,12 +178,12 @@ func TestSolutionsComeBackSmallestFirst(t *testing.T) {
 // The restarts run in parallel, so the result must not depend on which worker
 // happened to take which attempt.
 func TestSynthesizeIsReproducibleForASeed(t *testing.T) {
-	first, err := searcher(t).Synthesize(oneShaft(), nil,
+	first, err := searcher(t).Synthesize(context.Background(), oneShaft(), nil,
 		Options{Restarts: 8, Seed: 42, Workers: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := searcher(t).Synthesize(oneShaft(), nil,
+	second, err := searcher(t).Synthesize(context.Background(), oneShaft(), nil,
 		Options{Restarts: 8, Seed: 42, Workers: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +200,7 @@ func TestSynthesizeIsReproducibleForASeed(t *testing.T) {
 
 func TestSynthesizeWithNothingToBearReturnsNothing(t *testing.T) {
 	empty := &layout.Layout{Place: map[string]layout.Placement{}}
-	sols, err := searcher(t).Synthesize(empty, nil, Options{Restarts: 2})
+	sols, err := searcher(t).Synthesize(context.Background(), empty, nil, Options{Restarts: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

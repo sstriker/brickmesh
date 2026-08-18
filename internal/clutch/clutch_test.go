@@ -4,6 +4,7 @@
 package clutch
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -39,9 +40,13 @@ func sweepAt(t *testing.T, lib *ldraw.Library, gearPart string,
 	if err != nil {
 		t.Fatalf("%s: %v", Ring, err)
 	}
-	return interfere.MeshLock(gear, collide.Identity(), ring,
-		collide.Transform{Rot: collide.Identity().Rot, Pos: geom.Vec3{Z: offset}},
+	got, err := interfere.MeshLock(context.Background(), gear, collide.Identity(),
+		ring, collide.Transform{Rot: collide.Identity().Rot, Pos: geom.Vec3{Z: offset}},
 		16, interfere.Options{Steps: 360})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
 }
 
 // The reference from docs/findings.md, run through this file's own calls. A
@@ -56,12 +61,10 @@ func TestTheSweepIsSetUpRight(t *testing.T) {
 	side := func(x float64) collide.Transform {
 		return collide.Transform{Rot: collide.Identity().Rot, Pos: geom.Vec3{X: x}}
 	}
-	if got := interfere.MeshLock(gear, collide.Identity(), gear, side(60), 24,
-		interfere.Options{Steps: 360}); got.Verdict != interfere.Meshes {
+	if got := control(t, gear, side(60)); got.Verdict != interfere.Meshes {
 		t.Fatalf("two 24t at 60 LDU: %s, want %s", got.Verdict, interfere.Meshes)
 	}
-	if got := interfere.MeshLock(gear, collide.Identity(), gear, side(58), 24,
-		interfere.Options{Steps: 360}); got.Verdict != interfere.TooDeep {
+	if got := control(t, gear, side(58)); got.Verdict != interfere.TooDeep {
 		t.Fatalf("two 24t at 58 LDU: %s, want %s", got.Verdict, interfere.TooDeep)
 	}
 }
@@ -123,4 +126,15 @@ func TestTwoHalfStudsPutsTheRingInsideTheGear(t *testing.T) {
 		t.Errorf("at two half studs the ring reads %s; the whole point of "+
 			"Engaged being %g is that two is solid overlap", got.Verdict, Engaged)
 	}
+}
+
+// control runs the reference pair, which every claim here rests on.
+func control(t *testing.T, gear *collide.Mesh, at collide.Transform) interfere.Result {
+	t.Helper()
+	got, err := interfere.MeshLock(context.Background(), gear, collide.Identity(),
+		gear, at, 24, interfere.Options{Steps: 360})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
 }

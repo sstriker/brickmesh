@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strconv"
@@ -24,14 +25,19 @@ import (
 // Trying to set a second would only undo the first, and the difference between
 // what the two want is what backlash has to absorb — which mech reports
 // separately.
-func applyPhase(m *mech.Mechanism, res *Result, deps Deps) {
+func applyPhase(ctx context.Context, m *mech.Mechanism, res *Result, deps Deps) error {
 	if res.Layout == nil || res.Model == nil {
-		return
+		return nil
 	}
 	fixed := map[string]bool{}
 	var turned, doubted int
 
 	for _, link := range m.Links {
+		// Each pair reads four parts out of the library, which is a fetch the
+		// first time round. Worth a look between them.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		mesh, ok := link.(mech.Mesh)
 		if !ok || mesh.Kind != mech.Spur {
 			continue // only a parallel pair has a phase this can read
@@ -108,7 +114,7 @@ func applyPhase(m *mech.Mechanism, res *Result, deps Deps) {
 	}
 
 	if turned == 0 {
-		return
+		return nil
 	}
 	detail := fmt.Sprintf("%d gear(s) turned so their teeth interleave", turned)
 	level := "OK"
@@ -121,6 +127,7 @@ func applyPhase(m *mech.Mechanism, res *Result, deps Deps) {
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: level, Check: "tooth phase", Detail: detail,
 	})
+	return nil
 }
 
 // placedGear names the part standing at a tooth count on a shaft.

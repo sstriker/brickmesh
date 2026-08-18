@@ -4,6 +4,7 @@
 package interfere
 
 import (
+	"context"
 	"math"
 	"os"
 	"testing"
@@ -49,7 +50,7 @@ func TestTwo24tGearsMeshAt60LDU(t *testing.T) {
 	b := gearMesh(t, lib, gear24)
 
 	start := time.Now()
-	got := MeshLock(a, collide.Identity(), b, at(60), 24, Options{Steps: 360})
+	got := lock(t, a, collide.Identity(), b, at(60), 24, Options{Steps: 360})
 	t.Logf("swept 360 orientations in %s", time.Since(start).Round(time.Millisecond))
 
 	if got.Verdict != Meshes {
@@ -69,7 +70,7 @@ func TestTheSamePairJamsAt58(t *testing.T) {
 	a := gearMesh(t, lib, gear24)
 	b := gearMesh(t, lib, gear24)
 
-	got := MeshLock(a, collide.Identity(), b, at(58), 24, Options{Steps: 360})
+	got := lock(t, a, collide.Identity(), b, at(58), 24, Options{Steps: 360})
 	if got.Verdict != TooDeep {
 		t.Errorf("verdict %q, want %q", got.Verdict, TooDeep)
 	}
@@ -83,8 +84,8 @@ func TestPullingThemApartWidensTheBacklash(t *testing.T) {
 	a := gearMesh(t, lib, gear24)
 	b := gearMesh(t, lib, gear24)
 
-	tight := MeshLock(a, collide.Identity(), b, at(60), 24, Options{Steps: 360})
-	loose := MeshLock(a, collide.Identity(), b, at(62), 24, Options{Steps: 360})
+	tight := lock(t, a, collide.Identity(), b, at(60), 24, Options{Steps: 360})
+	loose := lock(t, a, collide.Identity(), b, at(62), 24, Options{Steps: 360})
 	if loose.FreeFraction <= tight.FreeFraction {
 		t.Errorf("free fraction %v at 62 LDU, %v at 60; it should widen",
 			loose.FreeFraction, tight.FreeFraction)
@@ -96,7 +97,7 @@ func TestFarApartTheyDoNotEngageAtAll(t *testing.T) {
 	a := gearMesh(t, lib, gear24)
 	b := gearMesh(t, lib, gear24)
 
-	got := MeshLock(a, collide.Identity(), b, at(200), 24, Options{Steps: 72})
+	got := lock(t, a, collide.Identity(), b, at(200), 24, Options{Steps: 72})
 	if got.Verdict != NoEngagement {
 		t.Errorf("verdict %q at 200 LDU, want %q", got.Verdict, NoEngagement)
 	}
@@ -110,12 +111,12 @@ func TestTooCoarseASweepMissesTheWindows(t *testing.T) {
 	a := gearMesh(t, lib, gear24)
 	b := gearMesh(t, lib, gear24)
 
-	coarse := MeshLock(a, collide.Identity(), b, at(60), 24, Options{Steps: 72})
+	coarse := lock(t, a, collide.Identity(), b, at(60), 24, Options{Steps: 72})
 	if coarse.Windows != 0 {
 		t.Errorf("72 steps found %d windows; if this now works the caveat can go",
 			coarse.Windows)
 	}
-	fine := MeshLock(a, collide.Identity(), b, at(60), 24, Options{Steps: 144})
+	fine := lock(t, a, collide.Identity(), b, at(60), 24, Options{Steps: 144})
 	if fine.Windows != 24 {
 		t.Errorf("the documented default of 144 found %d windows, want 24", fine.Windows)
 	}
@@ -212,4 +213,17 @@ func TestMedian(t *testing.T) {
 	if got := median(nil); got != 0 {
 		t.Errorf("empty: %v", got)
 	}
+}
+
+// lock is MeshLock for tests that never cancel: the context is a formality
+// here, and threading it through every call would bury what each one is asking.
+func lock(t *testing.T, a *collide.Mesh, ta collide.Transform,
+	b *collide.Mesh, tb collide.Transform, teethB int, opts Options) Result {
+
+	t.Helper()
+	got, err := MeshLock(context.Background(), a, ta, b, tb, teethB, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
 }

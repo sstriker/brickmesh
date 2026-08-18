@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	"context"
 	"math"
 	"testing"
 
@@ -17,7 +18,7 @@ import (
 // axles, not one.
 func TestEveryRingRidesAJoiner(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
+	res, err := Run(context.Background(), build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +58,7 @@ func TestEveryRingRidesAJoiner(t *testing.T) {
 // rather than passing. An axle that reaches past the stop cannot be pushed in.
 func TestTheAxlesMeetInsideTheJoiner(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
+	res, err := Run(context.Background(), build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,14 +115,24 @@ func TestTouchingIsAllowedAndOverlapIsNot(t *testing.T) {
 	// The ring runs 20 LDU each way along its shaft and the beam 10, so at 30
 	// their faces meet exactly.
 	res := &Result{}
-	if got := sweepAgainst(res, deps, []ldr.Part{ring}, []ldr.Part{beam(30)}); got != 0 {
+	got, err := sweepAgainst(context.Background(), res, deps, []ldr.Part{ring},
+		[]ldr.Part{beam(30)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 0 {
 		t.Errorf("a beam resting against the end of the ring is right, got %d "+
 			"clash(es): %v", got, res.Findings)
 	}
 
 	// Half a stud further in and it is inside the ring.
 	res = &Result{}
-	if got := sweepAgainst(res, deps, []ldr.Part{ring}, []ldr.Part{beam(20)}); got == 0 {
+	got, err = sweepAgainst(context.Background(), res, deps, []ldr.Part{ring},
+		[]ldr.Part{beam(20)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == 0 {
 		t.Error("a beam a half stud inside the ring should be reported")
 	}
 }

@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	"context"
 	"math"
 	"os"
 	"path/filepath"
@@ -60,7 +61,7 @@ func build(t *testing.T, doc string) *mech.Mechanism {
 
 func TestAReductionGoesAllTheWayToAModel(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{Restarts: 8, Seed: 1})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{Restarts: 8, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +88,7 @@ func TestAReductionGoesAllTheWayToAModel(t *testing.T) {
 // out (8+24)/16 = 2 studs apart, which is 40 LDU.
 func TestTheGearsLandAtTheRightCenterDistance(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{Restarts: 4, Seed: 1})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +112,7 @@ func TestTheGearsLandAtTheRightCenterDistance(t *testing.T) {
 // A malformed matrix or a bad reference shows up here rather than in Stud.io.
 func TestTheModelReadsBackAsGeometry(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{Restarts: 4, Seed: 1})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +144,7 @@ func TestTheModelReadsBackAsGeometry(t *testing.T) {
 
 func TestCheckOnlyStopsBeforeTheStructure(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{SkipStructure: true})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{SkipStructure: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +161,7 @@ func TestCheckOnlyStopsBeforeTheStructure(t *testing.T) {
 func TestAFailedCheckStopsTheRun(t *testing.T) {
 	deps := requireLibraries(t)
 	// 8t+12t sums to 20, not a multiple of 8, so the pair is off the lattice.
-	res, err := Run(build(t, `{
+	res, err := Run(context.Background(), build(t, `{
       "name": "off-lattice",
       "shafts": [{"id": "a", "bearings": 2}, {"id": "b", "bearings": 2}],
       "meshes": [{"a": "a", "b": "b", "teeth_a": 8, "teeth_b": 12}],
@@ -215,7 +216,7 @@ const gearbox = `{
 
 func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
+	res, err := Run(context.Background(), build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,10 +250,13 @@ func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := interfere.MeshLock(
+			got, err := interfere.MeshLock(context.Background(),
 				gear, collide.Transform{Rot: g.Rot, Pos: g.Pos},
 				ring, collide.Transform{Rot: r.Rot, Pos: r.Pos},
 				16, interfere.Options{Steps: 72})
+			if err != nil {
+				t.Fatal(err)
+			}
 			if got.Verdict == interfere.TooDeep {
 				t.Errorf("the ring at %+v is inside the %s at %+v: no rotation "+
 					"of it is free", r.Pos, g.Name, g.Pos)
@@ -265,7 +269,7 @@ func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 // clutch variant, the shifted station gets it.
 func TestAShiftedSixteenBecomesAClutchGear(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
+	res, err := Run(context.Background(), build(t, gearbox), deps, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +287,7 @@ func TestAShiftedSixteenBecomesAClutchGear(t *testing.T) {
 
 func TestTheSelectorPartsAreNamedRatherThanPlaced(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearbox), deps, Options{Restarts: 2, Seed: 1})
+	res, err := Run(context.Background(), build(t, gearbox), deps, Options{Restarts: 2, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +310,7 @@ func TestTheSelectorPartsAreNamedRatherThanPlaced(t *testing.T) {
 // A mechanism with no shift gets no rings.
 func TestNoShiftMeansNoRings(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{Restarts: 2, Seed: 1})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{Restarts: 2, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +325,7 @@ func TestNoShiftMeansNoRings(t *testing.T) {
 // together — leaving them out is why a sound structure read as loose pieces.
 func TestTheShaftsAreInTheModelAndHoldItTogether(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{Restarts: 8, Seed: 1})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{Restarts: 8, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +358,7 @@ func TestTheShaftsAreInTheModelAndHoldItTogether(t *testing.T) {
 
 func TestAnAxleIsLongEnoughForItsShaft(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{Restarts: 4, Seed: 1})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{Restarts: 4, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +406,7 @@ const gearboxSpec = `{
 
 func TestAGearboxAnimatesOncePerState(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearboxSpec), deps, Options{
+	res, err := Run(context.Background(), build(t, gearboxSpec), deps, Options{
 		Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua",
 	})
 	if err != nil {
@@ -434,7 +438,7 @@ func TestAGearboxAnimatesOncePerState(t *testing.T) {
 func TestTheAnimatedOutputTurnsAtTheSolvedRatio(t *testing.T) {
 	deps := requireLibraries(t)
 	m := build(t, gearboxSpec)
-	res, err := Run(m, deps, Options{Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua"})
+	res, err := Run(context.Background(), m, deps, Options{Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +471,7 @@ func TestTheAnimatedOutputTurnsAtTheSolvedRatio(t *testing.T) {
 // The freewheeling gears keep turning in every state — they are always meshed.
 func TestTheIdleGearsKeepTurning(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearboxSpec), deps, Options{
+	res, err := Run(context.Background(), build(t, gearboxSpec), deps, Options{
 		Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua",
 	})
 	if err != nil {
@@ -485,7 +489,7 @@ func TestTheIdleGearsKeepTurning(t *testing.T) {
 
 func TestEveryTurningGroupIsDeclaredInTheModel(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, gearboxSpec), deps, Options{
+	res, err := Run(context.Background(), build(t, gearboxSpec), deps, Options{
 		Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua",
 	})
 	if err != nil {
@@ -518,7 +522,7 @@ func TestEveryTurningGroupIsDeclaredInTheModel(t *testing.T) {
 
 func TestNoAnimationUnlessAsked(t *testing.T) {
 	deps := requireLibraries(t)
-	res, err := Run(build(t, reduction), deps, Options{Restarts: 2, Seed: 1})
+	res, err := Run(context.Background(), build(t, reduction), deps, Options{Restarts: 2, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

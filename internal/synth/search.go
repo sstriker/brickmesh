@@ -4,6 +4,7 @@
 package synth
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -13,6 +14,7 @@ import (
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/layout"
+	"brickmesh/internal/progress"
 	"brickmesh/internal/voxel"
 )
 
@@ -246,6 +248,11 @@ type Options struct {
 	Restarts int
 	Seed     int64
 	Workers  int
+	// Progress is told after each restart finishes. Optional.
+	//
+	// A restart is the right unit: long enough that reporting one costs
+	// nothing, short enough that the count keeps moving.
+	Progress progress.Func
 }
 
 // Synthesize covers the bearing requirements with as few beams as possible.
@@ -260,8 +267,8 @@ type Options struct {
 // good solution quickly, and a few randomized restarts usually get below that
 // again. The restarts are independent once the candidate pool is built, so they
 // run in parallel.
-func (s *Searcher) Synthesize(l *layout.Layout, stations []layout.Station,
-	opts Options) ([]Solution, error) {
+func (s *Searcher) Synthesize(ctx context.Context, l *layout.Layout,
+	stations []layout.Station, opts Options) ([]Solution, error) {
 
 	if opts.MaxParts <= 0 {
 		opts.MaxParts = 10
@@ -270,7 +277,7 @@ func (s *Searcher) Synthesize(l *layout.Layout, stations []layout.Station,
 		opts.Restarts = 60
 	}
 	if opts.Workers <= 0 {
-		opts.Workers = runtime.NumCPU()
+		opts.Workers = workers()
 	}
 
 	reqs := BearingRequirementsWith(l, stations, 2, 8, s.Taken)
@@ -285,8 +292,25 @@ func (s *Searcher) Synthesize(l *layout.Layout, stations []layout.Station,
 		return nil, nil
 	}
 
-	results := s.runRestarts(pool, len(reqs), opts)
-	return dedupeSolutions(results), nil
+	results := s.runRestarts(ctx, pool, len(reqs), opts)
+	// What it found before it was stopped is worth having: a browser that
+	// cancels a search on a changed input still has something to draw, and a
+	// cover found on restart three is as valid as one found on restart sixty.
+	return dedupeSolutions(results), ctx.Err()
+}
+
+// workers is how many restarts run side by side.
+//
+// One where the runtime cannot give us more. Under WebAssembly goroutines are
+// cooperative on a single thread and NumCPU reports 1, so parallelism comes
+// from the host running a whole search per worker — which the restarts suit
+// exactly, since they share nothing. Set Restarts to 1 and vary Seed to own one
+// restart per worker.
+func workers() int {
+	if n := runtime.NumCPU(); n > 1 {
+		return n
+	}
+	return 1
 }
 
 // buildPool collects every candidate for every requirement, then works out
@@ -400,18 +424,25 @@ func dedupeSolutions(results []Solution) []Solution {
 }
 
 // runRestarts runs the greedy cover many times over, in parallel.
-func (s *Searcher) runRestarts(pool []*candidate, nReqs int, opts Options) []Solution {
+func (s *Searcher) runRestarts(ctx context.Context, pool []*candidate, nReqs int,
+	opts Options) []Solution {
+
 	var (
 		mu   sync.Mutex
 		out  []Solution
+		done int
 		next = make(chan int)
 		wg   sync.WaitGroup
 	)
 	go func() {
+		defer close(next)
 		for i := 0; i < opts.Restarts; i++ {
-			next <- i
+			select {
+			case next <- i:
+			case <-ctx.Done():
+				return
+			}
 		}
-		close(next)
 	}()
 
 	for w := 0; w < opts.Workers; w++ {
@@ -419,17 +450,32 @@ func (s *Searcher) runRestarts(pool []*candidate, nReqs int, opts Options) []Sol
 		go func() {
 			defer wg.Done()
 			for attempt := range next {
+				// The feeder stops handing out work when the context is done,
+				// but a worker can already be holding some. Checking here is
+				// what makes "cancelled" mean stopped rather than nearly.
+				if ctx.Err() != nil {
+					return
+				}
+				report := func() {
+					mu.Lock()
+					done++
+					at := done
+					mu.Unlock()
+					opts.Progress.Step(progress.StageStructure, at, opts.Restarts)
+				}
 				// Each restart has its own generator, seeded from the run seed
 				// and the attempt, so the whole search is reproducible however
 				// the work happens to be shared out.
 				rng := rand.New(rand.NewSource(opts.Seed + int64(attempt)))
 				sol, ok := s.greedyCover(pool, nReqs, opts.MaxParts, attempt > 0, rng)
 				if !ok {
+					report()
 					continue
 				}
 				// The cover bears every shaft but the pieces may hang loose.
 				repaired, err := s.RepairConnectivity(sol.Parts)
 				if err != nil {
+					report()
 					continue
 				}
 				sol.Parts = repaired
@@ -438,6 +484,7 @@ func (s *Searcher) runRestarts(pool []*candidate, nReqs int, opts Options) []Sol
 				mu.Lock()
 				out = append(out, sol)
 				mu.Unlock()
+				report()
 			}
 		}()
 	}

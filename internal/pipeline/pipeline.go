@@ -14,6 +14,8 @@
 package pipeline
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -26,6 +28,7 @@ import (
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/part"
+	"brickmesh/internal/progress"
 	"brickmesh/internal/rigidity"
 	"brickmesh/internal/shadow"
 	"brickmesh/internal/synth"
@@ -102,6 +105,9 @@ type Options struct {
 	ScriptName string
 	Seconds    float64
 	InputTurns float64
+	// Progress is told as each stage starts and as the structural search works
+	// through its restarts. Optional.
+	Progress progress.Func
 }
 
 // Result is what the run found, stage by stage.
@@ -142,7 +148,12 @@ func (r *Result) Failed() bool {
 }
 
 // Run takes a mechanism as far as it will go.
-func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
+// Run takes a context because the structural search is the slow part of this
+// and a caller watching it needs to be able to stop it — a browser abandoning a
+// run on a changed input, a CLI on a keystroke. Everything cancellable is
+// downstream of here, so the context goes in at the top rather than being
+// reached for later.
+func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 	if opts.MaxLayouts <= 0 {
 		opts.MaxLayouts = 20
 	}
@@ -160,6 +171,8 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 		return res, nil
 	}
 
+	opts.Progress.Report(progress.Report{Stage: progress.StageLayout,
+		Note: "arranging the shafts on the lattice"})
 	layouts := layout.Realize(m, layout.Options{
 		MaxSolutions: opts.MaxLayouts, Span: opts.Span,
 	})
@@ -184,34 +197,50 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 	res.axles = computeAxles(m, res)
 
 	if !opts.SkipStructure {
-		if err := runStructure(res, deps, opts); err != nil {
+		if err := runStructure(ctx, res, deps, opts); err != nil {
 			return res, err
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return res, err
+	}
 
+	opts.Progress.Report(progress.Report{Stage: progress.StageModel,
+		Note: "placing the parts"})
 	model, err := buildModel(m, res)
 	if err != nil {
 		return res, err
 	}
 	res.Model = model
-	applyPhase(m, res, deps)
-	checkTurningClearance(res, deps)
+
+	opts.Progress.Report(progress.Report{Stage: progress.StagePhase})
+	if err := applyPhase(ctx, m, res, deps); err != nil {
+		return res, err
+	}
+	opts.Progress.Report(progress.Report{Stage: progress.StageClearance})
+	if err := checkTurningClearance(ctx, res, deps); err != nil {
+		return res, err
+	}
 	if opts.Animate {
+		opts.Progress.Report(progress.Report{Stage: progress.StageAnimation})
 		animate(m, res, opts)
 	}
 	return res, nil
 }
 
-func runStructure(res *Result, deps Deps, opts Options) error {
+func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) error {
 	if deps.Rast == nil || deps.Shadow == nil {
 		return fmt.Errorf("the structural search needs both libraries")
 	}
 	searcher := synth.NewSearcher(deps.Rast, deps.Shadow, opts.Inventory)
 	searcher.Taken = ringSpans(res)
 	searcher.Reserved = ringCells(res, deps)
-	solutions, err := searcher.Synthesize(res.Layout, res.Stations, synth.Options{
-		Restarts: opts.Restarts, Seed: opts.Seed,
+	solutions, err := searcher.Synthesize(ctx, res.Layout, res.Stations, synth.Options{
+		Restarts: opts.Restarts, Seed: opts.Seed, Progress: opts.Progress,
 	})
+	if errors.Is(err, context.Canceled) {
+		return err // stopped is not a failure of the search, and says so itself
+	}
 	if err != nil {
 		return fmt.Errorf("the structural search: %w", err)
 	}

@@ -14,15 +14,20 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/part"
 	"brickmesh/internal/pipeline"
+	"brickmesh/internal/progress"
 	"brickmesh/internal/shadow"
 	"brickmesh/internal/spec"
 	"brickmesh/internal/voxel"
@@ -38,6 +43,7 @@ func main() {
 func run() error {
 	var (
 		specPath  = flag.String("spec", "", "mechanism description to build (required)")
+		quiet     = flag.Bool("quiet", false, "do not report progress while searching")
 		outPath   = flag.String("out", "", "where to write the model (default <spec>.ldr)")
 		checkOnly = flag.Bool("check", false, "run the checks and stop, writing nothing")
 		restarts  = flag.Int("restarts", 60, "restarts for the structural search")
@@ -81,7 +87,13 @@ func run() error {
 	}
 	scriptName := trimExt(filepath.Base(out)) + ".lua"
 
-	res, err := pipeline.Run(m, deps, pipeline.Options{
+	// Ctrl-C stops the search rather than killing the process, so a run that is
+	// taking too long can be given up on without losing what it printed.
+	ctx, stop := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	res, err := pipeline.Run(ctx, m, deps, pipeline.Options{
 		Restarts: *restarts, Seed: *seed, Span: *span,
 		Inventory:     part.Beams,
 		SkipStructure: *checkOnly,
@@ -89,11 +101,20 @@ func run() error {
 		ScriptName:    scriptName,
 		Seconds:       *seconds,
 		InputTurns:    *turns,
+		Progress:      progressTo(os.Stderr, *quiet),
 	})
+	// What it worked out before it stopped is still worth reading: the
+	// functional checks run first and are all done by the time the structural
+	// search is anywhere near being interrupted.
+	if res != nil {
+		report(res.Findings)
+	}
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("stopped before the model was finished")
+	}
 	if err != nil {
 		return err
 	}
-	report(res.Findings)
 
 	if *checkOnly {
 		if res.Failed() {
@@ -155,4 +176,32 @@ func report(findings []mech.Finding) {
 
 func trimExt(p string) string {
 	return p[:len(p)-len(filepath.Ext(p))]
+}
+
+// progressTo writes progress over one line of a terminal, so a long search
+// looks like it is doing something without scrolling the findings away.
+//
+// Only when stderr is a terminal and the run was not asked to be quiet: piped
+// into a file, a carriage return every restart is noise.
+func progressTo(w *os.File, quiet bool) progress.Func {
+	if quiet || !isTerminal(w) {
+		return nil
+	}
+	var last string
+	return func(r progress.Report) {
+		line := r.String()
+		if line == last {
+			return
+		}
+		last = line
+		fmt.Fprintf(w, "\r\033[K%s", line)
+		if r.Total > 0 && r.Done == r.Total {
+			fmt.Fprint(w, "\r\033[K")
+		}
+	}
+}
+
+func isTerminal(f *os.File) bool {
+	info, err := f.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }

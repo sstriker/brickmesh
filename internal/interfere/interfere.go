@@ -18,6 +18,7 @@
 package interfere
 
 import (
+	"context"
 	"math"
 	"runtime"
 	"sync"
@@ -89,8 +90,14 @@ type Options struct {
 
 // MeshLock turns B a full revolution against a stationary A and reports what it
 // found.
-func MeshLock(a *collide.Mesh, ta collide.Transform,
-	b *collide.Mesh, tb collide.Transform, teethB int, opts Options) Result {
+//
+// Takes a context because a sweep is the innermost expensive thing the engine
+// does — a few hundred pairs of meshes through a BVH, per pair of parts — and
+// it is on the critical path of a run rather than off in a measurement. A
+// cancelled sweep returns an error rather than a Result: a partial revolution
+// says nothing, and a verdict from one would be a lie.
+func MeshLock(ctx context.Context, a *collide.Mesh, ta collide.Transform,
+	b *collide.Mesh, tb collide.Transform, teethB int, opts Options) (Result, error) {
 
 	if opts.Steps <= 0 {
 		opts.Steps = 144
@@ -99,25 +106,45 @@ func MeshLock(a *collide.Mesh, ta collide.Transform,
 		opts.SpinAxis = 'z'
 	}
 	if opts.Workers <= 0 {
-		opts.Workers = runtime.NumCPU()
+		opts.Workers = workers()
 	}
 
-	free := sweep(a, ta, b, tb, opts)
-	return classify(free, opts.Steps, teethB)
+	free, err := sweep(ctx, a, ta, b, tb, opts)
+	if err != nil {
+		return Result{}, err
+	}
+	return classify(free, opts.Steps, teethB), nil
+}
+
+// workers is how many goroutines a sweep splits over.
+//
+// One where the runtime cannot give us more. Under WebAssembly goroutines are
+// cooperative on a single thread and NumCPU reports 1, so the parallelism has
+// to come from the host running whole searches side by side rather than from
+// here. Asking for it anyway would only add scheduling.
+func workers() int {
+	if n := runtime.NumCPU(); n > 1 {
+		return n
+	}
+	return 1
 }
 
 // sweep reports, for each sampled angle, whether B is free of A there.
-func sweep(a *collide.Mesh, ta collide.Transform,
-	b *collide.Mesh, tb collide.Transform, opts Options) []bool {
+func sweep(ctx context.Context, a *collide.Mesh, ta collide.Transform,
+	b *collide.Mesh, tb collide.Transform, opts Options) ([]bool, error) {
 
 	free := make([]bool, opts.Steps)
 	var wg sync.WaitGroup
 	step := make(chan int)
 	go func() {
+		defer close(step)
 		for k := 0; k < opts.Steps; k++ {
-			step <- k
+			select {
+			case step <- k:
+			case <-ctx.Done():
+				return
+			}
 		}
-		close(step)
 	}()
 
 	for w := 0; w < opts.Workers; w++ {
@@ -135,7 +162,10 @@ func sweep(a *collide.Mesh, ta collide.Transform,
 		}()
 	}
 	wg.Wait()
-	return free
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return free, nil
 }
 
 // classify turns the free angles into a verdict.
