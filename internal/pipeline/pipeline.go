@@ -72,6 +72,17 @@ var SelectorParts = []string{
 	"6631 Technic Plate 2 x 6 with 2 Position Gear Shift",
 }
 
+// AxleParts maps a length in studs to the part that is that long. Verified
+// against the library: every one runs along its own X and is 12 LDU across.
+var AxleParts = map[int]string{
+	2: "3704.dat", 3: "4519.dat", 4: "3705.dat", 5: "32073.dat",
+	6: "3706.dat", 7: "44294.dat", 8: "3707.dat", 9: "60485.dat",
+	10: "3737.dat", 12: "3708.dat", 16: "50451.dat",
+}
+
+// axleLengths are the lengths available, shortest first.
+var axleLengths = []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16}
+
 // Deps are the libraries the pipeline reads from.
 type Deps struct {
 	Lib    *ldraw.Library
@@ -95,7 +106,20 @@ type Result struct {
 	Layout    *layout.Layout
 	Stations  []layout.Station
 	Structure *synth.Solution
+	Axles     []rigidity.Axle
 	Model     *ldr.Model
+
+	axles []axlePlacement
+}
+
+// axlePlacement is a shaft worked out but not yet written.
+type axlePlacement struct {
+	name   string
+	studs  int
+	rot    geom.Mat3
+	center geom.Vec3
+	shaft  string
+	axle   rigidity.Axle
 }
 
 // Failed reports whether any finding is fatal.
@@ -143,6 +167,13 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 	res.Stations = stations
 	res.Findings = append(res.Findings, stationFindings...)
 
+	// Worked out before the structural search, because the rigidity check needs
+	// to know the shafts are there: they are what ties the bearings together.
+	res.axles = computeAxles(res)
+	for _, a := range res.axles {
+		res.Axles = append(res.Axles, a.axle)
+	}
+
 	if !opts.SkipStructure {
 		if err := runStructure(res, deps, opts); err != nil {
 			return res, err
@@ -188,7 +219,8 @@ func runStructure(res *Result, deps Deps, opts Options) error {
 	// the A* connection search, which is not wired into it yet. So this is
 	// reported loudly and does not condemn the model, which is still worth
 	// looking at. PLAN.md M2 is where that gets fixed.
-	rigid, err := rigidity.Analyze(deps.Shadow, res.Structure.Parts, opts.Inventory)
+	rigid, err := rigidity.AnalyzeWith(deps.Shadow, res.Structure.Parts, opts.Inventory,
+		res.Axles)
 	if err != nil {
 		return fmt.Errorf("the rigidity check: %w", err)
 	}
@@ -245,6 +277,10 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 	}
 
 	placeDrivingRings(m, res, model)
+	for _, a := range res.axles {
+		model.Add(a.name, ldr.ColorBlack, a.rot, a.center,
+			fmt.Sprintf("axle %d for shaft '%s'", a.studs, a.shaft))
+	}
 
 	if res.Structure != nil {
 		for _, p := range res.Structure.Parts {
@@ -346,6 +382,114 @@ func freeSideOf(stations []layout.Station, gear layout.Station, l *layout.Layout
 		}
 	}
 	return 0, false
+}
+
+// placeAxles puts a shaft through each line that carries anything.
+//
+// They are real parts the build needs, and they are also what ties the bearings
+// of one shaft together: a bearing's hole faces along its shaft, so no beam
+// laid between two of them can be pinned to either, and the shaft itself is
+// what actually connects them.
+func computeAxles(res *Result) []axlePlacement {
+	type line struct {
+		place  layout.Placement
+		lo, hi float64 // extent along the shaft, in half studs
+		shaft  string
+	}
+	lines := map[[6]float64]*line{}
+
+	note := func(shaft string, axial float64) {
+		place, ok := res.Layout.Place[shaft]
+		if !ok {
+			return
+		}
+		key := place.Key()
+		l, seen := lines[key]
+		if !seen {
+			lines[key] = &line{place: place, lo: axial, hi: axial, shaft: shaft}
+			return
+		}
+		l.lo = math.Min(l.lo, axial)
+		l.hi = math.Max(l.hi, axial)
+	}
+
+	for _, st := range res.Stations {
+		note(st.Shaft, st.Axial)
+	}
+	// The bearings are the far ends of what the shaft has to reach.
+	for _, r := range synth.BearingRequirements(res.Layout, res.Stations, 2, 8) {
+		place, ok := res.Layout.Place[r.Shaft]
+		if !ok {
+			continue
+		}
+		note(r.Shaft, r.Point.Sub(place.Point.Scale(synth.HalfStud)).Dot(place.Direction)/synth.HalfStud)
+	}
+
+	keys := make([][6]float64, 0, len(lines))
+	for k := range lines {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return lessKey(keys[i], keys[j]) })
+
+	var axles []axlePlacement
+	for _, k := range keys {
+		l := lines[k]
+		// Reach a stud past each end so it runs right through the bearings.
+		spanLDU := (l.hi-l.lo)*synth.HalfStud + 2*geom.Stud
+		studs, name, ok := axleFor(spanLDU)
+		if !ok {
+			res.Findings = append(res.Findings, mech.Finding{
+				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+					"shaft '%s' needs %.0f LDU of axle, longer than any single one; "+
+						"join two", l.shaft, spanLDU)})
+			continue
+		}
+		rot, ok := alignXTo(l.place.Direction)
+		if !ok {
+			continue
+		}
+		mid := (l.lo + l.hi) / 2 * synth.HalfStud
+		center := l.place.Point.Scale(synth.HalfStud).Add(l.place.Direction.Scale(mid))
+		half := float64(studs) * geom.Stud / 2
+		axles = append(axles, axlePlacement{
+			name: name, studs: studs, rot: rot, center: center, shaft: l.shaft,
+			axle: rigidity.Axle{
+				Point: center, Dir: l.place.Direction, From: -half, To: half,
+			},
+		})
+	}
+	return axles
+}
+
+// axleFor is the shortest axle that spans a length in LDU.
+func axleFor(spanLDU float64) (int, string, bool) {
+	for _, studs := range axleLengths {
+		if float64(studs)*geom.Stud >= spanLDU-1e-6 {
+			return studs, AxleParts[studs], true
+		}
+	}
+	return 0, "", false
+}
+
+func lessKey(a, b [6]float64) bool {
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] < b[i]
+		}
+	}
+	return false
+}
+
+// alignXTo finds a lattice rotation taking an axle's own axis, its X, onto a
+// shaft direction.
+func alignXTo(dir geom.Vec3) (geom.Mat3, bool) {
+	d := dir.Unit()
+	for _, m := range geom.Rotations {
+		if m.Apply(geom.Vec3{X: 1}).Sub(d).Len() < 1e-9 {
+			return m, true
+		}
+	}
+	return geom.Mat3{}, false
 }
 
 // alignZTo finds a lattice rotation taking a gear's own axis, its local Z, onto

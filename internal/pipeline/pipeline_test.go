@@ -273,3 +273,65 @@ func TestNoShiftMeansNoRings(t *testing.T) {
 		}
 	}
 }
+
+// The shafts are real parts, and they are what ties the bearings of one shaft
+// together — leaving them out is why a sound structure read as loose pieces.
+func TestTheShaftsAreInTheModelAndHoldItTogether(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, reduction), deps, Options{Restarts: 8, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	axles := 0
+	for _, p := range res.Model.Parts {
+		for _, name := range AxleParts {
+			if p.Name == name {
+				axles++
+			}
+		}
+	}
+	if axles != 2 {
+		t.Errorf("got %d axles in the model, want one per shaft", axles)
+	}
+
+	var rigid bool
+	for _, f := range res.Findings {
+		if f.Check == "rigidity" && f.Level == "OK" {
+			rigid = true
+		}
+		if f.Check == "connectivity" {
+			t.Errorf("still in pieces: %s", f.Detail)
+		}
+	}
+	if !rigid {
+		t.Error("the structure should hold together once the shafts are counted")
+	}
+}
+
+func TestAnAxleIsLongEnoughForItsShaft(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(build(t, reduction), deps, Options{Restarts: 4, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Axles) == 0 {
+		t.Fatal("no axles")
+	}
+	// Every gear on a line has to fall within its axle.
+	for _, st := range res.Stations {
+		place := res.Layout.Place[st.Shaft]
+		at := place.Point.Scale(synthHalfStud).Add(place.Direction.Scale(st.Axial * synthHalfStud))
+		covered := false
+		for _, a := range res.Axles {
+			if a.Covers(at, place.Direction) {
+				covered = true
+			}
+		}
+		if !covered {
+			t.Errorf("the %dt on '%s' has no axle through it", st.Teeth, st.Shaft)
+		}
+	}
+}
+
+const synthHalfStud = 10.0

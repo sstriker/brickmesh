@@ -236,3 +236,79 @@ func TestHolesOffsetAcrossTheAxisAreNotJoined(t *testing.T) {
 			len(joints))
 	}
 }
+
+// An axle through two bearings is what actually holds them together. A
+// bearing's hole faces along its shaft and the two sit apart along that same
+// direction, so no beam laid between them can be pinned to either — leaving the
+// shaft out is why a sound structure can read as loose pieces.
+func TestAnAxleThreadsItsBearingsTogether(t *testing.T) {
+	// Two beams whose holes face Y, 80 LDU apart along Y: nothing pins them.
+	parts := []part.Placed{
+		beam("beam3", geom.Vec3{}),
+		beam("beam3", geom.Vec3{Y: 80}),
+	}
+	if joints, _ := FindJoints(holesAlongY{}, parts, inventory); len(joints) != 0 {
+		t.Fatalf("got %d pin joints, want none at that distance", len(joints))
+	}
+
+	axle := Axle{Point: geom.Vec3{}, Dir: geom.Vec3{Y: 1}, From: -20, To: 100}
+	joints, err := FindJointsWith(holesAlongY{}, parts, inventory, []Axle{axle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(joints) != 1 {
+		t.Fatalf("got %d joints, want 1 through the axle", len(joints))
+	}
+	if comps := Components(len(parts), joints); len(comps) != 1 {
+		t.Errorf("got %d pieces, want one: the axle joins them", len(comps))
+	}
+}
+
+// Parts on one axle are a chain of constraints, not every pair: five on a shaft
+// is four joints, and the mobility formula counts what it is given.
+func TestPartsOnAnAxleAreJoinedInAChain(t *testing.T) {
+	// Spaced beyond a pin's reach, so only the axle can be joining them.
+	var parts []part.Placed
+	for i := 0; i < 4; i++ {
+		parts = append(parts, beam("beam3", geom.Vec3{Y: float64(i) * (PinReach + 20)}))
+	}
+	axle := Axle{Point: geom.Vec3{}, Dir: geom.Vec3{Y: 1}, From: -20, To: 200}
+	joints, _ := FindJointsWith(holesAlongY{}, parts, inventory, []Axle{axle})
+	if len(joints) != len(parts)-1 {
+		t.Errorf("got %d joints for %d parts, want %d", len(joints), len(parts), len(parts)-1)
+	}
+}
+
+func TestAnAxleDoesNotReachBeyondItsEnds(t *testing.T) {
+	parts := []part.Placed{
+		beam("beam3", geom.Vec3{}),
+		beam("beam3", geom.Vec3{Y: 200}),
+	}
+	axle := Axle{Point: geom.Vec3{}, Dir: geom.Vec3{Y: 1}, From: -20, To: 60}
+	joints, _ := FindJointsWith(holesAlongY{}, parts, inventory, []Axle{axle})
+	if len(joints) != 0 {
+		t.Errorf("got %d joints; the second beam is past the end of the axle", len(joints))
+	}
+}
+
+func TestAnAxleIgnoresHolesOnAParallelLine(t *testing.T) {
+	parts := []part.Placed{
+		beam("beam3", geom.Vec3{}),
+		beam("beam3", geom.Vec3{X: 100, Y: 40}), // same direction, another line
+	}
+	axle := Axle{Point: geom.Vec3{}, Dir: geom.Vec3{Y: 1}, From: -20, To: 100}
+	joints, _ := FindJointsWith(holesAlongY{}, parts, inventory, []Axle{axle})
+	if len(joints) != 0 {
+		t.Errorf("got %d joints; the other beam is not on this axle", len(joints))
+	}
+}
+
+func TestCoversNeedsTheHoleToFaceAlongTheAxle(t *testing.T) {
+	axle := Axle{Point: geom.Vec3{}, Dir: geom.Vec3{Y: 1}, From: -20, To: 100}
+	if !axle.Covers(geom.Vec3{Y: 40}, geom.Vec3{Y: 1}) {
+		t.Error("a hole on the axle facing along it is covered")
+	}
+	if axle.Covers(geom.Vec3{Y: 40}, geom.Vec3{X: 1}) {
+		t.Error("a hole facing across the axle is not on it")
+	}
+}

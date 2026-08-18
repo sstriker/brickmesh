@@ -85,17 +85,17 @@ search does — wiring it into the repair phase is the first item below.
       counted as unconnected. The repair also refuses a bridge that reaches
       without being pinnable to both ends, which stopped it piling on parts
       that changed nothing.
-- [ ] the bearings of one shaft cannot be joined by a straight beam, and this
-      is geometry rather than a gap in the search. A bearing's hole faces along
-      its shaft, and the two bearings sit apart ALONG that same direction, so a
-      pin between them would have to run down the shaft's own line. What
-      actually joins them is either a frame reaching around, which needs the A*
-      search, or the shaft itself — see below.
-- [ ] model the shafts. They are real parts, they are not in the output, and
-      they are what physically ties two bearings together. Their absence is why
-      the connectivity report is bleaker than the build would be. An axle
-      through two bearings is a turning joint rather than a fixed one, so the
-      mobility formula has an opinion about it.
+- [x] the shafts are modelled. An axle goes through each line that carries
+      anything, long enough to reach past both bearings, and the rigidity check
+      counts the parts it threads — in a chain rather than every pair, since
+      five parts on one shaft are four constraints and not ten. Both examples
+      now report `M <= 0`, which was this milestone's acceptance.
+
+      This was the answer to why the bearings of one shaft could not be joined
+      by a beam, which is geometry and not a gap in the search: a bearing's hole
+      faces along its shaft and the two sit apart along that same direction, so
+      a pin between them would have to run down the shaft's own line. The shaft
+      IS what joins them.
 - [ ] wiring `internal/connect` in needs richer ports first. The A* search
       matches ports by position, but a port is a point in the catalog while the
       shadow library describes a segment: a pin's entry is a centered cylinder
@@ -109,6 +109,16 @@ search does — wiring it into the repair phase is the first item below.
 - [ ] feed rigidity back in as a hard constraint rather than a post-check
 
 Acceptance: synthesized structures report `M <= 0` from `rigidity.analyze`.
+Both examples do.
+
+One thing the shafts brought to light. A gear pair summing to 40 teeth sits 2.5
+studs apart, which is on the half-stud lattice and passes the center-distance
+check, but a beam's holes are a whole stud apart — so no beam can reach both
+shafts and the two halves of the box cannot be framed together without a
+half-stud offset. Choosing counts that sum to a multiple of 16 avoids it: 8+24,
+12+20 and 16+16 all make 32, two studs, and their driven gears are 24t, 20t and
+16t, every one of which has a driving-ring variant. That is what the example
+uses now, and it is a better gearbox than the one it replaced.
 
 ## M5 — shifting mechanisms
 
