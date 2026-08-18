@@ -904,7 +904,18 @@ func lineOf(l *Layout, shaft string) [6]float64 {
 // FreeIntervals are the stretches of a shaft with no gear on them: where the
 // bearings can go.
 func FreeIntervals(stations []Station, shaft string, reach float64) [][2]float64 {
-	var occ [][2]float64
+	return FreeIntervalsWith(stations, shaft, reach, nil)
+}
+
+// FreeIntervalsWith is FreeIntervals with more of the shaft already spoken for.
+//
+// A driving ring and the joiner it slides on take up shaft that carries no gear
+// at all, and nothing may be pinned through it: a joiner is 20 LDU across and a
+// beam's hole is 12, so a bearing there is not a tight fit but an impossibility.
+func FreeIntervalsWith(stations []Station, shaft string, reach float64,
+	taken [][2]float64) [][2]float64 {
+
+	occ := append([][2]float64(nil), taken...)
 	for _, s := range stations {
 		if s.Shaft != shaft {
 			continue

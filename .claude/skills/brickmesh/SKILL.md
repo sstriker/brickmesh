@@ -36,15 +36,15 @@ Do not ask about tooth counts. Choosing them is the work.
 
 Say this plainly rather than producing something that looks close.
 
-- **The shift linkage is not placed.** The driving rings are, and the clutch
-  gear they lock to where the library has one — but nothing that *moves* a
-  ring: no changeover catch, no shift gate, and not even the ridged axle joiner
-  the ring is splined to. This is a limit of what can be checked rather than an
-  oversight. Those are fits, parts meant to be inside one another, and the
-  interference sweep that settles whether gears mesh cannot settle a fit: in
-  LDraw everything is nominal size, so a spline that grips reads as a spline
-  that collides. Measured both ways, in `docs/shifting.md`. Tell the builder
-  which parts to add; the numbers are below.
+- **Nothing that moves a ring is placed.** The rings are, the clutch gear they
+  lock to where the library has one, and the ridged axle joiner each ring
+  slides on — a shaft carrying a ring comes out as two axles butted inside the
+  joiner. What is missing is the changeover catch and the shift gate. That is a
+  limit of what can be checked rather than an oversight: the catch's hold on
+  the ring is a fit, and the interference sweep that settles whether gears mesh
+  cannot settle a fit, because in LDraw everything is nominal size and a spline
+  that grips reads as a spline that collides. Measured, in `docs/shifting.md`.
+  Tell the builder which parts to add; the numbers are below.
 - **A clutch gear only in 16t.** Careful with the word, it means two things.
   The engage/disengage kind is placed: a shifted 16t station comes out as 6542a
   rather than the plain 4019. There is no 20t or 24t equivalent in the library —

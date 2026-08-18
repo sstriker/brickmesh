@@ -46,3 +46,21 @@ const (
 
 // Travel is how far the ring slides between engaged and disengaged.
 const Travel = Clear - Engaged
+
+// Joiner is what a driving ring is actually splined to.
+//
+// A ring cannot grip a plain axle: its bore is ridged, and the shadow library
+// pairs it with an axle joiner through the group "drivingRing1" — 6538a and
+// 6538b for this ring, 18948 for the 3L ring of the newer system. So a shaft
+// carrying a ring is not one axle but two, butted inside the joiner.
+const Joiner = "6538a.dat"
+
+const (
+	// JoinerHalf is half the joiner's length, in half studs. It runs four half
+	// studs along the shaft, the same as the ring that slides on it.
+	JoinerHalf = 2.0
+	// JoinerReach is how far an axle goes into each end of it, in half studs.
+	// The two holes are capped in the middle, so an axle from either side stops
+	// at the center and they meet there rather than passing.
+	JoinerReach = 2.0
+)

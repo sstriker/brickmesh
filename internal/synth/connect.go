@@ -87,6 +87,12 @@ func (s *Searcher) bridgeBetween(chosen []Placed, a, b []int) (*Placed, error) {
 		if err != nil {
 			return nil, err
 		}
+		// A bridge bears nothing, so it is free to run anywhere — including
+		// straight through a driving ring, which is why it is asked the same
+		// question a bearing is.
+		if s.reserves(cells) {
+			continue
+		}
 		shared := 0
 		for _, c := range cells {
 			if occupied[c] {
@@ -111,6 +117,19 @@ func (s *Searcher) bridgeBetween(chosen []Placed, a, b []int) (*Placed, error) {
 		return &out, nil
 	}
 	return nil, nil
+}
+
+// reserves reports whether any of these cells is space a turning part has.
+func (s *Searcher) reserves(cells []geom.Cell) bool {
+	if len(s.Reserved) == 0 {
+		return false
+	}
+	for _, c := range cells {
+		if s.Reserved[c] {
+			return true
+		}
+	}
+	return false
 }
 
 // hole is a port with the direction it faces, which is what decides whether a
@@ -302,4 +321,9 @@ func spansBoth(r geom.Mat3, origin geom.Vec3, offsets []geom.Vec3, ha, hb geom.V
 		}
 	}
 	return reachesA && reachesB
+}
+
+// AbsoluteCells is absoluteCells, for tests in other packages.
+func (s *Searcher) AbsoluteCells(p Placed) ([]geom.Cell, error) {
+	return s.absoluteCells(p)
 }

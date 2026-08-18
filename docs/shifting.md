@@ -25,6 +25,12 @@ ridged axle joiner (6538a, 6538b for the first system; 18948 for the 3L ring of
 the second), and a changeover catch (6641) mounts on a control axle through one
 of its two holes. Those are fits: the parts are meant to be inside one another.
 
+The joiner *is* placed, because where it goes follows from the ring and not
+from the fit: a shaft carrying a ring is cut there, and an axle butts into each
+end against the stop in the middle. What cannot be checked is the grip itself,
+and the run says as much. The catch is a different matter — nothing fixes where
+it goes but the joint that cannot be measured.
+
 The interference sweep, which settles whether two gears mesh and whether a ring
 clears its gear, cannot settle a fit. In LDraw everything is modelled at nominal
 size, so a spline that grips reads as a spline that collides. Measured:
@@ -35,8 +41,18 @@ size, so a spline that grips reads as a spline that collides. Measured:
 - The ring on its own axle joiner is blocked at every rotation and every slide
   position, which is exactly what a spline should be.
 
-So the shift linkage would have to be placed from the snap data and reported as
-placed rather than verified. The engine names the parts instead, and says so.
+So the catch would have to be placed from the snap data and reported as placed
+rather than verified. The engine names it instead, and says so.
+
+What the sweep *can* settle is everything around the fit. A joiner is 20 LDU
+across and a beam's hole is 12, so a joiner where a bearing is cannot be built
+at all. Every ring and every joiner is turned a full revolution against the
+structure before the model is written, and the search is kept out of the space
+they sweep. Two provisos, both learned the hard way: the voxel grid marks every
+cell a part so much as touches, so the reservation is eroded by a cell or a
+bearing resting against the ring is thrown away; and the triangle test counts
+two coplanar faces as intersecting, so parts whose boxes share less than an LDU
+are touching rather than overlapping and are left alone.
 
 ## What decides
 

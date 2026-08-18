@@ -41,6 +41,14 @@ type Requirement struct {
 func BearingRequirements(l *layout.Layout, stations []layout.Station,
 	perShaft int, reach float64) []Requirement {
 
+	return BearingRequirementsWith(l, stations, perShaft, reach, nil)
+}
+
+// BearingRequirementsWith is BearingRequirements told what else is on the
+// shafts, keyed by shaft, in half studs.
+func BearingRequirementsWith(l *layout.Layout, stations []layout.Station,
+	perShaft int, reach float64, taken map[string][][2]float64) []Requirement {
+
 	if perShaft <= 0 {
 		perShaft = 2
 	}
@@ -57,7 +65,8 @@ func BearingRequirements(l *layout.Layout, stations []layout.Station,
 	var reqs []Requirement
 	for _, id := range shafts {
 		pl := l.Place[id]
-		points := latticePointsAlong(pl, layout.FreeIntervals(stations, id, reach))
+		points := latticePointsAlong(pl,
+			layout.FreeIntervalsWith(stations, id, reach, taken[id]))
 		if len(points) < perShaft {
 			continue
 		}
@@ -115,6 +124,16 @@ type Searcher struct {
 	Rast      *voxel.Rasterizer
 	Axes      AxisSource
 	Inventory []Beam
+	// Taken is shaft already spoken for by something that is not a gear — a
+	// driving ring and the joiner under it — in half studs, keyed by shaft.
+	// Nothing may be pinned through it.
+	Taken map[string][][2]float64
+	// Reserved is space no beam may enter at all, however little of it.
+	//
+	// Unlike the ordinary overlap rule this admits no contact fraction: the
+	// parts that live here turn, and a beam that shares a cell with a turning
+	// part is not touching it, it is inside it.
+	Reserved map[geom.Cell]bool
 
 	counts map[string]int
 	rots   map[string][]int
@@ -204,6 +223,16 @@ type candidate struct {
 	volume float64
 }
 
+// entersReserved reports whether a candidate would put material where a turning
+// part already is.
+//
+// No contact fraction here, unlike the ordinary overlap rule. A beam that
+// shares a cell with a driving ring is not resting against it: the ring turns,
+// and the beam is inside it.
+func (s *Searcher) entersReserved(c *candidate) bool {
+	return s.reserves(c.cells)
+}
+
 // Solution is one structure that bears every shaft.
 type Solution struct {
 	Parts     []Placed
@@ -244,7 +273,7 @@ func (s *Searcher) Synthesize(l *layout.Layout, stations []layout.Station,
 		opts.Workers = runtime.NumCPU()
 	}
 
-	reqs := BearingRequirements(l, stations, 2, 8)
+	reqs := BearingRequirementsWith(l, stations, 2, 8, s.Taken)
 	if len(reqs) == 0 {
 		return nil, nil
 	}
@@ -293,7 +322,7 @@ func (s *Searcher) buildPool(reqs []Requirement) ([]*candidate, error) {
 				c.covers = append(c.covers, i)
 			}
 		}
-		if len(c.covers) > 0 {
+		if len(c.covers) > 0 && !s.entersReserved(c) {
 			pool = append(pool, c)
 		}
 	}

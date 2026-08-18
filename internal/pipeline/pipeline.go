@@ -128,7 +128,7 @@ type axlePlacement struct {
 	rot    geom.Mat3
 	center geom.Vec3
 	shaft  string
-	axle   rigidity.Axle
+	label  string
 }
 
 // Failed reports whether any finding is fatal.
@@ -176,12 +176,12 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 	res.Stations = stations
 	res.Findings = append(res.Findings, stationFindings...)
 
+	// Where the rings go decides where the shafts are cut, so it is settled
+	// before the axles rather than when the model is drawn.
+	res.ringSites = ringSites(m, res)
 	// Worked out before the structural search, because the rigidity check needs
 	// to know the shafts are there: they are what ties the bearings together.
 	res.axles = computeAxles(m, res)
-	for _, a := range res.axles {
-		res.Axles = append(res.Axles, a.axle)
-	}
 
 	if !opts.SkipStructure {
 		if err := runStructure(res, deps, opts); err != nil {
@@ -195,6 +195,7 @@ func Run(m *mech.Mechanism, deps Deps, opts Options) (*Result, error) {
 	}
 	res.Model = model
 	applyPhase(m, res, deps)
+	checkTurningClearance(res, deps)
 	if opts.Animate {
 		animate(m, res, opts)
 	}
@@ -206,6 +207,8 @@ func runStructure(res *Result, deps Deps, opts Options) error {
 		return fmt.Errorf("the structural search needs both libraries")
 	}
 	searcher := synth.NewSearcher(deps.Rast, deps.Shadow, opts.Inventory)
+	searcher.Taken = ringSpans(res)
+	searcher.Reserved = ringCells(res, deps)
 	solutions, err := searcher.Synthesize(res.Layout, res.Stations, synth.Options{
 		Restarts: opts.Restarts, Seed: opts.Seed,
 	})
@@ -259,8 +262,7 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 		return stations[i].Axial < stations[j].Axial
 	})
 
-	sites := ringSites(m, res)
-	res.ringSites = sites
+	sites := res.ringSites
 	for _, st := range stations {
 		name, ok := gearAt(st, sites)
 		if !ok {
@@ -294,7 +296,7 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 	placeDrivingRings(res, model, sites)
 	for _, a := range res.axles {
 		model.Add(a.name, ldr.ColorBlack, a.rot, a.center,
-			fmt.Sprintf("axle %d for shaft '%s'", a.studs, a.shaft))
+			a.label)
 	}
 
 	if res.Structure != nil {
@@ -414,11 +416,11 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
 			"%d driving ring(s) placed, each three half studs from its gear's "+
 				"center so its dogs sit in the recesses. What moves them is not "+
-				"placed: %v, and neither is the ridged axle joiner (6538a) a ring is "+
-				"splined to. Those are fits, and the sweep that settles whether gears "+
-				"mesh cannot settle a fit: in LDraw a spline that grips reads as a "+
-				"spline that collides. See docs/shifting.md. Two rings beside the "+
-				"same gear could be one ring engaging either side.",
+				"placed: %v. The catch's hold on a ring is a fit, and the sweep that "+
+				"settles whether gears mesh cannot settle a fit: in LDraw a spline "+
+				"that grips reads as a spline that collides. See docs/shifting.md. "+
+				"Two rings beside the same gear could be one ring engaging either "+
+				"side.",
 			len(sites), SelectorParts)})
 
 	if len(nominal) > 0 {
@@ -527,6 +529,15 @@ func computeAxles(m *mech.Mechanism, res *Result) []axlePlacement {
 			note(id, 0)
 		}
 	}
+	// A ring and the joiner under it stand past the last gear, and the shaft
+	// has to run under them: without this the line stops at the gears and the
+	// length left for the axle beyond the last joiner comes out negative.
+	for shaft, spans := range ringSpans(res) {
+		for _, sp := range spans {
+			note(shaft, sp[0])
+			note(shaft, sp[1])
+		}
+	}
 	// The bearings are the far ends of what the shaft has to reach.
 	for _, r := range synth.BearingRequirements(res.Layout, res.Stations, 2, 8) {
 		place, ok := res.Layout.Place[r.Shaft]
@@ -546,30 +557,347 @@ func computeAxles(m *mech.Mechanism, res *Result) []axlePlacement {
 	for _, k := range keys {
 		l := lines[k]
 		// Reach a stud past each end so it runs right through the bearings.
-		spanLDU := (l.hi-l.lo)*synth.HalfStud + 2*geom.Stud
-		studs, name, ok := axleFor(spanLDU)
-		if !ok {
-			res.Findings = append(res.Findings, mech.Finding{
-				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
-					"shaft '%s' needs %.0f LDU of axle, longer than any single one; "+
-						"join two", l.shaft, spanLDU)})
-			continue
-		}
+		lo := l.lo*synth.HalfStud - geom.Stud
+		hi := l.hi*synth.HalfStud + geom.Stud
 		rot, ok := alignXTo(l.place.Direction)
 		if !ok {
 			continue
 		}
-		mid := (l.lo + l.hi) / 2 * synth.HalfStud
-		center := l.place.Point.Scale(synth.HalfStud).Add(l.place.Direction.Scale(mid))
-		half := float64(studs) * geom.Stud / 2
-		axles = append(axles, axlePlacement{
-			name: name, studs: studs, rot: rot, center: center, shaft: l.shaft,
-			axle: rigidity.Axle{
-				Point: center, Dir: l.place.Direction, From: -half, To: half,
-			},
+		origin := l.place.Point.Scale(synth.HalfStud)
+		at := func(d float64) geom.Vec3 { return origin.Add(l.place.Direction.Scale(d)) }
+
+		// A shaft carrying a driving ring is cut where the ring rides: the ring
+		// is splined to a joiner, not to the axle, and two axles butt inside it.
+		joiners := joinersOn(res, l.place)
+		for _, j := range joiners {
+			jrot, ok := alignZTo(l.place.Direction)
+			if !ok {
+				continue
+			}
+			axles = append(axles, axlePlacement{
+				name: clutch.Joiner, studs: 2, rot: jrot, center: at(j),
+				shaft: l.shaft,
+				label: fmt.Sprintf("joiner for shaft '%s', the ring rides on this",
+					l.shaft),
+			})
+		}
+
+		for _, seg := range shaftSegments(lo, hi, joiners) {
+			studs, name, ok := seg.axle()
+			if !ok {
+				res.Findings = append(res.Findings, mech.Finding{
+					Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+						"shaft '%s' needs a length between %.0f and %.0f LDU, which no "+
+							"single axle gives; join two", l.shaft, seg.min, seg.max)})
+				continue
+			}
+			length := float64(studs) * geom.Stud
+			center := seg.centerFor(length)
+			axles = append(axles, axlePlacement{
+				name: name, studs: studs, rot: rot, center: at(center),
+				shaft: l.shaft,
+				label: fmt.Sprintf("axle %d for shaft '%s'", studs, l.shaft),
+			})
+		}
+
+		// One shaft as far as the structure is concerned, however many parts
+		// draw it: a joiner joins, so the bearings at either end are still tied
+		// together by it.
+		mid := (lo + hi) / 2
+		res.Axles = append(res.Axles, rigidity.Axle{
+			Point: at(mid), Dir: l.place.Direction,
+			From: -(hi - lo) / 2, To: (hi - lo) / 2,
 		})
 	}
 	return axles
+}
+
+// ringCells is the space a driving ring and its joiner occupy, as voxels.
+//
+// A beam may not enter it at all. Keeping bearings off that length of shaft is
+// not enough on its own: a beam bridging two lines can cross a shaft anywhere
+// along it, bearing nothing, and land in the middle of a ring.
+//
+// The cells come from the same rasteriser the candidates do, and are shifted
+// the same way. That matters more than it sounds: a cylinder worked out by hand
+// rounds differently at its edges, and a bearing whose face meets the end of
+// the ring's travel — which is exactly right — comes out sharing a cell with it
+// and is thrown away.
+func ringCells(res *Result, deps Deps) map[geom.Cell]bool {
+	if len(res.ringSites) == 0 || deps.Rast == nil {
+		return nil
+	}
+	out := map[geom.Cell]bool{}
+	for _, site := range res.ringSites {
+		place, ok := res.Layout.Place[site.station.Shaft]
+		if !ok {
+			continue
+		}
+		rot, ok := rotationIndex(alignZTo(place.Direction))
+		if !ok {
+			continue
+		}
+		origin := place.Point.Scale(synth.HalfStud)
+		at := func(halfStuds float64) geom.Vec3 {
+			return origin.Add(place.Direction.Scale(halfStuds * synth.HalfStud))
+		}
+		mid := (site.engaged + site.disengaged) / 2
+
+		one := map[geom.Cell]bool{}
+		// Both ends of the travel and the middle, which is the whole of the
+		// space the ring passes through on a shift.
+		for _, p := range []geom.Vec3{at(site.engaged), at(mid), at(site.disengaged)} {
+			markCells(one, deps, DrivingRing, rot, p)
+		}
+		markCells(one, deps, clutch.Joiner, rot, at(mid))
+
+		for c := range erode(fill(one, across(place.Direction))) {
+			out[c] = true
+		}
+	}
+	return out
+}
+
+// markCells adds a part's voxels, placed, to a set.
+//
+// Shifted by rounding rather than flooring: this is how the searcher shifts a
+// candidate's cells, and the two have to agree or the reservation lands a cell
+// away from the part it is meant to protect.
+func markCells(into map[geom.Cell]bool, deps Deps, part string, rot int,
+	at geom.Vec3) {
+
+	cells, err := deps.Rast.Voxels(part, rot)
+	if err != nil {
+		return
+	}
+	shift := geom.Cell{
+		X: int32(math.Round(at.X / geom.VoxelPitch)),
+		Y: int32(math.Round(at.Y / geom.VoxelPitch)),
+		Z: int32(math.Round(at.Z / geom.VoxelPitch)),
+	}
+	for _, c := range cells {
+		into[c.Add(shift)] = true
+	}
+}
+
+// across picks an axis to fill along: any one but the shaft's own, since
+// filling along the shaft would close the gaps between the rings rather than
+// the bore through them.
+func across(dir geom.Vec3) int {
+	if math.Abs(dir.X) < 0.5 {
+		return 0
+	}
+	return 2
+}
+
+// fill closes the bore.
+//
+// The rasteriser marks material, and a driving ring is a tube: what comes back
+// is a shell with a hole down the middle. Eroding that leaves almost nothing.
+// Nothing may pass down the bore either — that is where the shaft is — so the
+// volume to reserve is the solid rod and not the plastic.
+//
+// Filled a row at a time rather than out to the bounding box, so a round part
+// stays round and a beam may still pass the corner it does not occupy.
+func fill(cells map[geom.Cell]bool, axis int) map[geom.Cell]bool {
+	type row struct{ a, b int32 }
+	along := func(c geom.Cell) (row, int32) {
+		switch axis {
+		case 0:
+			return row{c.Y, c.Z}, c.X
+		case 1:
+			return row{c.X, c.Z}, c.Y
+		default:
+			return row{c.X, c.Y}, c.Z
+		}
+	}
+	rebuild := func(k row, v int32) geom.Cell {
+		switch axis {
+		case 0:
+			return geom.Cell{X: v, Y: k.a, Z: k.b}
+		case 1:
+			return geom.Cell{X: k.a, Y: v, Z: k.b}
+		default:
+			return geom.Cell{X: k.a, Y: k.b, Z: v}
+		}
+	}
+
+	lo, hi := map[row]int32{}, map[row]int32{}
+	for c := range cells {
+		k, v := along(c)
+		if got, ok := lo[k]; !ok || v < got {
+			lo[k] = v
+		}
+		if got, ok := hi[k]; !ok || v > got {
+			hi[k] = v
+		}
+	}
+	out := make(map[geom.Cell]bool, len(cells))
+	for k, from := range lo {
+		for v := from; v <= hi[k]; v++ {
+			out[rebuild(k, v)] = true
+		}
+	}
+	return out
+}
+
+// erode drops the outermost cell of a reserved volume.
+//
+// The rasteriser marks every cell a part so much as touches, so two parts laid
+// face to face share a cell-thick skin without overlapping at all. That is why
+// the ordinary overlap rule tolerates contact. A reservation admits none, so it
+// has to be the interior: a beam resting against the end of a ring's travel is
+// right, and only one that reaches past the skin is inside it.
+func erode(cells map[geom.Cell]bool) map[geom.Cell]bool {
+	out := make(map[geom.Cell]bool, len(cells))
+	for c := range cells {
+		inside := true
+		for _, n := range [6]geom.Cell{
+			{X: c.X + 1, Y: c.Y, Z: c.Z}, {X: c.X - 1, Y: c.Y, Z: c.Z},
+			{X: c.X, Y: c.Y + 1, Z: c.Z}, {X: c.X, Y: c.Y - 1, Z: c.Z},
+			{X: c.X, Y: c.Y, Z: c.Z + 1}, {X: c.X, Y: c.Y, Z: c.Z - 1},
+		} {
+			if !cells[n] {
+				inside = false
+				break
+			}
+		}
+		if inside {
+			out[c] = true
+		}
+	}
+	return out
+}
+
+// rotationIndex finds a lattice rotation by its matrix, which is what the
+// rasteriser is keyed on.
+func rotationIndex(m geom.Mat3, ok bool) (int, bool) {
+	if !ok {
+		return 0, false
+	}
+	for i, r := range geom.Rotations {
+		if r == m {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// bearingHalf is half a beam's thickness, in half studs.
+const bearingHalf = 1.0
+
+// ringSpans is the shaft each driving ring and its joiner take up, in half
+// studs, for every shaft on the same line.
+//
+// By line and not by shaft: two shafts coupled together are the same piece of
+// axle, so a ring on one of them blocks the other just as surely.
+func ringSpans(res *Result) map[string][][2]float64 {
+	if len(res.ringSites) == 0 {
+		return nil
+	}
+	out := map[string][][2]float64{}
+	for _, site := range res.ringSites {
+		place, ok := res.Layout.Place[site.station.Shaft]
+		if !ok {
+			continue
+		}
+		// Widened by a beam's own half thickness. A bearing is a point, but the
+		// beam that provides it is a stud thick, so one placed just outside the
+		// joiner still has material inside it.
+		lo := math.Min(site.engaged, site.disengaged) - clutch.JoinerHalf - bearingHalf
+		hi := math.Max(site.engaged, site.disengaged) + clutch.JoinerHalf + bearingHalf
+		for id, p := range res.Layout.Place {
+			if p.Key() == place.Key() {
+				out[id] = append(out[id], [2]float64{lo, hi})
+			}
+		}
+	}
+	return out
+}
+
+// joinersOn is where a line is cut, in LDU along it, in order.
+//
+// The joiner is centered on the middle of the ring's travel rather than on
+// either end of it, so the ring stays as far onto it as it can in both
+// positions.
+func joinersOn(res *Result, place layout.Placement) []float64 {
+	var out []float64
+	for _, site := range res.ringSites {
+		p, ok := res.Layout.Place[site.station.Shaft]
+		if !ok || p.Key() != place.Key() {
+			continue
+		}
+		out = append(out, (site.engaged+site.disengaged)/2*synth.HalfStud)
+	}
+	sort.Float64s(out)
+	return out
+}
+
+// segment is a length of shaft between two fixed points, and how much of it an
+// axle is allowed to take up.
+//
+// The bounds are what make a cut shaft work. An axle butting into a joiner has
+// to reach its middle stop without trying to pass it, so its end has to land
+// inside the joiner's near half. That gives a window a stud wide at each cut,
+// which is exactly the step between axle lengths — so a length always fits.
+type segment struct {
+	min, max float64
+	// outer, when set, pins the far end: an axle that has to reach a bearing
+	// cannot be centered on its gap.
+	outer   float64
+	pinned  bool
+	towards float64 // +1 if the axle runs up from outer, -1 if down
+}
+
+func shaftSegments(lo, hi float64, joiners []float64) []segment {
+	if len(joiners) == 0 {
+		span := hi - lo
+		return []segment{{min: span, max: math.Inf(1), outer: (lo + hi) / 2}}
+	}
+	reach := clutch.JoinerReach * synth.HalfStud
+
+	var out []segment
+	first := joiners[0]
+	out = append(out, segment{
+		min: first - reach - lo, max: first - lo,
+		outer: lo, pinned: true, towards: 1,
+	})
+	for i := 1; i < len(joiners); i++ {
+		gap := joiners[i] - joiners[i-1]
+		out = append(out, segment{
+			min: gap - 2*reach, max: gap,
+			outer: (joiners[i-1] + joiners[i]) / 2,
+		})
+	}
+	last := joiners[len(joiners)-1]
+	out = append(out, segment{
+		min: hi - last - reach, max: hi - last,
+		outer: hi, pinned: true, towards: -1,
+	})
+	return out
+}
+
+// axle is the longest one that fits the window, since a shaft should reach as
+// far into its joiner as it can.
+func (s segment) axle() (int, string, bool) {
+	if math.IsInf(s.max, 1) {
+		return axleFor(s.min) // no cut: the shortest that spans it
+	}
+	for i := len(axleLengths) - 1; i >= 0; i-- {
+		length := float64(axleLengths[i]) * geom.Stud
+		if length <= s.max+1e-6 && length >= s.min-1e-6 {
+			return axleLengths[i], AxleParts[axleLengths[i]], true
+		}
+	}
+	return 0, "", false
+}
+
+// centerFor places an axle of a given length within its segment.
+func (s segment) centerFor(length float64) float64 {
+	if !s.pinned {
+		return s.outer
+	}
+	return s.outer + s.towards*length/2
 }
 
 // axleFor is the shortest axle that spans a length in LDU.
