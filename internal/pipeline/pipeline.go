@@ -242,6 +242,42 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	return res, nil
 }
 
+// firstThatFits takes the best solution whose own parts do not overlap.
+//
+// Beams only: everything else is placed elsewhere and checked as a whole
+// afterwards. This is about the one thing the covering search can get wrong on
+// its own, which is putting two of its own parts in the same place. It works on
+// a voxel lattice that has to tolerate parts touching, and that tolerance is
+// enough to let two beams share a few LDU. The search proposes; the geometry
+// disposes.
+func firstThatFits(ctx context.Context, solutions []synth.Solution,
+	deps Deps) (*synth.Solution, int) {
+
+	for i := range solutions {
+		if !overlapping(ctx, solutions[i].Parts, deps) {
+			return &solutions[i], i
+		}
+	}
+	return nil, len(solutions)
+}
+
+func overlapping(ctx context.Context, parts []synth.Placed, deps Deps) bool {
+	for a := 0; a < len(parts); a++ {
+		for b := a + 1; b < len(parts); b++ {
+			inside, _, err := sharesSpace(ctx, deps, lattice(parts[a]), lattice(parts[b]))
+			if err == nil && inside {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// lattice turns a placed beam into the shape the clearance check works on.
+func lattice(p synth.Placed) ldr.Part {
+	return ldr.Part{Name: p.Part, Rot: geom.Rotations[p.Rot], Pos: p.Origin}
+}
+
 func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) error {
 	if deps.Rast == nil || deps.Shadow == nil {
 		return fmt.Errorf("the structural search needs both libraries")
@@ -265,7 +301,26 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 		})
 		return nil
 	}
-	res.Structure = &solutions[0]
+	// The search works on a voxel lattice, which has to tolerate parts touching
+	// — the rasteriser marks every cell a part so much as brushes — and that
+	// tolerance lets two beams overlap by a little. So the candidates are put
+	// to the exact question before one is taken. The search proposes; the
+	// geometry disposes.
+	chosen, rejected := firstThatFits(ctx, solutions, deps)
+	if chosen == nil {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "WARN", Check: "structure", Detail: fmt.Sprintf(
+				"every one of the %d structures found has parts inside each other; "+
+					"the gears are placed but nothing holds them", len(solutions))})
+		return nil
+	}
+	if rejected > 0 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "OK", Check: "structure", Detail: fmt.Sprintf(
+				"%d structure(s) rejected for parts overlapping before this one",
+				rejected)})
+	}
+	res.Structure = chosen
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: "OK", Check: "structure",
 		Detail: fmt.Sprintf("%d parts bear the shafts, %.1f cubic studs",
@@ -943,13 +998,21 @@ type joinerAt struct {
 	system clutch.System
 }
 
-// segment is a length of shaft between two fixed points, and how much of it an
-// axle is allowed to take up.
+// segment is a length of shaft between two fixed points, and what length of
+// axle can take it up.
 //
 // The bounds are what make a cut shaft work. An axle butting into a joiner has
 // to reach its middle stop without trying to pass it, so its end has to land
-// inside the joiner's near half. That gives a window a stud wide at each cut,
-// which is exactly the step between axle lengths — so a length always fits.
+// inside the joiner's near half.
+//
+// The two kinds of segment want opposite things of that. A stretch between two
+// joiners is bounded at both ends and takes the longest axle that fits between
+// them. A stretch running out to the end of the shaft is bounded only at the
+// joiner: it takes the shortest axle that reaches, seated hard against the
+// stop, and if that leaves it standing a little proud of the last bearing then
+// it stands proud, which is ordinary. Requiring it to end exactly at the far
+// end was what made a shaft needing "between 270 and 290 LDU" impossible —
+// axles come in 240 and 320 and nothing between.
 type segment struct {
 	min, max float64
 	// outer, when set, pins the far end: an axle that has to reach a bearing
@@ -957,6 +1020,9 @@ type segment struct {
 	outer   float64
 	pinned  bool
 	towards float64 // +1 if the axle runs up from outer, -1 if down
+	// inner is where the axle's far end seats, when pinned: the stop in the
+	// joiner it butts into.
+	inner float64
 }
 
 func shaftSegments(lo, hi float64, joiners []joinerAt) []segment {
@@ -969,8 +1035,8 @@ func shaftSegments(lo, hi float64, joiners []joinerAt) []segment {
 	var out []segment
 	first := joiners[0]
 	out = append(out, segment{
-		min: first.center - reach(first) - lo, max: first.center - lo,
-		outer: lo, pinned: true, towards: 1,
+		min: first.center - lo, max: math.Inf(1),
+		outer: lo, pinned: true, towards: 1, inner: first.center,
 	})
 	for i := 1; i < len(joiners); i++ {
 		a, b := joiners[i-1], joiners[i]
@@ -982,17 +1048,20 @@ func shaftSegments(lo, hi float64, joiners []joinerAt) []segment {
 	}
 	last := joiners[len(joiners)-1]
 	out = append(out, segment{
-		min: hi - last.center - reach(last), max: hi - last.center,
-		outer: hi, pinned: true, towards: -1,
+		min: hi - last.center, max: math.Inf(1),
+		outer: hi, pinned: true, towards: -1, inner: last.center,
 	})
+	_ = reach
 	return out
 }
 
-// axle is the longest one that fits the window, since a shaft should reach as
-// far into its joiner as it can.
+// axle picks the length for a segment.
+//
+// Bounded at both ends: the longest that fits, so it reaches as far into each
+// joiner as it can. Bounded at one: the shortest that reaches.
 func (s segment) axle() (int, string, bool) {
 	if math.IsInf(s.max, 1) {
-		return axleFor(s.min) // no cut: the shortest that spans it
+		return axleFor(s.min)
 	}
 	for i := len(axleLengths) - 1; i >= 0; i-- {
 		length := float64(axleLengths[i]) * geom.Stud
@@ -1004,11 +1073,14 @@ func (s segment) axle() (int, string, bool) {
 }
 
 // centerFor places an axle of a given length within its segment.
+//
+// Seated against the stop in its joiner, when there is one, rather than aligned
+// with the far end: the end that has to be right is the one inside the joiner.
 func (s segment) centerFor(length float64) float64 {
 	if !s.pinned {
 		return s.outer
 	}
-	return s.outer + s.towards*length/2
+	return s.inner - s.towards*length/2
 }
 
 // axleFor is the shortest axle that spans a length in LDU.

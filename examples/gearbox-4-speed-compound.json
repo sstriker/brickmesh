@@ -1,0 +1,113 @@
+{
+  "name": "4-speed compound gearbox",
+  "note": "Two shifting stages in series. One pair of shafts can only give two shifted ratios -- every pair on it sums to the same tooth count, and only 16t and 20t come as clutch gears -- so four speeds means two stages. The stages are set two studs and two and a half studs apart so their ratios differ: 0.60 and 1.00 against 1.50 and 1.00, which multiply out to four distinct speeds rather than three.",
+  "states": [
+    "1st",
+    "2nd",
+    "3rd",
+    "4th"
+  ],
+  "shafts": [
+    {
+      "id": "input",
+      "bearings": 2
+    },
+    {
+      "id": "mid",
+      "bearings": 2
+    },
+    {
+      "id": "output",
+      "bearings": 2
+    },
+    {
+      "id": "s1low",
+      "bearings": 2
+    },
+    {
+      "id": "s1high",
+      "bearings": 2
+    },
+    {
+      "id": "s2low",
+      "bearings": 2
+    },
+    {
+      "id": "s2high",
+      "bearings": 2
+    }
+  ],
+  "meshes": [
+    {
+      "a": "input",
+      "b": "s1low",
+      "teeth_a": 12,
+      "teeth_b": 20
+    },
+    {
+      "a": "input",
+      "b": "s1high",
+      "teeth_a": 16,
+      "teeth_b": 16
+    },
+    {
+      "a": "mid",
+      "b": "s2low",
+      "teeth_a": 24,
+      "teeth_b": 16
+    },
+    {
+      "a": "mid",
+      "b": "s2high",
+      "teeth_a": 20,
+      "teeth_b": 20
+    }
+  ],
+  "couplings": [
+    {
+      "a": "mid",
+      "b": "s1low",
+      "name": "stage 1 ring, low",
+      "states": [
+        "1st",
+        "2nd"
+      ]
+    },
+    {
+      "a": "mid",
+      "b": "s1high",
+      "name": "stage 1 ring, high",
+      "states": [
+        "3rd",
+        "4th"
+      ]
+    },
+    {
+      "a": "output",
+      "b": "s2high",
+      "name": "stage 2 ring, low",
+      "states": [
+        "1st",
+        "3rd"
+      ]
+    },
+    {
+      "a": "output",
+      "b": "s2low",
+      "name": "stage 2 ring, high",
+      "states": [
+        "2nd",
+        "4th"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "shaft": "input",
+      "speed": 1.0
+    }
+  ],
+  "outputs": [
+    "output"
+  ]
+}

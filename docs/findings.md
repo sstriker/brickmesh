@@ -246,7 +246,21 @@ Two ratios at two studs, two at two and a half, one at one and a half. Never
 three.
 
 Which is why real gearboxes with more speeds compound: two stages of two in
-series give four, three give eight. The examples here are two-speed because that
-is what a single pair of shafts can do, and `examples/gearbox-2-speed.json`
-uses both driving-ring systems at once — the first for its 16t, the second for
-its 20t — because that is what the gears demand.
+series give four, three give eight. `examples/gearbox-2-speed.json` is what a
+single pair of shafts can do, and it uses both driving-ring systems at once —
+the first for its 16t, the second for its 20t — because that is what the gears
+demand.
+
+Compounding has a trap of its own. Two identical stages give
+0.6, 0.6, 1.0, 0.36: four combinations, three speeds, because the middle two
+coincide. The stages have to differ, and the way to make them differ is to set
+them different distances apart:
+
+| stage | centres | ratios |
+|---|---|---|
+| one | 2 studs | 12+20 = 0.60, 16+16 = 1.00 |
+| two | 2.5 studs | 24+16 = 1.50, 20+20 = 1.00 |
+
+which multiply out to 0.60, 0.90, 1.00 and 1.50 — four distinct speeds, and
+each gear a 16t or 20t so every one of them can be gripped.
+`examples/gearbox-4-speed-compound.json`.

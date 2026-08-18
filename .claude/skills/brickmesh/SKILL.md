@@ -51,7 +51,10 @@ Say this plainly rather than producing something that looks close.
   at all — the parts called "Gear 24 Tooth Clutch" are torque limiters with a
   slipping centre, and read like a plain gear to both driving rings. Ask for
   more speeds than two and the answer is to compound: two stages of two in
-  series give four. Worked through in `docs/findings.md`.
+  series give four, as `examples/gearbox-4-speed-compound.json` does. Watch the
+  trap there — two identical stages give four combinations but only three
+  speeds, because the middle two coincide. Set the stages different distances
+  apart so their ratios differ. Worked through in `docs/findings.md`.
 - **Clutch gears, both systems.** Careful with the word, it means two things.
   Both driving-ring systems are placed now, each with its own ring, ridged axle
   joiner and clutch gears: the first for a 16t, the second for a 16t or 20t. A

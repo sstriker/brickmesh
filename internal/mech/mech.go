@@ -392,13 +392,17 @@ func (m *Mechanism) checkDOFIn(state string) []Finding {
 // selector: it knows a coupling exists, not how you mean to work it. But if the
 // intent is a driving ring, these are the gears that cannot.
 func (m *Mechanism) CheckShiftable() []Finding {
+	// Only the side being gripped. A coupling's A rides the ring and its B is
+	// the gear the ring locks to, so a gear fixed to A needs no clutch of its
+	// own — it turns with the shaft whatever the ring is doing. Flagging both
+	// sides warned about the driving gears of the next stage in a compound
+	// gearbox, which are nobody's business.
 	shifted := map[string]bool{}
 	for _, l := range m.Links {
 		c, ok := l.(Coupling)
 		if !ok || len(c.States) == 0 {
 			continue // permanent couplings are not shifts
 		}
-		shifted[c.A] = true
 		shifted[c.B] = true
 	}
 	if len(shifted) == 0 {
