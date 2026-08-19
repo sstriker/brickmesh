@@ -93,15 +93,34 @@ func TestTheScriptHoldsExactlyTheUnreachableShafts(t *testing.T) {
 				filepath.Join("..", "..", "examples", name+".json"))
 			always := alwaysDriven(m)
 
+			// Every animation, not just the first. Whether a shaft is reached
+			// without a shift is a fact about the graph and not about the state,
+			// so all of them have to say the same thing — which is worth
+			// checking rather than assuming, since the flag is computed once and
+			// copied into each.
 			var held, turning []string
+			seen := map[string]bool{}
 			for _, ani := range res.Script.Animations {
 				for _, tg := range ani.Turning {
 					id := strings.TrimPrefix(tg.Group, "shaft_")
-					if tg.ThroughShift {
-						held = append(held, id)
-					} else {
-						turning = append(turning, id)
+					was, already := seen[id]
+					if already && was != tg.ThroughShift {
+						t.Errorf("%s holds in one state and turns in another; "+
+							"what a shift can reach does not depend on which "+
+							"state it is in", id)
 					}
+					// Whether the key is there, not what it holds: a shaft that
+					// turns maps to false, and testing the value listed it once
+					// per state.
+					if !already {
+						if tg.ThroughShift {
+							held = append(held, id)
+						} else {
+							turning = append(turning, id)
+						}
+					}
+					seen[id] = tg.ThroughShift
+
 					if tg.ThroughShift == always[id] {
 						t.Errorf("%s is %sreached with no shift engaged, and the "+
 							"script %s it", id,
@@ -109,7 +128,6 @@ func TestTheScriptHoldsExactlyTheUnreachableShafts(t *testing.T) {
 							map[bool]string{true: "holds", false: "turns"}[tg.ThroughShift])
 					}
 				}
-				break // every state agrees; one is enough
 			}
 			sort.Strings(held)
 			sort.Strings(turning)
