@@ -27,17 +27,48 @@ type Placed struct {
 	Origin geom.Vec3
 }
 
-// Beam is a load-bearing part and its hole count.
+// Beam is a part the structural search may place, and its hole count.
 type Beam struct {
 	Part  string
 	Holes int
+	// Corner marks a connector whose holes face more than one way.
+	//
+	// It can tie two members together at an angle, which is what closes a
+	// frame, but it may not bear a shaft. A connector is held by one pin at
+	// each end, so a shaft carried in one would be carried by something free to
+	// swing about that pin — which the turning check reports, and which is the
+	// answer rather than the question.
+	Corner bool
 }
 
 // Beams is the inventory the structural search draws from: the straight
-// liftarms, shortest first.
+// liftarms shortest first, and the connectors that turn a corner.
+//
+// The connectors are here because straight liftarms alone cannot close a frame.
+// A shaft passes through a bearing, so the bearing's holes face along the
+// shaft; every hole of a straight liftarm faces the same way, so it lies across
+// the shaft with all its holes at one point along it; and a pin joins two holes
+// only if they lie on one line within two studs. A liftarm therefore reaches
+// one bearing wall or the other and never both, whatever its length. Two walls
+// on a shaft line could counter-rotate about it and nothing in the inventory
+// could stop them.
+//
+// 6536 is what stops them: a cross hole on one axis and a round hole on
+// another, so an axle keys it to the wall and a pin ties it to a member running
+// between the walls. It was not addable until holes stopped sharing one axis
+// per part — see WorldPorts — and its own shadow file declares one of its two
+// holes, so it was not readable until ports started following the primitives a
+// part places.
+//
+// Holes is descriptive only. Nothing reads it to place a part; reach is
+// measured from the holes themselves.
 var Beams = []Beam{
-	{"32523.dat", 3}, {"32316.dat", 5}, {"32524.dat", 7},
-	{"40490.dat", 9}, {"32525.dat", 11}, {"41239.dat", 13},
+	{Part: "32523.dat", Holes: 3}, {Part: "32316.dat", Holes: 5},
+	{Part: "32524.dat", Holes: 7}, {Part: "40490.dat", Holes: 9},
+	{Part: "32525.dat", Holes: 11}, {Part: "41239.dat", Holes: 13},
+	{Part: "6536.dat", Holes: 2, Corner: true},  // axle and pin connector perpendicular
+	{Part: "32013.dat", Holes: 3, Corner: true}, // angle connector #1
+	{Part: "32034.dat", Holes: 5, Corner: true}, // angle connector #2
 }
 
 // HoleCounts indexes an inventory by part.

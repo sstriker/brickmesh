@@ -134,24 +134,21 @@ func TestEveryExampleHoldsTogetherAndDoesNotHinge(t *testing.T) {
 				}
 				switch f.Check {
 				case "rigidity":
-					// Two of the examples are a shaft line with a bearing wall
-					// at each end and nothing else to tie the walls together.
-					// Nothing in the inventory can: every hole of a straight
-					// liftarm faces one way, so a liftarm reaches one wall or
-					// the other and never both. That is proved, with a control,
-					// by TestNoStraightBeamTiesTwoWallsOnAShaftLine in synth.
+					// Nothing is allowed to hinge.
 					//
-					// This used to pass, and it passed falsely. Mobility is a
-					// count that does not know which parts a joint is between,
-					// so the search satisfied it by bolting a beam twice to one
-					// wall — which lowers the number and removes no freedom.
-					// Fixing the search to bridge two bodies took the false
-					// verdict away and left the true one.
+					// Twice now this has been true for the wrong reason. It
+					// passed while the search was bolting beams twice to one
+					// bearing, which lowers Grubler's count and removes no
+					// freedom. Fixing that left two examples genuinely hinging,
+					// because a straight liftarm reaches one bearing wall or the
+					// other and never both — see
+					// TestNoStraightBeamTiesTwoWallsOnAShaftLine. It passes now
+					// because the inventory has the part that turns a corner.
 					if !hingeIsKnown(filepath.Base(path)) {
 						t.Errorf("%s: %s", f.Check, f.Detail)
 					}
 					hinged = true
-				case "connectivity", "structure", "framing", "clearance":
+				case "connectivity", "structure", "framing", "clearance", "turning":
 					t.Errorf("%s: %s", f.Check, f.Detail)
 				}
 			}
@@ -167,10 +164,11 @@ func TestEveryExampleHoldsTogetherAndDoesNotHinge(t *testing.T) {
 }
 
 // knownHinges are the examples whose frame cannot be closed with the parts the
-// structural search has. See PLAN.md M2 and docs/findings.md.
-var knownHinges = map[string]bool{
-	"subtractor.json":               true,
-	"gearbox-3-speed-compound.json": true,
-}
+// structural search has.
+//
+// Empty, and kept rather than deleted because it was not empty and the reason
+// it is now is a part in the inventory, not a fact about the world. See
+// PLAN.md M2 and docs/findings.md.
+var knownHinges = map[string]bool{}
 
 func hingeIsKnown(name string) bool { return knownHinges[name] }

@@ -67,12 +67,13 @@ Two caveats came out of writing them:
   signature as a hole. Every such hit lies outside the part, so position alone
   separates them, but `find_holes` does not do it for you.
 
-## M2 — finish structural synthesis — REOPENED
+## M2 — finish structural synthesis — DONE
 
-> Reopened 2026-08-19. It was marked done on the strength of "every example
-> comes out in one piece and rigid, with no warnings at all", and that measure
-> was wrong. Two examples do hinge, and the parts to stop them are not in the
-> inventory. See the note at the end of this section.
+> Reopened and closed again 2026-08-19. It had been marked done on the strength
+> of "every example comes out in one piece and rigid, with no warnings at all",
+> and that measure was being defeated by a brace that braced nothing. Fixing
+> that left two examples genuinely hinging. They are closed now, by the part
+> that could not previously be expressed. See the two notes at the end.
 
 Three separate things have to be true, and they were separate warnings for a
 long time: bearing every shaft, holding together, and not folding up.
@@ -124,11 +125,50 @@ and a pin joins two holes only if they are on one line within two studs. So a
 liftarm reaches one wall or the other and never both, whatever its length. That
 is proved with a control in `TestNoStraightBeamTiesTwoWallsOnAShaftLine`.
 
-- [ ] the inventory needs a part with holes on more than one axis — an angle or
-      perpendicular connector — which `part.WorldHoles` cannot express, since it
-      returns one axis for a whole part. That signature is the actual work.
-- [ ] until then the two hinges are reported honestly and listed in
-      `knownHinges`, which fails if one of them stops hinging.
+- [x] the inventory needed a part with holes on more than one axis — an angle or
+      perpendicular connector — which `part.WorldHoles` could not express, since
+      it returned one axis for a whole part. That signature was the actual work.
+- [x] `knownHinges` is empty, and kept rather than deleted: it was not empty, and
+      the reason it is now is a part in the inventory rather than a fact about
+      the world.
+
+### How it was closed
+
+Three things had to be true, and none of them was.
+
+**A part had to be able to have holes facing different ways.** `WorldHoles`
+returned one axis for a whole part, from the shadow library's `RotationAxis`,
+and laid the holes out from a hole count assuming a straight beam. Both are
+exactly true of a straight liftarm. `part.WorldPorts` replaces it: rigidity
+matches hole against hole, `CandidatesFor` asks each hole whether it faces along
+the shaft, and `beamsSpanning` becomes `partsSpanning`, which asks only whether
+two of a part's holes can reach both points.
+
+**The holes had to be readable.** A connector's own shadow file declares one of
+its two holes; the rest come from the primitives the part places. See the
+findings entry on following subfiles.
+
+**A bearing had to be a bearing.** The first structure built with connectors in
+the inventory laid one along a shaft, where two of its cross holes sat on the
+shaft line — so the shaft keyed it and drove it round. `CandidatesFor` now
+rejects a placement where any cross hole of the part lies on the shaft it is
+being asked to bear: an axle seizes in a cross hole, and a bearing has to let
+the shaft turn inside it.
+
+What every example costs now, against what it cost when this was first called
+done:
+
+| example | parts then | now | cubic studs then | now |
+| --- | --- | --- | --- | --- |
+| reduction | 9 | 6 | 387.7 | 23.5 |
+| gearbox-2-speed | 21 | 16 | 128.8 | 36.0 |
+| gearbox-3-speed-compound | 38 | 29 | 273.9 | 100.8 |
+| subtractor | 4 | 4 | 125.1 | 27.9 |
+
+`internal/connect`'s A* search is still not wired in, and is still not needed.
+The one thing it would add is a bridge of several parts at once, since `brace`
+adds one part at a time and each has to bridge on its own. Nothing yet requires
+one.
 
 - [x] a joint is now what a joint is: two holes facing the same way, on one
       axis line, within a pin's reach of each other. Holes at the very same

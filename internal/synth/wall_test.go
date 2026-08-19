@@ -20,10 +20,10 @@ import (
 // within two studs of each other. So a liftarm can reach one wall or the other
 // and never both, whatever its length and wherever it is put.
 //
-// Written as a test rather than left as prose because it is the reason a
-// warning stands, and a reason for a warning should fail loudly on the day it
-// stops being true — which is the day a part with holes on two axes joins the
-// inventory.
+// Written as a test rather than left as prose because it is the reason the
+// inventory has connectors in it at all. The day a straight liftarm can do this
+// is the day they are not needed, and this should say so rather than let them
+// sit there unexplained.
 func TestNoStraightBeamTiesTwoWallsOnAShaftLine(t *testing.T) {
 	s := searcher(t)
 

@@ -38,6 +38,13 @@ func realLibraries(t *testing.T) (*shadow.Library, *ldraw.Library) {
 func TestWalkedHolesAreTheHolesTheSearchAssumed(t *testing.T) {
 	shadowLib, parts := realLibraries(t)
 	for _, b := range part.Beams {
+		if b.Corner {
+			// A connector is the case this whole change exists to allow: holes
+			// on more than one axis, some of them cross holes. It has nothing
+			// to be compared against, since the search never assumed anything
+			// about it.
+			continue
+		}
 		e := EntryForWith(shadowLib, parts, b.Part)
 		if e == nil {
 			t.Errorf("%s: no ports at all", b.Part)

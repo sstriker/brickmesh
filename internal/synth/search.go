@@ -259,6 +259,13 @@ func (s *Searcher) CandidatesFor(point, direction geom.Vec3) ([]Placed, error) {
 				if !origin.OnLattice(HalfStud) {
 					continue
 				}
+				if keyedTo(ports, r, origin, point, d) {
+					// Somewhere else on the part, a cross hole sits on this
+					// same shaft. The shaft would key the part and carry it
+					// round instead of turning inside it, which is not a
+					// bearing however good the hole it was chosen for.
+					continue
+				}
 				c := Placed{Part: beam.Part, Rot: ri, Origin: origin.Round(3)}
 				if seen[c] {
 					continue // two holes of one part can land the same way
@@ -269,6 +276,25 @@ func (s *Searcher) CandidatesFor(point, direction geom.Vec3) ([]Placed, error) {
 		}
 	}
 	return out, nil
+}
+
+// keyedTo reports whether any cross hole of a placed part lies on the shaft
+// through point along d.
+//
+// Only worth asking since parts with cross holes could join the inventory: a
+// straight liftarm has none. An angle connector has two, and laid along a shaft
+// it is not a bearing but a part the shaft drives.
+func keyedTo(ports []part.Hole, r geom.Mat3, origin, point, d geom.Vec3) bool {
+	for _, q := range ports {
+		if !q.Cross {
+			continue
+		}
+		at := r.Apply(q.Pos).Add(origin).Sub(point)
+		if at.Sub(d.Scale(at.Dot(d))).Len() < 1e-6 {
+			return true
+		}
+	}
+	return false
 }
 
 // candidate is one placement with everything the search needs about it

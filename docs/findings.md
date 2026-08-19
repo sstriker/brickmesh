@@ -506,3 +506,47 @@ and no ports — indistinguishable from a part with nothing to say. The fix is a
 `filename` call, and the guard against a fourth time is that the extractor now
 reports both totals, declared and walked, so a walk that quietly does nothing
 shows up as two equal numbers.
+
+## The part that turns a corner
+
+Two bearing walls on a shaft line could not be tied together, and the reason was
+not the search. It was that no part in the inventory could turn a corner, and no
+part that could could be described.
+
+Three things had to change.
+
+**A part had to be able to have holes facing different ways.** `WorldHoles`
+returned one axis for a whole part and laid the holes out from a hole count.
+Both are exactly true of a straight liftarm and of nothing else. `WorldPorts`
+returns the holes themselves, each with its own axis, and the joint finder
+matches hole against hole rather than part against part.
+
+**The holes had to be readable**, which is the subfile walk above: 6536's own
+shadow file declares one of its two holes.
+
+**A bearing had to be a bearing.** The first structure built with connectors in
+the inventory laid one along a shaft, with two of its cross holes on the shaft
+line. An axle seizes in a cross hole, so the shaft drove the connector round
+rather than turning inside it — and the turning propagation said so, which is
+how it was caught. `CandidatesFor` now rejects a placement where any cross hole
+of the part lies on the shaft it is being asked to bear.
+
+That last one is worth dwelling on, because it is the second time a rule that
+read as being about a part turned out to be about a placement. The tripwire that
+fired was `TestNoStructuralPartCanBeKeyedToATurningShaft`, which asserted that no
+part in the inventory has a cross hole, with a note saying that adding one would
+fail this and point at what else had to change. It did, and the answer was
+almost nothing: the clearance sweep had already stopped deciding what turns from
+what a part is called, so a keyed frame member is swept correctly rather than
+tested standing still. The rule it was standing in for is that no part in the
+frame may turn, and that is now asserted of the models the search produces.
+
+| example | parts before | after | cubic studs before | after |
+| --- | --- | --- | --- | --- |
+| reduction | 9 | 6 | 387.7 | 23.5 |
+| gearbox-2-speed | 21 | 16 | 128.8 | 36.0 |
+| gearbox-3-speed-compound | 38 | 29 | 273.9 | 100.8 |
+| subtractor | 4 | 4 | 125.1 | 27.9 |
+
+Every example is rigid with no warnings, which is what M2 claimed when it was
+first called done. The difference is that the claim now survives asking why.

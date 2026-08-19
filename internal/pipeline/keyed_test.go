@@ -4,43 +4,68 @@
 package pipeline
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"brickmesh/internal/ldr"
-	"brickmesh/internal/part"
 )
 
-// The clearance check decides what turns by what a part is: a gear, a driving
-// ring, a joiner. Everything else it treats as structure and tests where it
-// stands, rather than sweeping it through a revolution.
+// A part in the frame must not turn.
 //
-// That is only sound while nothing in the structure can be keyed to a turning
-// shaft. A cross-shaped hole is what does the keying — an axle in one cannot
-// turn, so the part turns with the axle instead, sweeping a circle and taking
-// whatever is pinned to it along. 61408, a thin liftarm with an axle hole
-// through the middle, is exactly such a part.
+// A cross-shaped hole is what keys a part to a shaft: an axle in one cannot
+// spin, so the part goes round with the axle instead, sweeping a circle and
+// taking whatever is pinned to it along. A frame member that does that is not
+// a frame member.
 //
-// The beams in the inventory have round holes only, so the assumption holds.
-// This is what says so, rather than leaving it to luck: add a part with an axle
-// hole to the inventory and this fails, pointing at what else has to change.
-func TestNoStructuralPartCanBeKeyedToATurningShaft(t *testing.T) {
+// This used to be asserted one level up, as "no part in the inventory has a
+// cross hole", with a note saying that adding one would fail this and point at
+// what else had to change. Adding one did, and the answer turned out to be
+// nothing: the clearance sweep stopped deciding what turns from what a part is
+// called and started propagating it from the joints, so a keyed structural part
+// is swept correctly rather than tested standing still.
+//
+// What remains is the real rule, and it is about placement rather than about
+// the inventory. A connector has cross holes and belongs in the frame; laid
+// along a shaft it would be driven by it. So the question is asked of the models
+// the search actually produces.
+func TestNoFramePartEndsUpTurning(t *testing.T) {
 	deps := requireLibraries(t)
-	for _, beam := range part.Beams {
-		holes := deps.Shadow.Holes(strings.TrimSuffix(beam.Part, ".dat"))
-		if len(holes) == 0 {
-			t.Errorf("%s has no connection points, so this cannot tell whether "+
-				"it is keyed to anything", beam.Part)
+	for _, path := range examples(t) {
+		t.Run(strings.TrimSuffix(filepath.Base(path), ".json"), func(t *testing.T) {
+			res := runSpec(t, deps, path)
+			spin := checkTurning(res, deps)
+			for i, p := range res.Model.Parts {
+				if classOf(p) != classStructure {
+					continue
+				}
+				if a, ok := spin.about[i]; ok {
+					t.Errorf("%s at %+v is in the frame and turns about %+v. "+
+						"A frame that turns holds nothing", p.Name, p.Pos, a.dir)
+				}
+			}
+		})
+	}
+}
+
+// The control: the parts that are supposed to turn still do, so the test above
+// is not passing because the propagation stopped finding anything.
+func TestTheThingsThatShouldTurnStillDo(t *testing.T) {
+	deps := requireLibraries(t)
+	res := runSpec(t, deps, filepath.Join("..", "..", "examples", "gearbox-2-speed.json"))
+	spin := checkTurning(res, deps)
+	turning := 0
+	for i, p := range res.Model.Parts {
+		if classOf(p) == classStructure || isAxle(p.Name) {
 			continue
 		}
-		for _, h := range holes {
-			if !h.Cross {
-				continue
-			}
-			t.Errorf("%s has a cross hole at %+v. A part keyed to a turning "+
-				"shaft turns with it, and the structural search would still "+
-				"place this as if it stood still", beam.Part, h.Pos)
+		if _, ok := spin.about[i]; ok {
+			turning++
 		}
+
+	}
+	if turning == 0 {
+		t.Error("nothing in a two-speed gearbox was found to turn")
 	}
 }
 
