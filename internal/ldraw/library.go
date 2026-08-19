@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -192,6 +193,7 @@ func (l *Library) findInRoot(name string) (string, bool) {
 	if l.Root == "" {
 		return "", false
 	}
+	atomic.AddInt64(&l.reads, 1)
 	for _, dir := range SearchDirs {
 		b, err := os.ReadFile(filepath.Join(l.Root, filepath.FromSlash(dir),
 			filepath.FromSlash(name)))

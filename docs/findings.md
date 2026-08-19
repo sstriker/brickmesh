@@ -608,3 +608,44 @@ The shape settles it: a pin is long in one direction and short in the other two.
 The test now asks that a pin's longest dimension lie along the joint it fills,
 not merely that a pin sits at the right point, and it fails on the old code —
 four joints in the subtractor, each with a pin across it.
+
+## Counting the work, because timing it does not survive CI
+
+A change that made the whole suite three to four times slower was committed and
+noticed only because a test timed out. Nothing failed. The work it added was
+real and repeated — a part's subfile tree walked again on every lookup, inside
+the search's inner loop — and it would have been every bit as invisible had it
+been half as bad.
+
+The first instinct was to count file reads, since the regression was I/O. That
+would not have caught it. **The read count did not move at all**: the parts
+library caches the files it has already read, so re-walking the tree re-did the
+traversal and the allocation and touched no disk. Only the time changed.
+
+So the counter has to sit on the operation that regressed, not on the resource
+it looks like it consumes. `Ports.Walks` counts answers actually worked out
+rather than remembered, and one per distinct part is the entire budget.
+
+| example | walks | with the cache removed |
+| --- | --- | --- |
+| reduction | 13 | 735 |
+| subtractor | 13 | 3,964 |
+| gearbox-2-speed | 23 | 5,064 |
+| gearbox-3-speed-compound | 27 | 6,969 |
+
+Counted rather than timed on purpose. A shared CI runner varies by more than a
+real regression often does, so a wall-clock threshold loose enough not to flake
+is too loose to catch anything — the 3.5× slowdown above would sail through any
+honest timing gate. Counts are the same on every machine, so the budget can sit
+close to the truth: these are set at two or three times the real figure, and the
+regression they were written for exceeds them by a hundredfold.
+
+There is still a wall-clock ceiling, at ninety seconds against a real cost near
+one, for a runaway that no counter here is watching. And the published files
+have a size limit in the Pages workflow, since the download is the one cost a
+visitor cannot opt out of: 6.1 MB today against a 12 MB limit, 1.9 MB gzipped,
+which is what is actually served.
+
+A new example with no budget fails the gate rather than being skipped. That is
+deliberate — the alternative is a gate that quietly stops covering the thing it
+was added for.

@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"brickmesh/internal/geom"
@@ -56,12 +57,24 @@ type Library struct {
 	// cache; otherwise the first miss goes and gets it.
 	Root string
 
+	// reads counts how many times a part file has been gone to disk for.
+	//
+	// Here to be asserted on. The engine reads the same few dozen parts over
+	// and over, so everything that reads one caches it — and when one of those
+	// caches was missing, the only sign was that the tests took twenty times as
+	// long, which is a thing a person notices and a build does not. Counting is
+	// the version of that a build can check. See internal/pipeline/perf_test.go.
+	reads int64
+
 	mu       sync.Mutex
 	geoms    map[string]*Geometry
 	refs     map[string][]part.Ref
 	fetch    sync.Once
 	fetchErr error
 }
+
+// Reads is how many part files have been read from disk.
+func (l *Library) Reads() int64 { return atomic.LoadInt64(&l.reads) }
 
 // DefaultCacheDir matches the Python extractor's ldraw.CACHE.
 func DefaultCacheDir() string {

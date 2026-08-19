@@ -65,6 +65,31 @@ jobs:
       - name: Generate the catalogue and the meshes
         run: go run ./cmd/brickmesh-assets --out site/data --tier 1
 
+      # What a visitor downloads before anything happens. It is the one cost
+      # they cannot opt out of, so it is checked rather than watched: the
+      # numbers below are roughly twice what these files are today, which is
+      # room for real growth and not room for an accident.
+      #
+      # If this fires, decide rather than raise it. The parts that have to ship
+      # are the ones the engine can place (pipeline.Placeable) plus tier 1;
+      # anything beyond that belongs in a range request, which is what
+      # meshes.bin is laid out for. See docs/architecture.md.
+      - name: The download stays small enough to be worth waiting for
+        run: |
+          set -eu
+          limit_bin=12000000   # meshes.bin, bytes
+          limit_cat=100000     # catalog.bin, bytes
+          bin=$(stat -c%s site/data/meshes.bin)
+          cat=$(stat -c%s site/data/catalog.bin)
+          echo "meshes.bin  $bin bytes (limit $limit_bin)"
+          echo "catalog.bin $cat bytes (limit $limit_cat)"
+          gz=$(gzip -c site/data/meshes.bin | wc -c)
+          echo "meshes.bin  $gz bytes gzipped, which is what is served"
+          fail=0
+          [ "$bin" -le "$limit_bin" ] || { echo "meshes.bin is too big"; fail=1; }
+          [ "$cat" -le "$limit_cat" ] || { echo "catalog.bin is too big"; fail=1; }
+          exit $fail
+
       - name: Build the WebAssembly module
         run: |
           GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" \

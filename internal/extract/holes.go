@@ -5,6 +5,7 @@ package extract
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/part"
@@ -35,7 +36,19 @@ type Ports struct {
 	// hundreds of thousands of times. Used through a pointer for that reason:
 	// a value copy would each keep their own and share nothing.
 	cache sync.Map
+	// walks counts the answers actually worked out, as opposed to remembered.
+	//
+	// Here to be asserted on. When this cache was missing, the read count did
+	// not move — the parts library caches the files it has already read — and
+	// the only sign was that everything took three or four times as long, which
+	// is a thing a person notices and a build does not. A run needs one walk per
+	// distinct part and no more. See internal/pipeline/perf_test.go.
+	walks int64
 }
+
+// Walks is how many times a part's subfile tree has been walked. One per
+// distinct part is the whole budget.
+func (p *Ports) Walks() int64 { return atomic.LoadInt64(&p.walks) }
 
 // NewPorts is the shadow library and the parts library together.
 func NewPorts(lib *shadow.Library, geom part.Subfiles) *Ports {
@@ -47,6 +60,7 @@ func (p *Ports) Holes(name string) []part.Hole {
 	if got, ok := p.cache.Load(name); ok {
 		return got.([]part.Hole)
 	}
+	atomic.AddInt64(&p.walks, 1)
 	out := p.holes(name)
 	p.cache.Store(name, out)
 	return out
