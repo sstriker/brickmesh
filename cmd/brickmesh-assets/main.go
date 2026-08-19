@@ -75,6 +75,9 @@ func run() error {
 	}
 	records, err := extract.Build(shadow.Open(root), extract.Options{
 		MaxTier: uint8(*tier), Limit: *limit, Log: logf,
+		// The parts library, so a beam's holes come from the hole primitives it
+		// places rather than from the single hole its shadow file declares.
+		Geom: ldraw.New(""),
 	})
 	if err != nil {
 		return err

@@ -156,7 +156,7 @@ func libraries() (pipeline.Deps, error) {
 	}
 	return pipeline.Deps{
 		Lib:    lib,
-		Shadow: extract.Ports{Lib: shadow.Open(root)},
+		Shadow: extract.Ports{Lib: shadow.Open(root), Geom: lib},
 		Rast:   voxel.NewRasterizer(lib),
 	}, nil
 }

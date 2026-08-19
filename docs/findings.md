@@ -458,3 +458,51 @@ cannot express — it returns one axis for a whole part.
 The warnings are the honest version of a verdict that was previously OK. M2 was
 marked done on "every example comes out rigid, with no warnings at all", and
 that is the measure this defect was defeating. PLAN.md M2 is reopened.
+
+## A thirteen-hole beam declares one hole
+
+The shadow library entry for 41239, Technic Beam 13, is two lines: one
+`SNAP_INCL` at one end, and a crane-arm slot. It says nothing about the other
+twelve holes.
+
+That is not an omission. LDCad resolves snaps through the part's own subfile
+tree, and 41239.dat places thirteen `beamhole.dat` primitives; `p/beamhole.dat`
+in the shadow library is what says a beamhole is a hole. The part's shadow file
+only adds the one hole that no primitive covers.
+
+Reading a part's own shadow file alone therefore gives a thirteen-hole beam with
+one hole in it, and that is what the extractor did. The structural search worked
+around it without anyone deciding to: hole positions were synthesised from a
+hole count on the assumption of a straight beam, and every part was given a
+single hole axis by `RotationAxis`. Both assumptions hold exactly for straight
+liftarms and for nothing else, which is why the inventory is straight liftarms.
+
+`EntryForWith` walks the tree. At each subfile the shadow library describes, it
+takes those snaps and stops — a shadow file for a primitive describes it
+completely, and descending further counts the same hole again from its rims.
+Ports are then deduplicated sign-free, because a hole has no direction and the
+same hole is often reached twice.
+
+The check that it is right is the one thing already known to be right: for every
+beam in the inventory, the walked holes are exactly the positions the search has
+been assuming all along, on exactly one axis. Not close — the same set.
+
+| | before | after |
+| --- | --- | --- |
+| parts with port data | 2,649 | 2,810 |
+| ports, whole library | 24,005 | 61,978 |
+| ports, usable parts | 21,675 | 56,219 |
+| `catalog.bin`, tier 1 | 15 KB | 23 KB |
+
+It found the missing kind of part while it was at it. 6536, the axle-and-pin
+connector perpendicular, comes out with a cross hole on one axis and a round
+hole on another — the part that can tie two bearing walls together, which no
+straight liftarm can. Its own shadow file declares one of the two.
+
+The bug that hid inside this one is worth its own line, because it is the third
+time: the shadow library enumerates bare ids, the parts library is a directory
+of `.dat` files, and passing one where the other was wanted produces no error
+and no ports — indistinguishable from a part with nothing to say. The fix is a
+`filename` call, and the guard against a fourth time is that the extractor now
+reports both totals, declared and walked, so a walk that quietly does nothing
+shows up as two equal numbers.

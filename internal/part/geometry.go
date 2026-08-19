@@ -79,3 +79,20 @@ type Holes interface {
 	AxisSource
 	Holes(part string) []Hole
 }
+
+// Ref is one subfile reference: a part or primitive placed inside another, with
+// the transform that puts it there.
+//
+// The vocabulary is shared because two packages need the same structure for
+// different reasons: the parts library produces it, and the port extractor
+// walks it looking for the primitives the shadow library describes.
+type Ref struct {
+	Name string
+	Rot  geom.Mat3
+	Pos  geom.Vec3
+}
+
+// Subfiles is where a part's direct subfile references come from.
+type Subfiles interface {
+	Refs(name string) ([]Ref, error)
+}

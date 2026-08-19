@@ -36,7 +36,7 @@ func requireLibraries(t *testing.T) Deps {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Deps{Lib: lib, Shadow: extract.Ports{Lib: shadow.Open(root)},
+	return Deps{Lib: lib, Shadow: extract.Ports{Lib: shadow.Open(root), Geom: lib},
 		Rast: voxel.NewRasterizer(lib)}
 }
 

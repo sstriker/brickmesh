@@ -45,7 +45,7 @@ func TestTheSameModelComesOutOfThePublishedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ports := extract.Ports{Lib: shadow.Open(root)}
+	ports := extract.Ports{Lib: shadow.Open(root), Geom: lib}
 
 	for _, path := range examples(t) {
 		t.Run(filepath.Base(path), func(t *testing.T) {
@@ -135,7 +135,7 @@ func publishInto(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawCatalog, rawMeshes := publishedBytes(t, lib, extract.Ports{Lib: shadow.Open(root)}, "")
+	rawCatalog, rawMeshes := publishedBytes(t, lib, extract.Ports{Lib: shadow.Open(root), Geom: lib}, "")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

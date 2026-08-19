@@ -32,7 +32,8 @@ func TestTheShippedTierHasEveryPartTheEnginePlaces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parts := publish(t, ldraw.New(""), extract.Ports{Lib: shadow.Open(root)}, "")
+	lib := ldraw.New("")
+	parts := publish(t, lib, extract.Ports{Lib: shadow.Open(root), Geom: lib}, "")
 
 	for _, name := range pipeline.Placeable() {
 		if _, err := parts.shapes.Geometry(name); err != nil {
@@ -52,7 +53,8 @@ func TestNoExampleUsesAPartTheBrowserCannotSee(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parts := publish(t, ldraw.New(""), extract.Ports{Lib: shadow.Open(root)}, "")
+	lib := ldraw.New("")
+	parts := publish(t, lib, extract.Ports{Lib: shadow.Open(root), Geom: lib}, "")
 
 	specs, err := filepath.Glob(filepath.Join("..", "..", "examples", "*.json"))
 	if err != nil || len(specs) == 0 {
@@ -97,7 +99,8 @@ func TestAMissingMeshIsReportedRatherThanSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lib, ports := ldraw.New(""), extract.Ports{Lib: shadow.Open(root)}
+	lib := ldraw.New("")
+	ports := extract.Ports{Lib: shadow.Open(root), Geom: lib}
 
 	var gearless []string
 	gears := map[string]bool{}

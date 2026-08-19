@@ -303,3 +303,37 @@ func vec(tok []string) (geom.Vec3, bool) {
 	}
 	return geom.Vec3{X: out[0], Y: out[1], Z: out[2]}, true
 }
+
+// Ref is one subfile reference: a part or primitive placed inside another.
+type Ref = part.Ref
+
+// Refs are the subfiles a part places directly, in file order.
+//
+// Geometry flattens this tree into triangles and throws the structure away,
+// which is right for drawing and wrong for anything that asks what a part is
+// made of. The shadow library describes a beam's holes by describing one hole
+// primitive and letting the part place thirteen of them, so finding a beam's
+// holes means walking this rather than reading the beam's own shadow file —
+// which declares one hole, at the end, and says nothing about the other twelve.
+func (l *Library) Refs(name string) ([]part.Ref, error) {
+	text, err := l.Fetch(name)
+	if err != nil {
+		return nil, err
+	}
+	var out []Ref
+	for _, raw := range strings.Split(text, "\n") {
+		tok := strings.Fields(raw)
+		if len(tok) < 15 || tok[0] != "1" {
+			continue
+		}
+		rot, trans, ok := lineMatrix(tok)
+		if !ok {
+			continue
+		}
+		out = append(out, part.Ref{
+			Name: strings.ToLower(strings.Join(tok[14:], " ")),
+			Rot:  rot, Pos: trans,
+		})
+	}
+	return out, nil
+}

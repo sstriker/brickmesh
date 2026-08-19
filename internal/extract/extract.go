@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"brickmesh/internal/geom"
+	"brickmesh/internal/part"
 	"brickmesh/internal/shadow"
 )
 
@@ -273,6 +274,10 @@ type Options struct {
 	MaxTier uint8
 	Limit   int // 0 for everything
 	Log     func(string)
+	// Geom is the parts library, used to find the hole primitives a part
+	// places. Without it a thirteen-hole beam comes out with one hole, because
+	// that is all its own shadow file declares. See EntryForWith.
+	Geom part.Subfiles
 }
 
 // Build runs the whole extraction against an already-extracted shadow library.
@@ -295,14 +300,26 @@ func Build(lib *shadow.Library, opts Options) ([]Record, error) {
 
 	logf("expanding port grids ...")
 	entries := make(map[string]*Entry, len(names))
+	declared, walked := 0, 0
 	for _, name := range names {
-		e := EntryFor(lib, name)
+		own := EntryFor(lib, name)
+		e := EntryForWith(lib, opts.Geom, name)
 		if e == nil || (len(e.Holes) == 0 && len(e.Pins) == 0) {
 			continue
 		}
+		if own != nil {
+			declared += len(own.Holes) + len(own.Pins)
+		}
+		walked += len(e.Holes) + len(e.Pins)
 		entries[name] = e
 	}
 	logf("  " + strconv.Itoa(len(entries)) + " parts with port data")
+	// Reported because the difference between these two numbers is the whole
+	// point of walking the subfiles, and when the walk quietly found nothing —
+	// a part id passed where a filename was wanted — the totals were the only
+	// place it showed.
+	logf("  " + strconv.Itoa(declared) + " ports declared by the parts themselves, " +
+		strconv.Itoa(walked) + " after following the primitives they place")
 
 	titles, err := lib.Titles()
 	if err != nil {

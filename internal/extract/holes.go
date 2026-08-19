@@ -23,11 +23,15 @@ import (
 // data it is meant to match.
 type Ports struct {
 	Lib *shadow.Library
+	// Geom is the parts library. Optional, and worth supplying: without it a
+	// beam reports the one hole its own shadow file declares rather than the
+	// thirteen it has. See EntryForWith.
+	Geom part.Subfiles
 }
 
 // Holes is every connection point on a part, in the part's own frame.
 func (p Ports) Holes(name string) []part.Hole {
-	e := EntryFor(p.Lib, name)
+	e := EntryForWith(p.Lib, p.Geom, name)
 	if e == nil {
 		return nil
 	}
