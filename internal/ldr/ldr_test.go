@@ -239,3 +239,57 @@ func TestAGroupCentreIsWrittenRelativeAndSoIsAlwaysZero(t *testing.T) {
 		}
 	}
 }
+
+// Two models must not hand LDCad the same group id.
+//
+// LDCad's GID is globally unique, and it holds it to that: open two models
+// whose groups share an id and the second one's groups link to nothing, so the
+// first getOri fails with "Active group link needed". Every model this engine
+// wrote called its input shaft "shaft_input", so every model collided with
+// every other — and opening a reduction beside a gearbox is not a corner case,
+// it is what looking at the examples means.
+func TestTwoModelsDoNotShareGroupIDs(t *testing.T) {
+	ids := func(modelName string) map[string]string {
+		m := New(modelName)
+		m.Groups = []Group{{Name: "shaft_input"}, {Name: "shaft_output"}}
+		out := map[string]string{}
+		for _, line := range strings.Split(m.Encode(), "\n") {
+			if !strings.Contains(line, "GROUP_DEF") {
+				continue
+			}
+			gid := between(line, "[GID=", "]")
+			name := between(line, "[name=", "]")
+			out[name] = gid
+		}
+		return out
+	}
+
+	a, b := ids("reduction"), ids("2-speed gearbox")
+	if len(a) != 2 || len(b) != 2 {
+		t.Fatalf("expected two groups each, got %v and %v", a, b)
+	}
+	for name, gid := range a {
+		if b[name] == gid {
+			t.Errorf("%q has the same id %q in both models, so opening them "+
+				"together leaves one of them linked to nothing", name, gid)
+		}
+	}
+
+	// And still the same file twice for the same model, or every export churns.
+	if again := ids("reduction"); again["shaft_input"] != a["shaft_input"] {
+		t.Error("the same model gave a different id the second time")
+	}
+}
+
+func between(s, from, to string) string {
+	i := strings.Index(s, from)
+	if i < 0 {
+		return ""
+	}
+	s = s[i+len(from):]
+	j := strings.Index(s, to)
+	if j < 0 {
+		return ""
+	}
+	return s[:j]
+}

@@ -127,7 +127,7 @@ func (m *Model) Encode() string {
 		// See the note on Group.Center for why this is not g.Center.
 		fmt.Fprintf(&b, "0 !LDCAD GROUP_DEF [topLevel=true] [LID=%d] [GID=%s] "+
 			"[name=%s] [center=0 0 0]\n",
-			i, groupID(g.Name), g.Name)
+			i, groupID(name+"/"+g.Name), g.Name)
 	}
 	if len(m.Groups) > 0 {
 		b.WriteString("\n")
@@ -177,9 +177,19 @@ func trim(v float64) string {
 	return fmt.Sprintf("%g", v)
 }
 
-// groupID is the globally unique id LDCad wants for a group. Derived from the
-// name so that exporting the same model twice gives the same file, rather than
-// a new id every time.
+// groupID is the globally unique id LDCad wants for a group.
+//
+// Globally, and it means it. Derived from the group's name alone, every model
+// this engine wrote called its input shaft the same thing and so handed LDCad
+// the same id — and with two of them open at once the second one's groups had
+// no link to anything, so the script failed on its first getOri with "Active
+// group link needed". A reduction and a gearbox are not often opened together
+// by accident, but they are exactly what gets opened together when someone is
+// looking at a set of examples.
+//
+// So the model's name goes into it as well. Still derived rather than random,
+// because exporting the same model twice should give the same file rather than
+// a fresh id every time.
 func groupID(name string) string {
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	var h uint64 = 1469598103934665603
