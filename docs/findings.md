@@ -815,3 +815,46 @@ That was the last of it. Four wrong readings of the same page — the centre, th
 frame the placement is in, whether setOri adds or replaces, and now the
 multiplication order — and every one of them is invisible for a group sitting
 square at the origin.
+
+## A differential that was only ever arithmetic
+
+Opening the subtractor in LDCad showed one moving axle. That was not an
+animation fault: **the differential was never placed**.
+
+The functional layer has modelled differentials from the start — the case runs
+at the average of the outputs, the degrees of freedom come out right, the
+subtractor's whole point is checked. `internal/bevel` even measures the 28-tooth
+ring inside 62821 to find where a 12t double bevel engages it. And nothing ever
+put the part into a model. A subtractor came out as a single axle inside a
+frame, and every check passed, because every check was about the kinematics.
+
+It is placed now, and the two outputs get an axle each, butting against the
+housing rather than running through it — which is the whole of what the part
+does. Three groups where there was one.
+
+Two things this turned up:
+
+**The sign of the face an axle butts against.** Getting it backwards ran a
+four-stud axle straight through the middle of the housing, and the clearance
+sweep let it past — because an axle may be inside anything, which is true and is
+exactly the exception that hides this. There is a test on the spans now rather
+than a reliance on the sweep.
+
+**The browser gate caught its own author.** Adding 62821 to the model without
+adding it to `pipeline.Placeable` failed `TestNoExampleUsesAPartTheBrowserCannotSee`
+immediately: "no geometry for 62821.dat, so nothing was checked against it".
+That gate was written three days of work ago for exactly this and it worked on
+the first thing it was pointed at.
+
+### And group ids have to differ between models
+
+The 3-speed and the reduction both died with "Active group link needed" on their
+first `getOri`, while the 2-speed ran. LDCad's GID is a globally unique group id
+and it holds it to that; the id was derived from the group's name alone, so
+every model this engine wrote called its input shaft `shaft_input` and handed
+LDCad the same id. Two models open at once, and the second one's groups link to
+nothing.
+
+The subtractor escaped only because its one group is called `shaft_case`, and
+the 2-speed worked because it got there first. Opening a reduction beside a
+gearbox is not a corner case; it is what looking at a set of examples means.

@@ -85,6 +85,21 @@ var SelectorParts = []string{
 	"6631 Technic Plate 2 x 6 with 2 Position Gear Shift",
 }
 
+// DiffPart is the differential housing the engine places.
+//
+// 62821, the one with the 28-tooth bevel ring, measured rather than recalled:
+// three studs along its own Z, with a port at each end where the output shafts
+// enter and one on its side for the bevel that drives it.
+//
+// A differential was modelled by the functional layer from the beginning and
+// placed by nothing, so a subtractor came out as a single axle with a frame
+// round it — correct in every report, because every report was about the
+// kinematics.
+const DiffPart = "62821.dat"
+
+// DiffHalf is how far the housing reaches either side of its centre, in LDU.
+const DiffHalf = 30.0
+
 // AxleParts maps a length in studs to the part that is that long. Verified
 // against the library: every one runs along its own X and is 12 LDU across.
 var AxleParts = map[int]string{
@@ -719,6 +734,19 @@ func computeAxles(m *mech.Mechanism, res *Result) []axlePlacement {
 		origin := l.place.Point.Scale(synth.HalfStud)
 		at := func(d float64) geom.Vec3 { return origin.Add(l.place.Direction.Scale(d)) }
 
+		// A differential cuts its line in two and owns the middle. The shafts
+		// either side of it turn independently — that is what a differential
+		// is — so they are separate axles, not one running through.
+		if d, ok := differentialOn(m, res, l.place); ok {
+			axles = append(axles, differentialAxles(res, l.place, d, lo, hi)...)
+			mid := (lo + hi) / 2
+			res.Axles = append(res.Axles, rigidity.Axle{
+				Point: at(mid), Dir: l.place.Direction,
+				From: -(hi - lo) / 2, To: (hi - lo) / 2,
+			})
+			continue
+		}
+
 		// A shaft carrying a driving ring is cut where the ring rides: the ring
 		// is splined to a joiner, not to the axle, and two axles butt inside it.
 		joiners := joinersOn(res, l.place)
@@ -1202,6 +1230,85 @@ func Placeable() []string {
 	add(PinPart)
 	add(AxlePinPart)
 	add(LongPinPart)
+	add(DiffPart)
 	sort.Strings(out)
+	return out
+}
+
+// differentialOn reports the differential whose shafts run down this line.
+func differentialOn(m *mech.Mechanism, res *Result, place layout.Placement) (mech.Differential, bool) {
+	for _, link := range m.Links {
+		d, ok := link.(mech.Differential)
+		if !ok {
+			continue
+		}
+		p, ok := res.Layout.Place[d.Case]
+		if ok && p.Key() == place.Key() {
+			return d, true
+		}
+	}
+	return mech.Differential{}, false
+}
+
+// differentialAxles places the housing and the two shafts that enter it.
+//
+// The housing sits at the line's origin and belongs to the case. Either side of
+// it an axle runs out to its bearing, one for each output, butting against the
+// housing's face rather than passing through — which is the whole point of the
+// part.
+func differentialAxles(res *Result, place layout.Placement, d mech.Differential,
+	lo, hi float64) []axlePlacement {
+
+	origin := place.Point.Scale(synth.HalfStud)
+	at := func(v float64) geom.Vec3 { return origin.Add(place.Direction.Scale(v)) }
+
+	zrot, ok := alignZTo(place.Direction)
+	if !ok {
+		return nil
+	}
+	xrot, ok := alignXTo(place.Direction)
+	if !ok {
+		return nil
+	}
+
+	out := []axlePlacement{{
+		name: DiffPart, studs: int(DiffHalf * 2 / geom.Stud), rot: zrot, center: at(0),
+		shaft: d.Case,
+		label: fmt.Sprintf("differential for shaft '%s'", d.Case),
+	}}
+
+	// One each side, outward from the housing's face to a stud past the end.
+	for _, side := range []struct {
+		shaft   string
+		outer   float64
+		towards float64
+	}{
+		{d.OutA, lo, 1},
+		{d.OutB, hi, -1},
+	} {
+		// The face this axle butts against is the one on its own side, so the
+		// sign is opposite to the direction it runs in: an axle coming from the
+		// low end runs towards +1 and stops at -DiffHalf.
+		inner := -side.towards * DiffHalf
+		seg := segment{
+			min: math.Abs(inner - side.outer), max: math.Inf(1),
+			outer: side.outer, pinned: true, towards: side.towards, inner: inner,
+		}
+		studs, name, ok := seg.axle()
+		if !ok {
+			res.Findings = append(res.Findings, mech.Finding{
+				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+					"shaft '%s' needs a length of about %.0f LDU out of the "+
+						"differential, which no single axle gives",
+					side.shaft, math.Abs(inner-side.outer))})
+			continue
+		}
+		out = append(out, axlePlacement{
+			name: name, studs: studs, rot: xrot,
+			center: at(seg.centerFor(float64(studs) * geom.Stud)),
+			shaft:  side.shaft,
+			label:  fmt.Sprintf("axle %d for shaft '%s'", studs, side.shaft),
+		})
+	}
 	return out
 }
