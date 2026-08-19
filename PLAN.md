@@ -249,8 +249,14 @@ therefore means the box is buildable and the shift mechanism is not.
 - [ ] a slip element for the other kind of clutch — the old white 24t whose
       inner axle gives way above a force. Different thing entirely from the
       engage/disengage gears, and it shares only the name
-- [ ] gear thickness comes from a table of seven counts; a part not in it gets
-      a default of 2 half studs
+- [x] gear thickness comes from a table keyed by tooth count, and anything not
+      in it gets two half studs. Measured: every gear this engine can place is
+      20 LDU along its axis, the clutch variants included, and only the 24t
+      differs at 19.25 for its chamfer. The table cannot see the part, only the
+      count, so a test now checks every placeable gear against what the layout
+      reserves — a gear given too little room sits close enough to its neighbour
+      to be called clear when it is not, and nothing else would say so, since
+      the clearance sweep allows gear against gear.
 
 ## M3 — port to Go — DONE
 
