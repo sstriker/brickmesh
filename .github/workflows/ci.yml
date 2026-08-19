@@ -73,8 +73,12 @@ jobs:
       - name: Build for the browser
         run: make web
 
+      # Browser: the module's answers against the engine's own. Viewer: the
+      # camera the page draws with, which needs no parts library — a matrix
+      # that throws the model behind the eye shows a blank canvas and no error,
+      # so there is nothing in the browser to catch it.
       - name: Answers match the engine
-        run: go test ./internal/calc/ -run Browser -v
+        run: go test ./internal/calc/ -run 'Browser|Viewer' -v
 
   lua:
     name: Emitted Lua

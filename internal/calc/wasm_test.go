@@ -187,3 +187,21 @@ func TestTheWorkerBuildsAModel(t *testing.T) {
 		t.Errorf("the worker built an empty model:\n%s", got)
 	}
 }
+
+// The camera the page draws with.
+//
+// A transposed or mis-ordered matrix throws every vertex behind the eye, and
+// the page shows a blank canvas and no error — WebGL does not complain about a
+// model it cannot see. There is nothing in the browser to catch that, so the
+// matrices are checked here: the model centred at every angle the viewer can be
+// turned to, nothing behind the eye, rotation that does not scale, and the
+// whole model inside the frame at the distance the viewer picks.
+func TestTheViewerPutsTheModelInFrontOfTheCamera(t *testing.T) {
+	node := findNode(t)
+	out, err := exec.Command(node,
+		filepath.Join("testdata", "view_harness.mjs"), filepath.Join("..", "..", "web")).CombinedOutput()
+	if err != nil {
+		t.Fatalf("the camera maths: %v\n%s", err, out)
+	}
+	t.Logf("%s", out)
+}
