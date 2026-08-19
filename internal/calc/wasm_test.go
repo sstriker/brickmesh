@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -138,4 +139,51 @@ func specsUnderTest(t *testing.T) []string {
 		t.Fatalf("no examples found: %v", err)
 	}
 	return found
+}
+
+// The worker is what the page talks to, and nothing else exercises it.
+//
+// A page that loads and a module that answers do not add up to a working page
+// if the message between them is wrong. node has neither a DOM Worker nor
+// importScripts, so the harness supplies both and runs web/worker.js as
+// written: a build message in, progress and an answer out.
+func TestTheWorkerBuildsAModel(t *testing.T) {
+	node := findNode(t)
+	if os.Getenv("BRICKMESH_LIBRARIES") != "1" {
+		t.Skip("set BRICKMESH_LIBRARIES=1: a build needs real parts")
+	}
+
+	dir := t.TempDir()
+	buildWASM(t, dir)
+	for _, name := range []string{"worker.js"} {
+		src, err := os.ReadFile(filepath.Join("..", "..", "web", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), src, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publishInto(t, filepath.Join(dir, "data"))
+
+	spec := filepath.Join("..", "..", "examples", "reduction.json")
+	out, err := exec.Command(node,
+		filepath.Join("testdata", "worker_harness.mjs"), dir, spec).CombinedOutput()
+	if err != nil {
+		t.Fatalf("running the worker: %v\n%s", err, out)
+	}
+	got := string(out)
+	for _, want := range []string{
+		"ok=true",
+		// The two things a page needs back, and the progress it shows meanwhile.
+		"fetching the parts -> placing the gears and finding a frame",
+		"answer id matches the question: true",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the worker did not report %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "parts=0") {
+		t.Errorf("the worker built an empty model:\n%s", got)
+	}
 }

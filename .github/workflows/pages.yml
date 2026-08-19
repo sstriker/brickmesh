@@ -83,8 +83,8 @@ jobs:
       - name: Assemble
         run: |
           mkdir -p site/examples
-          cp web/index.html web/style.css web/app.js web/wasm_exec.js \
-             web/brickmesh.wasm site/
+          cp web/index.html web/style.css web/app.js web/worker.js \
+             web/wasm_exec.js web/brickmesh.wasm site/
           cp examples/*.json site/examples/
           touch site/.nojekyll
           ls -l site site/examples site/data
@@ -92,8 +92,14 @@ jobs:
       # Prove the thing that is about to be published actually answers, rather
       # than merely compiling. Same check the Go tests run, against the same
       # module, with node from the runner.
-      - name: The module answers before it is published
-        run: go test ./internal/calc/ -run Browser
+      # Prove the thing about to be published answers, and that the worker the
+      # page talks to carries the answer back. A page that loads and a module
+      # that works do not add up to a working page if the message between them
+      # is wrong.
+      - name: The module and the worker answer before they are published
+        env:
+          BRICKMESH_LIBRARIES: '1'
+        run: go test ./internal/calc/ -run "Browser|TheWorker"
 
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
         with:

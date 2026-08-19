@@ -126,9 +126,44 @@ func buildWith(t *testing.T, deps pipeline.Deps, doc []byte) string {
 	return res.Model.Encode()
 }
 
+// publishInto writes the two published files into a directory, the way the
+// workflow does, so a worker can fetch them.
+func publishInto(t *testing.T, dir string) {
+	t.Helper()
+	lib := ldraw.New("")
+	root, err := shadow.Ensure("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawCatalog, rawMeshes := publishedBytes(t, lib, extract.Ports{Lib: shadow.Open(root)}, "")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, raw := range map[string][]byte{
+		"catalog.bin": rawCatalog, "meshes.bin": rawMeshes,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // publish writes the two files for every part the model needs, and a few more,
 // then reads them back the way a browser would.
 func publish(t *testing.T, lib *ldraw.Library, ports extract.Ports, model string) *Parts {
+	t.Helper()
+	rawCatalog, rawMeshes := publishedBytes(t, lib, ports, model)
+	parts, err := Load(rawCatalog, rawMeshes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parts
+}
+
+// publishedBytes builds the two files.
+func publishedBytes(t *testing.T, lib *ldraw.Library, ports extract.Ports,
+	model string) ([]byte, []byte) {
+
 	t.Helper()
 	catalog := assets.Catalog{}
 	var meshes []assets.Mesh
@@ -198,11 +233,7 @@ func publish(t *testing.T, lib *ldraw.Library, ports extract.Ports, model string
 	if err != nil {
 		t.Fatal(err)
 	}
-	parts, err := Load(rawCatalog, rawMeshes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return parts
+	return rawCatalog, rawMeshes
 }
 
 func beamsOf() []string {

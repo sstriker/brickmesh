@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Sander Striker
 //
-// The page. Everything it knows how to do is ask brickmeshCheck and lay out the
-// answer; the engine is the WebAssembly module, and this file deliberately
-// contains no rules about gears.
+// The page. It asks the worker and lays out the answer; the engine is the
+// WebAssembly module the worker runs, and this file deliberately contains no
+// rules about gears and no waiting.
 
 "use strict";
 
@@ -20,7 +20,35 @@ const downloadsEl = document.getElementById("downloads");
 const answerEl = document.getElementById("answer");
 const statusEl = document.getElementById("status");
 
-let ready = false;
+// The engine lives in a worker. The page's job is to ask and to lay out the
+// answer; nothing here knows about gears, and nothing here blocks.
+const worker = new Worker("worker.js");
+const waiting = new Map();
+let nextID = 1;
+
+worker.onmessage = (event) => {
+  const { id, answer, progress } = event.data;
+  const pending = waiting.get(id);
+  if (!pending) return; // an answer to a question already overtaken
+  if (progress !== undefined) {
+    statusEl.textContent = `${progress}…`;
+    return;
+  }
+  waiting.delete(id);
+  pending.resolve(answer);
+};
+
+worker.onerror = (event) => {
+  statusEl.textContent = `the engine stopped: ${event.message}`;
+};
+
+function ask(kind, extra = {}) {
+  const id = nextID++;
+  return new Promise((resolve) => {
+    waiting.set(id, { resolve });
+    worker.postMessage({ id, kind, spec: specEl.value, ...extra });
+  });
+}
 
 // A run per keystroke would be wasteful even at a millisecond a go, and the
 // answer flickering as you type mid-word is worse than a beat of delay.
@@ -30,16 +58,14 @@ function scheduleCheck() {
   pending = setTimeout(check, 150);
 }
 
-function check() {
-  if (!ready) return;
-  let result;
-  try {
-    result = JSON.parse(brickmeshCheck(specEl.value));
-  } catch (err) {
-    render({ error: `the engine did not answer: ${err}` });
-    return;
-  }
-  render(result);
+let latest = 0;
+async function check() {
+  const mine = ++latest;
+  const result = await ask("check");
+  // Only the most recent question gets to draw: answers can arrive out of
+  // order, and an older one overwriting a newer is a page that lags behind
+  // what was typed.
+  if (mine === latest) render(result);
 }
 
 function render(result) {
@@ -165,69 +191,16 @@ function buildExampleButtons() {
   }
 }
 
-// instantiate loads the module, streaming where the host allows it.
-//
-// instantiateStreaming refuses anything not served as application/wasm, and not
-// every static host sends that. Falling back to the bytes costs one buffer and
-// removes a whole class of "works here, not there".
-async function instantiate(go) {
-  const response = await fetch("brickmesh.wasm");
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  try {
-    return await WebAssembly.instantiateStreaming(response.clone(), go.importObject);
-  } catch (err) {
-    return WebAssembly.instantiate(await response.arrayBuffer(), go.importObject);
-  }
-}
 
-// waitFor polls until a condition holds, or gives up.
-function waitFor(cond, tries = 200, every = 10) {
-  return new Promise((resolve, reject) => {
-    (function attempt(left) {
-      if (cond()) return resolve();
-      if (left <= 0) return reject(new Error("the engine did not start"));
-      setTimeout(() => attempt(left - 1), every);
-    })(tries);
-  });
-}
 
-// The parts are 5 MB and only a build needs them, so they are fetched the first
-// time someone asks for a model rather than on load. The calculator stays
-// instant for everyone who only wanted to know a ratio.
-let partsLoaded = false;
-
-async function loadParts() {
-  if (partsLoaded) return;
-  statusEl.textContent = "fetching the parts (about 5 MB, once)…";
-  const [catalog, meshes] = await Promise.all([
-    fetchBytes("data/catalog.bin"),
-    fetchBytes("data/meshes.bin"),
-  ]);
-  const answer = JSON.parse(brickmeshLoadParts(catalog, meshes));
-  if (answer.error) throw new Error(answer.error);
-  partsLoaded = true;
-  statusEl.textContent = "";
-}
-
-async function fetchBytes(path) {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`${path}: ${res.status} ${res.statusText}`);
-  return new Uint8Array(await res.arrayBuffer());
-}
-
-// Building places the gears, frames them and writes the files. It runs where
-// the page runs, so the page stops while it does — a few seconds for a
-// gearbox. Saying so is better than looking hung.
+// Building places the gears, frames them and writes the files. It happens in
+// the worker, so the page stays alive while it does — which matters: a compound
+// gearbox takes half a minute, and a frozen tab looks like a crash.
 async function buildModel() {
   downloadsEl.hidden = true;
   buildEl.disabled = true;
   try {
-    await loadParts();
-    statusEl.textContent = "placing the gears and finding a frame…";
-    // Yield first, or the browser never paints the line above.
-    await new Promise((r) => setTimeout(r, 0));
-
-    const built = JSON.parse(brickmeshBuild(specEl.value, true));
+    const built = await ask("build", { animate: true });
     statusEl.textContent = "";
     if (built.error) {
       render({ error: built.error });
@@ -235,8 +208,6 @@ async function buildModel() {
     }
     render(built);
     if (built.ldr) offerDownloads(built);
-  } catch (err) {
-    statusEl.textContent = `could not build it: ${err.message}`;
   } finally {
     buildEl.disabled = false;
   }
@@ -273,23 +244,6 @@ async function start() {
   specEl.addEventListener("input", () => { downloadsEl.hidden = true; });
   buildEl.addEventListener("click", buildModel);
 
-  const go = new Go();
-  try {
-    const wasm = await instantiate(go);
-    // go.run settles only when the module's main returns, and this one never
-    // does — a Go module whose main returns is torn down, taking its exported
-    // functions with it. So it is started, not awaited, and what we wait for is
-    // the flag main sets once the exports are in place. Awaiting go.run hangs;
-    // not waiting at all calls brickmeshCheck before it exists.
-    go.run(wasm.instance);
-    await waitFor(() => globalThis.brickmeshReady === true);
-  } catch (err) {
-    statusEl.textContent =
-      `could not start the engine: ${err}. It needs to be served over http, ` +
-      `not opened from a file, and built with "make web".`;
-    return;
-  }
-  ready = true;
   statusEl.textContent = "";
   document.getElementById("wasm-note").textContent =
     "The engine runs in your browser; nothing is sent anywhere.";
