@@ -85,38 +85,33 @@ var SelectorParts = []string{
 	"6631 Technic Plate 2 x 6 with 2 Position Gear Shift",
 }
 
-// DiffPart is the differential housing the engine places.
+// DiffPart is the differential the engine places.
 //
-// 62821, the one with the 28-tooth bevel ring, measured rather than recalled:
-// three studs along its own Z, with a port at each end where the output shafts
-// enter and one on its side for the bevel that drives it.
+// 65414c01, which is the casing, its 28-tooth drive gear and the five bevel
+// satellites inside it, as one LDraw shortcut. Three studs along its own Z with
+// a port at each end where the output shafts enter, same as the bare housing it
+// replaces.
 //
-// A differential was modelled by the functional layer from the beginning and
-// placed by nothing, so a subtractor came out as a single axle with a frame
-// round it — correct in every report, because every report was about the
-// kinematics.
-const DiffPart = "62821.dat"
+// It replaces 62821, and the difference matters: 62821 is the housing alone, so
+// a model built on it showed an empty shell. The gears that make a differential
+// a differential were missing, and without them the case is a tube on the axles
+// rather than an averaging device.
+//
+// The first answer to that was to name the gears in the report rather than place
+// them, on the grounds that LDraw's housing does not model the chamber they sit
+// in — its innermost surface is 10 LDU from the axis and a bevel is wider than
+// that, so one put where it belongs reads as buried in the housing at every
+// angle. That measurement is right and the conclusion drawn from it was wrong:
+// the library has the assembled part, and the reason to look for one was that
+// somebody said they were surprised the parts and measurements did not exist.
+// They did. 65414's own title is "Differential Casing for 5 Internal Gears",
+// and 65414c01 is that casing with the five in it.
+//
+// Five, not three. Two side gears on the outputs and three planets between them.
+const DiffPart = "65414c01.dat"
 
 // DiffHalf is how far the housing reaches either side of its centre, in LDU.
 const DiffHalf = 30.0
-
-// DiffGear is what goes inside the housing, and how many.
-//
-// Three 12-tooth bevels: two side gears on the output shafts and one planet
-// between them, which is what makes the thing a differential rather than a
-// sleeve. They are named rather than placed, and that is measured rather than
-// ducked: LDraw's 62821 models its outside and its axle bore and not the
-// chamber the gears sit in. Its innermost surface at mid-length is 10 LDU from
-// the axis and a 12t bevel is 16, so a gear put where it belongs reads as
-// inside the housing at every angle — the same way a driving ring's splines
-// read as a collision rather than a grip.
-//
-// So the report says what to add. The alternative is a model that fails its own
-// clearance check for being correct.
-const (
-	DiffGear      = "6589 Technic Gear 12 Tooth Bevel"
-	DiffGearCount = 3
-)
 
 // AxleParts maps a length in studs to the part that is that long. Verified
 // against the library: every one runs along its own X and is 12 LDU across.
@@ -1449,15 +1444,11 @@ func differentialAxles(res *Result, place layout.Placement, d mech.Differential,
 	}}
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
-			"the differential on '%s' is the housing only. It needs %d x %s "+
-				"inside it — two side gears on the outputs and a planet between "+
-				"them — and those are named rather than placed because the LDraw "+
-				"housing does not model the chamber they sit in: its innermost "+
-				"surface is 10 LDU from the axis and a 12t bevel is 16, so a gear "+
-				"put where it belongs reads as buried in the housing at every "+
-				"angle. Without them the case turns with the outputs instead of "+
-				"averaging them",
-			d.Case, DiffGearCount, DiffGear)})
+			"the differential on '%s' is %s: the casing with its drive gear and "+
+				"all five bevel satellites in it, two side gears on the outputs "+
+				"and three planets between them. One part, so there is nothing to "+
+				"add by hand",
+			d.Case, DiffPart)})
 
 	// One each side, outward from the housing's face to a stud past the end.
 	for _, side := range []struct {

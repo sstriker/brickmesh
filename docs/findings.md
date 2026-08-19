@@ -933,21 +933,39 @@ engagements, so the same interpolation carries it.
 
 ## A differential housing with nothing in it
 
-Three 12-tooth bevels go inside every modern Technic differential — two side
-gears on the outputs and a planet between them, which is what makes the thing a
-differential rather than a sleeve. The model showed the bare housing.
+Three — no, five — bevel gears go inside a modern Technic differential, and the
+model showed the bare housing. It was placing 62821, which is the housing alone.
 
-They are named rather than placed, and that is measured rather than ducked.
-LDraw's 62821 models its outside and its axle bore, not the chamber the gears
-occupy: its innermost surface at mid-length is 10 LDU from the axis, and a 12t
-bevel is 16. Sweeping one along the axis inside the housing reads TOO DEEP at
-every position and every angle, in both facings.
+The first answer was to name the missing gears in the report rather than place
+them. The reasoning was measured: LDraw's 62821 models its outside and its axle
+bore and not the chamber the gears occupy, its innermost surface at mid-length
+is 10 LDU from the axis, and a bevel is wider than that. Sweeping one along the
+inside reads TOO DEEP at every position in both facings. A gear put where it
+belongs would fail the clearance check for being correct — the same shape as a
+driving ring's splines reading as a collision rather than a grip.
 
-So a gear put where it belongs would fail the clearance check for being
-correct — the same shape as the driving ring, whose splines read as a collision
-rather than a grip. The report names what to add and says why it is not there.
+Every one of those measurements is right and the conclusion was wrong.
 
-Worth noting what the absence means functionally: without the internal gears the
-case is just a tube on the axles, and the outputs are locked to it rather than
-averaging. The kinematics the engine solves are the ones the completed
-differential has.
+What prompted a second look was someone saying they were surprised the correct
+parts and measurements did not exist. They do. The library has
+**65414c01**, a shortcut: `65414`, whose own title is "Differential Casing for 5
+Internal Gears", with `65413` for the drive gear and five `6589` bevels placed
+inside it — two side gears on the outputs at z = ±17, and three planets at 120°
+around the middle. Three studs long on its own Z, ports at either end, the same
+convention as the bare housing. A drop-in.
+
+So the differential is one part with its gears in it, there is nothing to add by
+hand, and no clearance exception is needed at all — which is the outcome the
+exception would have been a workaround for.
+
+Two lessons, and the second is the one worth keeping.
+
+**The count was wrong too.** A web search said three bevels, and the part itself
+says five. The library was the better source and it was on disk the whole time.
+
+**A careful measurement can make a wrong conclusion look settled.** Sweeping the
+gear and finding it fits nowhere was real evidence, and it answered "does this
+gear fit inside this part" when the question was "how is a differential built".
+Asking the narrower question well is not the same as asking the right one, and
+the tell was that the answer implied something absurd — that a standard
+mechanism could not be represented in a library that represents everything else.
