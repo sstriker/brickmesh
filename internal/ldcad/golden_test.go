@@ -36,7 +36,7 @@ func shiftSample() Script {
 			// Marked here so the sample exercises the hold: without it every
 			// group in the fixture would be driven straight from the input and
 			// the shift would never pass through neutral.
-			{Group: "shaft_output", Axis: x, Speed: ratios[s], ViaRing: true,
+			{Group: "shaft_output", Axis: x, Speed: ratios[s], ThroughShift: true,
 				Through: geom.Vec3{Y: 0, Z: -40}},
 		}
 		for i, name := range []string{"first", "second", "third"} {

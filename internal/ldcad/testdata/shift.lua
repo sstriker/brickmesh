@@ -292,11 +292,11 @@ function onFrame3()
     return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
-  --And for a shaft driven only through a driving ring: it turns while the ring
-  --is in a gear and holds still while the ring is sliding between gears, when
-  --nothing is driving it at all. The gears on it keep going either way, since
-  --the input still reaches them through their mesh.
-  local function angleViaRing(sp)
+  --And for a shaft the inputs reach only through a shift: it turns while a ring
+  --is in a gear, and holds still while the rings are sliding, when nothing
+  --reaches it at all. Whatever the inputs still reach through fixed meshes
+  --keeps going either way.
+  local function angleThroughShift(sp)
     local a=0
     for k=1,seg do a=a+sp[k]*(1-shift)*frac[k]*turns*360 end
     local held=u
@@ -308,7 +308,7 @@ function onFrame3()
   local m0=ori3_0:clone()
   m0:mulRotateAB(a0, 1, 0, 0)
   grp3_0:setOri(m0)
-  local a1=angleViaRing(speed[2])
+  local a1=angleThroughShift(speed[2])
   local m1=ori3_1:clone()
   m1:mulRotateAB(a1, 1, 0, 0)
   grp3_1:setOri(m1)
@@ -349,7 +349,7 @@ function onFrame3()
   do --ring_1
     local a=where[1][seg+1]
     local at=a+(where[1][nxt+1]-a)*f
-    local ra=angleViaRing(ringSpeed[1])
+    local ra=angle(ringSpeed[1])
     local rm=rori3_0:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_0:setOri(rm)
@@ -358,7 +358,7 @@ function onFrame3()
   do --ring_2
     local a=where[2][seg+1]
     local at=a+(where[2][nxt+1]-a)*f
-    local ra=angleViaRing(ringSpeed[2])
+    local ra=angle(ringSpeed[2])
     local rm=rori3_1:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_1:setOri(rm)
@@ -367,7 +367,7 @@ function onFrame3()
   do --ring_3
     local a=where[3][seg+1]
     local at=a+(where[3][nxt+1]-a)*f
-    local ra=angleViaRing(ringSpeed[3])
+    local ra=angle(ringSpeed[3])
     local rm=rori3_2:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_2:setOri(rm)

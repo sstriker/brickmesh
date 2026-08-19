@@ -877,6 +877,36 @@ ring is in neither gear. It changes the arithmetic: over a three-state walk the
 output turns three quarters of what the ratios alone would give, because for the
 other quarter it is not connected to anything.
 
+### And it is a question about the whole graph
+
+Holding the shaft a ring rides was not enough, because the rule does not stop
+there. Stated properly, and it has to hold both ways round:
+
+> A gear that turns turns whatever it meshes with. A shaft keyed to a turning
+> gear turns, whether it is keyed through an axle hole or through an engaged
+> driving ring. And anything nothing reaches does not turn at all.
+
+The first two hold by construction — the solver's mesh equations make it
+impossible for two meshed gears to disagree, and a gear placed on a shaft is
+keyed to it. The third is the one that was wrong, and marking the ring's own
+shaft only covered the first hop of it.
+
+In a compound gearbox the second stage's gears are driven by the first stage's
+output, so when that output stops they stop too. They were still turning.
+`alwaysDriven` walks the graph from the inputs using only the links a shift
+cannot interrupt, and everything it does not reach holds:
+
+| | keeps turning | holds while a ring slides |
+| --- | --- | --- |
+| gearbox-2-speed | input, low, high | output |
+| gearbox-3-speed-compound | input, s1low, s1high | mid, output, s2low, s2high |
+
+A differential is the exception worth spelling out: two of its three shafts
+determine the third, and one determines nothing, since the other two are free to
+turn against each other. Driving the case alone leaves both outputs
+undetermined, which is the whole of what the part is for — so the walk requires
+two before it propagates.
+
 ## Two shifts, one ring
 
 A driving ring has dogs on both faces, so one sitting between two clutch gears
@@ -900,3 +930,24 @@ A shared ring has three positions rather than two: engaged with one gear,
 neutral, engaged with the other. That needed no change to the animation format —
 the neutral is simply the midpoint of a travel whose two ends are both
 engagements, so the same interpolation carries it.
+
+## A differential housing with nothing in it
+
+Three 12-tooth bevels go inside every modern Technic differential — two side
+gears on the outputs and a planet between them, which is what makes the thing a
+differential rather than a sleeve. The model showed the bare housing.
+
+They are named rather than placed, and that is measured rather than ducked.
+LDraw's 62821 models its outside and its axle bore, not the chamber the gears
+occupy: its innermost surface at mid-length is 10 LDU from the axis, and a 12t
+bevel is 16. Sweeping one along the axis inside the housing reads TOO DEEP at
+every position and every angle, in both facings.
+
+So a gear put where it belongs would fail the clearance check for being
+correct — the same shape as the driving ring, whose splines read as a collision
+rather than a grip. The report names what to add and says why it is not there.
+
+Worth noting what the absence means functionally: without the internal gears the
+case is just a tube on the axles, and the outputs are locked to it rather than
+averaging. The kinematics the engine solves are the ones the completed
+differential has.

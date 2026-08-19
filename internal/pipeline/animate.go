@@ -46,12 +46,12 @@ func animate(m *mech.Mechanism, res *Result, opts Options) {
 		})
 	}
 	tagParts(res, groupOf)
-	for _, r := range ringGroups(res) {
+	for _, r := range ringGroups(m, res) {
 		res.Model.Groups = append(res.Model.Groups, ldr.Group{
 			Name: r.group, Center: r.engaged,
 		})
 	}
-	tagRings(res)
+	tagRings(m, res)
 
 	script := &ldcad.Script{
 		Model: m.Name, Seconds: opts.Seconds, InputTurns: opts.InputTurns,
@@ -60,7 +60,7 @@ func animate(m *mech.Mechanism, res *Result, opts Options) {
 	if len(states) == 0 {
 		states = []string{""}
 	}
-	rings := ringGroups(res)
+	rings := ringGroups(m, res)
 	for _, state := range states {
 		if ani, ok := animationFor(m, res, groupOf, rings, state); ok {
 			script.Animations = append(script.Animations, ani)
@@ -147,13 +147,9 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 		name = m.Name
 	}
 	ani := ldcad.Animation{Name: name, Sliding: slidingIn(rings, speeds, state)}
-	// Which shafts nothing drives but a driving ring. While the ring slides
-	// between gears it is in neither, so these hold still rather than turning
-	// at a ratio no engagement is delivering.
-	viaRing := map[string]bool{}
-	for _, site := range res.ringSites {
-		viaRing[site.rides] = true
-	}
+	// Which shafts nothing reaches while every ring is between gears. Those
+	// hold still rather than turning at a ratio no engagement is delivering.
+	always := alwaysDriven(m)
 
 	for _, id := range m.Order() {
 		group, ok := groupOf[id]
@@ -166,8 +162,8 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 		}
 		ani.Turning = append(ani.Turning, ldcad.Turning{
 			Group: group, Axis: place.Direction, Speed: speeds[id],
-			Through: place.Point.Scale(synth.HalfStud),
-			ViaRing: viaRing[id],
+			Through:      place.Point.Scale(synth.HalfStud),
+			ThroughShift: !always[id],
 		})
 	}
 	if len(ani.Turning) == 0 {
@@ -179,9 +175,12 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 // ringGroup is a driving ring's own group: it turns with its shaft like any
 // gear, and slides along it, which no other part does.
 type ringGroup struct {
-	group  string
-	shaft  string // the one it is splined to, whose speed it turns at
-	states []string
+	group string
+	shaft string // the one it is splined to, whose speed it turns at
+	// throughShift is whether that shaft is itself driven only through a shift,
+	// in which case the ring holds with it.
+	throughShift bool
+	states       []string
 	// mateStates are the states in which this ring engages the gear on its
 	// other face, when one ring sits between two of them. Empty for a ring that
 	// serves a single gear, which then only has engaged and clear.
@@ -192,7 +191,8 @@ type ringGroup struct {
 }
 
 // ringGroups names a group per driving ring and works out its two positions.
-func ringGroups(res *Result) []ringGroup {
+func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
+	always := alwaysDriven(m)
 	var out []ringGroup
 	for i, site := range res.ringSites {
 		place, ok := res.Layout.Place[site.station.Shaft]
@@ -205,13 +205,14 @@ func ringGroups(res *Result) []ringGroup {
 			mateStates = site.mate.coupling.States
 		}
 		out = append(out, ringGroup{
-			group:      fmt.Sprintf("ring_%d", i+1),
-			shaft:      site.rides,
-			states:     site.coupling.States,
-			mateStates: mateStates,
-			axis:       place.Direction,
-			engaged:    base.Add(place.Direction.Scale(site.engaged * synth.HalfStud)),
-			disengaged: base.Add(place.Direction.Scale(site.disengaged * synth.HalfStud)),
+			group:        fmt.Sprintf("ring_%d", i+1),
+			shaft:        site.rides,
+			throughShift: !always[site.rides],
+			states:       site.coupling.States,
+			mateStates:   mateStates,
+			axis:         place.Direction,
+			engaged:      base.Add(place.Direction.Scale(site.engaged * synth.HalfStud)),
+			disengaged:   base.Add(place.Direction.Scale(site.disengaged * synth.HalfStud)),
 		})
 	}
 	return out
@@ -219,8 +220,8 @@ func ringGroups(res *Result) []ringGroup {
 
 // tagRings puts each ring in its own group rather than its shaft's, so it can
 // be moved on its own.
-func tagRings(res *Result) {
-	rings := ringGroups(res)
+func tagRings(m *mech.Mechanism, res *Result) {
+	rings := ringGroups(m, res)
 	k := 0
 	for i := range res.Model.Parts {
 		p := &res.Model.Parts[i]
@@ -260,7 +261,9 @@ func slidingIn(rings []ringGroup, speeds map[string]float64,
 		}
 		out = append(out, ldcad.Sliding{
 			Group: r.group, Axis: r.axis, Speed: speeds[r.shaft],
-			Engaged: r.engaged, Disengaged: r.disengaged, At: at,
+			// A ring is splined to its shaft, so it holds when that shaft does.
+			ThroughShift: r.throughShift,
+			Engaged:      r.engaged, Disengaged: r.disengaged, At: at,
 		})
 	}
 	return out
@@ -320,4 +323,57 @@ func applySchedule(m *mech.Mechanism, ani *ldcad.Animation) {
 			ani.Segments[i].Fraction = span
 		}
 	}
+}
+
+// alwaysDriven is every shaft the inputs reach with no shift engaged.
+//
+// The rule the animation has to obey, and the converse of it: a gear that turns
+// turns whatever it meshes with, a shaft keyed to a turning gear turns, and
+// anything nothing reaches does not turn at all. During a shift every ring is
+// between gears, so nothing passes through a shift — and a shaft the inputs
+// cannot reach without one has to stand still, along with everything downstream
+// of it.
+//
+// Holding only the shafts a ring rides was not enough: in a compound gearbox the
+// gears on the second stage are driven by the first stage's output, so when that
+// output stops they stop too, and they were still turning.
+//
+// A differential is the exception that has to be spelled out. Two of its three
+// shafts determine the third; one determines nothing, since the other two are
+// free to turn against each other. Driving the case alone leaves both outputs
+// undetermined, which is exactly what a differential is for.
+func alwaysDriven(m *mech.Mechanism) map[string]bool {
+	driven := make(map[string]bool, len(m.Inputs))
+	for id := range m.Inputs {
+		driven[id] = true
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, link := range m.Links {
+			if c, ok := link.(mech.Coupling); ok && len(c.States) > 0 {
+				continue // a shift, and no shift is engaged here
+			}
+			shafts := link.Shafts()
+			need := 1
+			if _, ok := link.(mech.Differential); ok {
+				need = 2
+			}
+			known := 0
+			for _, id := range shafts {
+				if driven[id] {
+					known++
+				}
+			}
+			if known < need {
+				continue
+			}
+			for _, id := range shafts {
+				if !driven[id] {
+					driven[id] = true
+					changed = true
+				}
+			}
+		}
+	}
+	return driven
 }

@@ -71,14 +71,18 @@ type Turning struct {
 	// Speed in turns per turn of the input, signed: the ratio the functional
 	// layer solved for.
 	Speed float64
-	// ViaRing marks a shaft that is driven only through a driving ring.
+	// ThroughShift marks a shaft the inputs reach only through a shift.
 	//
-	// It matters during a shift and nowhere else. While the ring is sliding it
-	// is in neither gear, so nothing drives this shaft: the clutch gears on it
-	// keep turning, because the input still drives them through their mesh,
-	// and the shaft itself is free. Turning it anyway showed a drive that was
-	// not there.
-	ViaRing bool
+	// It matters during a shift and nowhere else. While a ring is sliding it is
+	// in neither gear, so nothing passes through it: a shaft on the far side is
+	// driven by nothing at all, and so is everything downstream of that shaft.
+	// Turning them anyway draws a drive that is not there.
+	//
+	// Whether a shaft is on the far side is a question about the whole graph,
+	// not about which shaft a ring happens to ride — in a compound gearbox the
+	// second stage's gears are driven by the first stage's output, so they stop
+	// when it does.
+	ThroughShift bool
 }
 
 // Sliding is a group that moves along its shaft as well as turning about it.
@@ -94,8 +98,12 @@ type Sliding struct {
 	Speed float64
 	// Engaged and Disengaged are its two positions, in the model's coordinates.
 	Engaged, Disengaged geom.Vec3
-	// At is where it sits: 0 engaged, 1 disengaged.
+	// At is where it sits: 0 engaged, 1 disengaged. A ring that serves two
+	// gears engages one at 0 and the other at 1, with neutral halfway.
 	At float64
+	// ThroughShift is whether the shaft this rides is itself reached only
+	// through a shift, in which case the ring holds along with it.
+	ThroughShift bool
 }
 
 // Position of a sliding group at a given fraction of its travel.
@@ -335,11 +343,11 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
     return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
-  --And for a shaft driven only through a driving ring: it turns while the ring
-  --is in a gear and holds still while the ring is sliding between gears, when
-  --nothing is driving it at all. The gears on it keep going either way, since
-  --the input still reaches them through their mesh.
-  local function angleViaRing(sp)
+  --And for a shaft the inputs reach only through a shift: it turns while a ring
+  --is in a gear, and holds still while the rings are sliding, when nothing
+  --reaches it at all. Whatever the inputs still reach through fixed meshes
+  --keeps going either way.
+  local function angleThroughShift(sp)
     local a=0
     for k=1,seg do a=a+sp[k]*(1-shift)*frac[k]*turns*360 end
     local held=u
@@ -351,8 +359,8 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 	for j, t := range ani.Turning {
 		axis := t.Axis.Unit()
 		fn := "angle"
-		if t.ViaRing {
-			fn = "angleViaRing"
+		if t.ThroughShift {
+			fn = "angleThroughShift"
 		}
 		fmt.Fprintf(b, "  local a%d=%s(speed[%d])\n", j, fn, j+1)
 		fmt.Fprintf(b, "  local m%d=ori%d_%d:clone()\n", j, i, j)
@@ -409,8 +417,13 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "    local a=where[%d][seg+1]\n", k+1)
 		fmt.Fprintf(b, "    local at=a+(where[%d][nxt+1]-a)*f\n", k+1)
 		// A ring is splined to the shaft it rides, so it holds when that shaft
-		// does.
-		fmt.Fprintf(b, "    local ra=angleViaRing(ringSpeed[%d])\n", k+1)
+		// does — and turns straight through if that shaft is driven whatever
+		// the rings are doing.
+		ringFn := "angle"
+		if sl.ThroughShift {
+			ringFn = "angleThroughShift"
+		}
+		fmt.Fprintf(b, "    local ra=%s(ringSpeed[%d])\n", ringFn, k+1)
 		fmt.Fprintf(b, "    local rm=rori%d_%d:clone()\n", i, k)
 		fmt.Fprintf(b, "    rm:mulRotateAB(ra, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))

@@ -100,6 +100,24 @@ const DiffPart = "62821.dat"
 // DiffHalf is how far the housing reaches either side of its centre, in LDU.
 const DiffHalf = 30.0
 
+// DiffGear is what goes inside the housing, and how many.
+//
+// Three 12-tooth bevels: two side gears on the output shafts and one planet
+// between them, which is what makes the thing a differential rather than a
+// sleeve. They are named rather than placed, and that is measured rather than
+// ducked: LDraw's 62821 models its outside and its axle bore and not the
+// chamber the gears sit in. Its innermost surface at mid-length is 10 LDU from
+// the axis and a 12t bevel is 16, so a gear put where it belongs reads as
+// inside the housing at every angle — the same way a driving ring's splines
+// read as a collision rather than a grip.
+//
+// So the report says what to add. The alternative is a model that fails its own
+// clearance check for being correct.
+const (
+	DiffGear      = "6589 Technic Gear 12 Tooth Bevel"
+	DiffGearCount = 3
+)
+
 // AxleParts maps a length in studs to the part that is that long. Verified
 // against the library: every one runs along its own X and is 12 LDU across.
 var AxleParts = map[int]string{
@@ -1429,6 +1447,17 @@ func differentialAxles(res *Result, place layout.Placement, d mech.Differential,
 		shaft: d.Case,
 		label: fmt.Sprintf("differential for shaft '%s'", d.Case),
 	}}
+	res.Findings = append(res.Findings, mech.Finding{
+		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
+			"the differential on '%s' is the housing only. It needs %d x %s "+
+				"inside it — two side gears on the outputs and a planet between "+
+				"them — and those are named rather than placed because the LDraw "+
+				"housing does not model the chamber they sit in: its innermost "+
+				"surface is 10 LDU from the axis and a 12t bevel is 16, so a gear "+
+				"put where it belongs reads as buried in the housing at every "+
+				"angle. Without them the case turns with the outputs instead of "+
+				"averaging them",
+			d.Case, DiffGearCount, DiffGear)})
 
 	// One each side, outward from the housing's face to a stud past the end.
 	for _, side := range []struct {
