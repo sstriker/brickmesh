@@ -649,3 +649,50 @@ which is what is actually served.
 A new example with no budget fails the gate rather than being skipped. That is
 deliberate — the alternative is a gate that quietly stops covering the thing it
 was added for.
+
+## A group's placement is its centre, not the model's origin
+
+The first animation LDCad ever ran came out with the parts scattered — every
+shaft orbiting instead of spinning, including the one on the origin.
+
+The scripting reference settles it, and says the opposite of what this engine
+assumed. `setPos` "applies to the groups center position not the main item's
+true position"; `getPos` "returns the position of the linked LDCad group current
+center point". Contents are held relative to the centre, and the placement says
+where that centre goes and how it is turned. So `setOri` turns a group about its
+own centre already, and a spinning shaft needs nothing but a rotation.
+
+The engine believed placement was applied about the model origin, and so added
+`t = q − R·q` to drag the pivot back onto each shaft. A correct correction to a
+problem that was not there. It displaced every group by up to twice its distance
+from the origin, and by a different amount per group, since each turns at its
+own rate — which is why the parts did not merely shift but came apart.
+
+Where the wrong belief came from is worth writing down, because it was a careful
+misreading rather than a guess. LDCad's own examples say:
+
+> This group has a main item with identity placement so we can apply the
+> rotation around y absolutely.
+
+"Absolutely" there means *not incrementally* — set the orientation outright
+rather than adding to it. It was read as *about the model origin*. Both readings
+explain the sentence; only one is true, and the example that would have
+distinguished them is the one where the group is not at the origin, which the
+examples do not show for rotation.
+
+### The part that should have caught it
+
+`tests/test_animation_lua.py` executes the emitted Lua and asserts that a point
+on a shaft's own axis does not move. It passed throughout.
+
+It passed because the stub modelled LDCad the same way the generator did. Two
+wrongs that agree are invisible to a test that only compares them to each other.
+The stub now models the documented behaviour, and there is a control —
+`test_the_pivot_correction_would_now_be_caught` — that hands a group the old
+offset and requires the axis to move. If that ever stops failing, the stub has
+drifted back and the rest of the file means nothing.
+
+The general shape of this has now happened three times: a fixture that
+reimplements the thing it checks agrees with itself. The gears missing from the
+browser, the frame that braced nothing, and this. What broke the tie each time
+was output from something outside the loop — a renderer, a picture, LDCad.

@@ -42,11 +42,11 @@ func TestTheScriptUsesTheLDCadAPI(t *testing.T) {
 		"ani:getFrameTime()",
 		"local m=ldc.matrix()",
 		"m:setRotate(",
-		// setPosOri rather than setOri: a group turns about the model's origin,
-		// so its position has to carry the offset that moves the pivot onto its
-		// own axis.
-		":setPosOri(m)",
-		"brickmeshPivot(",
+		// setOri, not setPosOri: a group's placement is its own center, so a
+		// rotation turns it about its own axis already. Setting a position as
+		// well is what threw every group off its axis the first time LDCad ran
+		// one of these. A ring is the exception below, since it slides.
+		":setOri(m)",
 		"register()",
 	} {
 		if !strings.Contains(out, want) {
@@ -87,7 +87,7 @@ func TestEveryGroupFetchedIsAlsoTurned(t *testing.T) {
 			continue
 		}
 		v := "grp" + name[:strings.Index(name, "=")]
-		if !strings.Contains(out, v+":setPosOri(m)") {
+		if !strings.Contains(out, v+":setOri(m)") {
 			t.Errorf("%s is fetched but never turned", v)
 		}
 	}
@@ -146,5 +146,43 @@ func TestTheAxisIsNormalizedAndNeverNegativeZero(t *testing.T) {
 	}
 	if strings.Contains(out, "-0,") || strings.Contains(out, "-0)") {
 		t.Error("no component should be written as -0")
+	}
+}
+
+// A shaft group must not be given a position. It turns about its own center
+// already, and a position is a second displacement on top of that.
+//
+// This is the shape of the bug that made the first animation LDCad ever ran
+// come out scattered, so it is stated rather than left to the eye.
+func TestOnlyTheSlidingGroupsAreGivenAPosition(t *testing.T) {
+	out := shiftSample().Render()
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		if !strings.Contains(line, "m:setPos(") {
+			continue
+		}
+		// The only thing that may follow a setPos is a ring being placed.
+		var next string
+		for _, l := range lines[i+1:] {
+			if t := strings.TrimSpace(l); t != "" {
+				next = t
+				break
+			}
+		}
+		if !strings.HasPrefix(next, "ring") {
+			t.Errorf("line %d sets a position for something that is not a "+
+				"sliding ring:\n  %s\n  %s", i+1, strings.TrimSpace(line), next)
+		}
+	}
+}
+
+// And the ring does get one, or it turns with its shaft and never shifts.
+func TestASlidingRingIsGivenAPosition(t *testing.T) {
+	out := shiftSample().Render()
+	if !strings.Contains(out, "m:setPos(") {
+		t.Error("no position is set anywhere, so no ring can slide")
+	}
+	if !strings.Contains(out, ":setPosOri(m)") {
+		t.Error("a sliding ring needs both, so setPosOri has to appear")
 	}
 }

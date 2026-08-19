@@ -48,6 +48,20 @@ def method(fn):
     return wrapper
 
 
+# Where each group's GROUP_DEF puts its centre, which is the one thing about a
+# group that the script itself never states — it is in the model file.  The
+# fixture in golden_test.go decides these.
+CENTRES = {
+    "shaft_input": (0.0, 0.0, 0.0),
+    "shaft_output": (0.0, 0.0, -40.0),
+    "shaft_low": (0.0, 0.0, -40.0),
+    "shaft_high": (0.0, 0.0, -40.0),
+    "ring_1": (30.0, 0.0, -40.0),
+    "ring_2": (100.0, 0.0, -40.0),
+    "ring_3": (170.0, 0.0, -40.0),
+}
+
+
 class Group:
     """One LDCad group: what the script sets is what we read back."""
 
@@ -56,6 +70,7 @@ class Group:
         self.angle = 0.0
         self.axis = (0.0, 0.0, 0.0)
         self.pos: tuple[float, float, float] | None = None
+        self.centre = CENTRES.get(name, (0.0, 0.0, 0.0))
 
     @method
     def setOri(self, m):  # LDCad's own spelling
@@ -171,11 +186,23 @@ def lua_and_stub():
 def applied(group: Group, point) -> tuple[float, float, float]:
     """Where a part at `point` ends up, under the transform the group was given.
 
-    LDCad applies a group's placement to its contents as p' = R*p + t, about the
-    model's origin.  So the group's position is an offset and not a location,
-    and asking where a part actually goes means doing that arithmetic.
+    A group's placement is its CENTRE, not the model's origin.  LDCad's
+    scripting reference is explicit: setPos "applies to the groups center
+    position not the main item's true position", and getPos "returns the
+    position of the linked LDCad group current center point".  So the contents
+    are held relative to the centre, and the placement says where that centre
+    goes and how it is turned:
+
+        p' = R*(p - centre) + (position or centre)
+
+    This used to model it as p' = R*p + t about the origin, which is what the
+    generator was written against, and both were wrong together — so these tests
+    passed while LDCad scattered the parts.  A stub can only ever check that the
+    code agrees with the model of LDCad it was built from; it took opening a
+    file in LDCad to find out the model was wrong.
     """
-    x, y, z = point
+    cx, cy, cz = group.centre
+    x, y, z = point[0] - cx, point[1] - cy, point[2] - cz
     ax, ay, az = group.axis
     th = math.radians(group.angle)
     c, s_ = math.cos(th), math.sin(th)
@@ -184,7 +211,7 @@ def applied(group: Group, point) -> tuple[float, float, float]:
     rx = x * c + (ay * z - az * y) * s_ + ax * dot * (1 - c)
     ry = y * c + (az * x - ax * z) * s_ + ay * dot * (1 - c)
     rz = z * c + (ax * y - ay * x) * s_ + az * dot * (1 - c)
-    tx, ty, tz = group.pos or (0.0, 0.0, 0.0)
+    tx, ty, tz = group.pos if group.pos is not None else group.centre
     return (rx + tx, ry + ty, rz + tz)
 
 
@@ -280,15 +307,16 @@ def test_the_output_ends_where_the_ratios_say_it_should(lua_and_stub):
     assert not math.isnan(stub.group("shaft_output").angle)
 
 
-def test_a_shaft_turns_about_its_own_axis_and_not_the_origin(lua_and_stub):
-    """The bug that made everything but one shaft orbit.
+def test_a_shaft_turns_about_its_own_axis(lua_and_stub):
+    """The property the whole animation rests on.
 
-    A group's placement is applied about the model's origin, whatever centre its
-    GROUP_DEF declares.  A shaft whose axis does not pass through the origin
-    therefore has to be given a position that makes up the difference, or its
-    parts swing around the origin instead of spinning in place.
+    A group turns about its own centre, so a shaft whose centre is on its axis
+    needs nothing but a rotation.  Any point on that axis must stay exactly
+    where it is, at every angle.
 
-    Any point on the axis must stay exactly where it is, at every angle.
+    This held before too, against a stub that modelled LDCad as turning about
+    the origin and a generator that compensated for it.  Two wrongs agreeing is
+    what a stub cannot catch.
     """
     runtime, stub = lua_and_stub
     on_the_axis = (123.0, 0.0, -40.0)  # shaft_output runs along x at z=-40
@@ -314,3 +342,39 @@ def test_a_part_off_the_axis_sweeps_a_circle_around_it(lua_and_stub):
         assert radius == pytest.approx(20.0, abs=1e-6), (
             f"at t={t} the rim is {radius:.2f} from its own axis, not 20"
         )
+
+
+def test_the_pivot_correction_would_now_be_caught():
+    """The control, and the reason these tests can be trusted again.
+
+    The generator used to add t = q - R*q to every turning group, to move the
+    pivot from the model origin onto the shaft.  Against a stub that also
+    believed placement was about the origin, that was right and everything
+    passed.  Against LDCad it threw each group off its axis by twice its
+    distance from the origin.
+
+    So: hand a group exactly that old offset and check the axis does NOT hold
+    still.  If this ever stops failing, `applied` has drifted back to the model
+    the generator was written against and the tests above mean nothing.
+    """
+    g = Group("shaft_output")  # centre (0, 0, -40), axis along x
+    g.angle, g.axis = 90.0, (1.0, 0.0, 0.0)
+
+    # t = q - R*q for q = the group's centre, which is what used to be emitted.
+    qx, qy, qz = g.centre
+    th = math.radians(g.angle)
+    c, s_ = math.cos(th), math.sin(th)
+    # q lies across the axis here, so R*q is the two-term form.
+    rqx, rqy, rqz = (
+        qx * c + (0.0 * qz - 0.0 * qy) * s_,
+        qy * c + (0.0 * qx - 1.0 * qz) * s_,
+        qz * c + (1.0 * qy - 0.0 * qx) * s_,
+    )
+    g.pos = (qx - rqx, qy - rqy, qz - rqz)
+
+    on_the_axis = (123.0, 0.0, -40.0)
+    moved = applied(g, on_the_axis)
+    assert math.dist(moved, on_the_axis) > 1.0, (
+        "the old pivot correction left a point on the axis where it was, so "
+        "these tests cannot tell the two conventions apart"
+    )

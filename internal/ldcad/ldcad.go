@@ -7,6 +7,26 @@
 // declares groups — GROUP_DEF for each, GROUP_NXT tagging the part lines — and
 // a script reaches them by name and sets their orientation once per frame.
 // The API used here is exactly the one in LDCad's own 5510 example: a matrix
+// A group's placement is its center, not the model's origin.
+//
+// That is the whole of it, and getting it backwards is what made the first
+// animation LDCad ever ran come out with the parts scattered. The scripting
+// reference says it plainly: setPos "applies to the groups center position not
+// the main item's true position", and getPos "returns the position of the
+// linked LDCad group current center point". So setOri turns a group about its
+// own center already, and a rotation is all a spinning shaft needs.
+//
+// The mistake came from reading "absolute" in LDCad's own examples — "this
+// group has a main item with identity placement so we can apply the rotation
+// around y absolutely" — as "about the model origin". It means the opposite of
+// incremental, not the opposite of local. On that reading the code added an
+// offset t = q - R*q to move the pivot back onto the shaft, which is a correct
+// correction to a problem that was not there, and it threw every group off its
+// axis by twice its distance from the origin.
+//
+// A ring still gets a position, because it slides along its shaft as well as
+// turning with it. That position is where its center goes.
+//
 // from ldc.matrix(), setRotate in degrees about an axis, and setOri on the
 // group, which the example is explicit about being absolute rather than
 // incremental.
@@ -116,8 +136,6 @@ func (s Script) Render() string {
 
 `, s.Model, turns, seconds)
 
-	b.WriteString(pivotHelper)
-
 	for i, ani := range s.Animations {
 		writeAnimation(&b, ani, i, seconds, turns)
 	}
@@ -135,30 +153,6 @@ func (s Script) Render() string {
 	b.WriteString("end\n\nregister()\n")
 	return b.String()
 }
-
-// pivotHelper turns a rotation about the origin into one about an axis.
-//
-// A group's placement is applied to its contents as p' = R*p + t, about the
-// model's origin, whatever center the GROUP_DEF declares. To turn about an axis
-// through a point q instead, the position has to make up the difference:
-//
-//	p' = R*(p - q) + q  =  R*p + (q - R*q)
-//
-// so t = q - R*q. Only the part of q across the axis moves, since the part
-// along it is what the rotation leaves alone — which reduces Rodrigues to two
-// terms and keeps this short enough to read.
-const pivotHelper = `--Offset that turns a rotation about the origin into one about an axis
---through q: t = q - R*q. See ldcad.go for why this is needed.
-function brickmeshPivot(qx,qy,qz, dx,dy,dz, deg)
-  local along=qx*dx+qy*dy+qz*dz
-  local ax,ay,az=qx-along*dx, qy-along*dy, qz-along*dz --q across the axis
-  local th=deg*math.pi/180
-  local c,s=math.cos(th),math.sin(th)
-  local cx,cy,cz=dy*az-dz*ay, dz*ax-dx*az, dx*ay-dy*ax --d x a
-  return ax-(ax*c+cx*s), ay-(ay*c+cy*s), az-(az*c+cz*s)
-end
-
-`
 
 func writeAnimation(b *strings.Builder, ani Animation, i int, seconds, turns float64) {
 	// The start event caches the group lookups, as LDCad's own examples do, so
@@ -185,14 +179,6 @@ func writeAnimation(b *strings.Builder, ani Animation, i int, seconds, turns flo
 }
 
 // slidingOf lists the sliding groups, which are the same in every segment.
-// writePivot emits the offset that makes a rotation happen about the group's
-// own axis rather than about the model's origin.
-func writePivot(b *strings.Builder, through, axis geom.Vec3, angle string) {
-	fmt.Fprintf(b, "  m:setPos(brickmeshPivot(%g,%g,%g, %g,%g,%g, %s))\n",
-		round6(through.X), round6(through.Y), round6(through.Z),
-		round6(axis.X), round6(axis.Y), round6(axis.Z), angle)
-}
-
 func slidingOf(ani Animation) []Sliding {
 	if len(ani.Segments) > 0 {
 		return ani.Segments[0].Sliding
@@ -211,8 +197,9 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "  local a=input*%.6f\n", t.Speed)
 		fmt.Fprintf(b, "  m:setRotate(a, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))
-		writePivot(b, t.Through, axis, "a")
-		fmt.Fprintf(b, "  grp%d_%d:setPosOri(m)\n", i, j)
+		// Orientation only. A group's placement is its center, so this turns
+		// about the center already and setting a position would move it.
+		fmt.Fprintf(b, "  grp%d_%d:setOri(m)\n", i, j)
 	}
 	for k, sl := range ani.Sliding {
 		axis := sl.Axis.Unit()
@@ -225,14 +212,11 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "  local a=input*%.6f\n", sl.Speed)
 		fmt.Fprintf(b, "  m:setRotate(a, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))
-		// The ring turns about its shaft and slides along it, so the offset is
-		// the pivot correction plus however far along it has slid.
-		slide := pos.Sub(sl.Engaged)
-		fmt.Fprintf(b, "  local px,py,pz=brickmeshPivot(%g,%g,%g, %g,%g,%g, a)\n",
-			round6(sl.Engaged.X), round6(sl.Engaged.Y), round6(sl.Engaged.Z),
-			round6(axis.X), round6(axis.Y), round6(axis.Z))
-		fmt.Fprintf(b, "  m:setPos(px+%g, py+%g, pz+%g)\n",
-			round6(slide.X), round6(slide.Y), round6(slide.Z))
+		// A ring turns about its shaft and slides along it, so unlike the
+		// shafts it does need a position — and the position is where its
+		// center goes, stated outright rather than as an offset.
+		fmt.Fprintf(b, "  m:setPos(%g, %g, %g)\n",
+			round6(pos.X), round6(pos.Y), round6(pos.Z))
 		fmt.Fprintf(b, "  ring%d_%d:setPosOri(m)\n", i, k)
 	}
 }
@@ -326,8 +310,7 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "  local a%d=angle(speed[%d])\n", j, j+1)
 		fmt.Fprintf(b, "  m:setRotate(a%d, %g, %g, %g)\n",
 			j, round6(axis.X), round6(axis.Y), round6(axis.Z))
-		writePivot(b, t.Through, axis, fmt.Sprintf("a%d", j))
-		fmt.Fprintf(b, "  grp%d_%d:setPosOri(m)\n", i, j)
+		fmt.Fprintf(b, "  grp%d_%d:setOri(m)\n", i, j)
 	}
 
 	if len(slidingOf(ani)) == 0 {
@@ -381,11 +364,11 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "    local ra=angle(ringSpeed[%d])\n", k+1)
 		fmt.Fprintf(b, "    m:setRotate(ra, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))
-		fmt.Fprintf(b, "    local px,py,pz=brickmeshPivot(%g,%g,%g, %g,%g,%g, ra)\n",
-			round6(e.X), round6(e.Y), round6(e.Z),
-			round6(axis.X), round6(axis.Y), round6(axis.Z))
-		fmt.Fprintf(b, "    m:setPos(px+(%g)*at, py+(%g)*at, pz+(%g)*at)\n",
-			round6(d.X-e.X), round6(d.Y-e.Y), round6(d.Z-e.Z))
+		// Where the center goes: engaged, plus however far along it has slid.
+		fmt.Fprintf(b, "    m:setPos(%g+(%g)*at, %g+(%g)*at, %g+(%g)*at)\n",
+			round6(e.X), round6(d.X-e.X),
+			round6(e.Y), round6(d.Y-e.Y),
+			round6(e.Z), round6(d.Z-e.Z))
 		fmt.Fprintf(b, "    ring%d_%d:setPosOri(m)\n", i, k)
 		b.WriteString("  end\n")
 	}
