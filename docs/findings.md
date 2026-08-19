@@ -696,3 +696,43 @@ The general shape of this has now happened three times: a fixture that
 reimplements the thing it checks agrees with itself. The gears missing from the
 browser, the frame that braced nothing, and this. What broke the tie each time
 was output from something outside the loop — a renderer, a picture, LDCad.
+
+### And setOri replaces, it does not add
+
+The pivot was only half of it. With the offset removed the parts still came
+apart, differently.
+
+`setOri` is absolute: it *replaces* a group's orientation rather than turning it
+by that much. Every group here holds a gear on a shaft, so every group starts
+already turned — and handing one a bare rotation snapped it to that orientation
+instead of rotating it from where it was. A group whose parts happened to sit
+square to the model would have looked fine, which is why every example in
+LDCad's own set does exactly that.
+
+The fix is the idiom those examples use: buffer what each group starts with, and
+multiply the turn onto it.
+
+```lua
+ori = grp:getOri()             -- once, in onStart
+local m = ori:clone()          -- every frame
+m:mulRotateBA(angle, x, y, z)  -- self = rotation * self
+grp:setOri(m)
+```
+
+And the comment that had already been misread once turns out to be a warning
+about precisely this:
+
+> This group has a main item with identity placement so we can apply the
+> rotation around y absolutely.
+
+Identity *placement*. It is saying: this works only because the group starts
+square. Read once as "about the model origin", it is really "and yours will not
+start square, so buffer it".
+
+The stub could not have caught this either, for the same reason as before: it
+gave every group an identity starting orientation, which is the one case where
+replacing and turning-by agree. It now starts them turned, has real 3×3
+matrices rather than an angle and an axis, and carries two controls — one that
+hands a group the old pivot offset, one that hands it a bare rotation — each
+required to move a point that should be still. If either stops failing, the
+file has drifted back to agreeing with whatever the generator does.

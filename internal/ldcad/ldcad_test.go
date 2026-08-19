@@ -40,13 +40,18 @@ func TestTheScriptUsesTheLDCadAPI(t *testing.T) {
 		"sf:getGroup(\"shaft_input\")",
 		"ldc.animation.getCurrent()",
 		"ani:getFrameTime()",
-		"local m=ldc.matrix()",
-		"m:setRotate(",
+		// The original orientation, buffered, then multiplied onto. setOri
+		// replaces a group's orientation rather than adding to it, so a group
+		// whose parts are not square to the model — a gear on a shaft, always —
+		// needs what it started with.
+		":getOri()",
+		":clone()",
+		":mulRotateBA(",
 		// setOri, not setPosOri: a group's placement is its own center, so a
 		// rotation turns it about its own axis already. Setting a position as
 		// well is what threw every group off its axis the first time LDCad ran
 		// one of these. A ring is the exception below, since it slides.
-		":setOri(m)",
+		":setOri(m0)",
 		"register()",
 	} {
 		if !strings.Contains(out, want) {
@@ -87,7 +92,7 @@ func TestEveryGroupFetchedIsAlsoTurned(t *testing.T) {
 			continue
 		}
 		v := "grp" + name[:strings.Index(name, "=")]
-		if !strings.Contains(out, v+":setOri(m)") {
+		if !strings.Contains(out, v+":setOri(m") {
 			t.Errorf("%s is fetched but never turned", v)
 		}
 	}
@@ -158,20 +163,15 @@ func TestOnlyTheSlidingGroupsAreGivenAPosition(t *testing.T) {
 	out := shiftSample().Render()
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
-		if !strings.Contains(line, "m:setPos(") {
+		if !strings.Contains(line, ":setPos(") {
 			continue
 		}
-		// The only thing that may follow a setPos is a ring being placed.
-		var next string
-		for _, l := range lines[i+1:] {
-			if t := strings.TrimSpace(l); t != "" {
-				next = t
-				break
-			}
-		}
-		if !strings.HasPrefix(next, "ring") {
-			t.Errorf("line %d sets a position for something that is not a "+
-				"sliding ring:\n  %s\n  %s", i+1, strings.TrimSpace(line), next)
+		// A position may only ever be set on a sliding ring. A shaft that got
+		// one would be moved off its own axis, which is the bug this whole
+		// file exists to keep out.
+		if !strings.HasPrefix(strings.TrimSpace(line), "ring") {
+			t.Errorf("line %d sets a position on something that is not a "+
+				"sliding ring: %s", i+1, strings.TrimSpace(line))
 		}
 	}
 }
@@ -179,10 +179,7 @@ func TestOnlyTheSlidingGroupsAreGivenAPosition(t *testing.T) {
 // And the ring does get one, or it turns with its shaft and never shifts.
 func TestASlidingRingIsGivenAPosition(t *testing.T) {
 	out := shiftSample().Render()
-	if !strings.Contains(out, "m:setPos(") {
+	if !strings.Contains(out, ":setPos(") {
 		t.Error("no position is set anywhere, so no ring can slide")
-	}
-	if !strings.Contains(out, ":setPosOri(m)") {
-		t.Error("a sliding ring needs both, so setPosOri has to appear")
 	}
 }

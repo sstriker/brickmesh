@@ -48,6 +48,57 @@ def method(fn):
     return wrapper
 
 
+
+IDENTITY = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+
+
+def rotation(deg: float, x: float, y: float, z: float) -> tuple[float, ...]:
+    """A 3x3 rotation about an axis, row major."""
+    n = math.hypot(x, y, z) or 1.0
+    x, y, z = x / n, y / n, z / n
+    c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+    k = 1.0 - c
+    return (
+        c + x * x * k, x * y * k - z * s_, x * z * k + y * s_,
+        y * x * k + z * s_, c + y * y * k, y * z * k - x * s_,
+        z * x * k - y * s_, z * y * k + x * s_, c + z * z * k,
+    )
+
+
+def mat_mul(a, b):
+    return tuple(
+        sum(a[r * 3 + i] * b[i * 3 + col] for i in range(3))
+        for r in range(3)
+        for col in range(3)
+    )
+
+
+def mat_apply(m, v):
+    return tuple(sum(m[r * 3 + i] * v[i] for i in range(3)) for r in range(3))
+
+
+def transpose(m):
+    return (m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8])
+
+
+# What each group's parts are turned to in the model before anything animates.
+#
+# NOT the identity, and that is the point.  A gear sits on a shaft, so its
+# placement is a rotation, and the group inherits it.  The stub used to assume
+# every group started square to the model, which is the one case where getting
+# setOri wrong makes no difference -- so it could not see the bug that had every
+# group in LDCad snapping to a fresh orientation instead of turning from its own.
+START_ORI = {
+    "shaft_input": rotation(90.0, 0.0, 1.0, 0.0),
+    "shaft_output": rotation(90.0, 0.0, 1.0, 0.0),
+    "shaft_low": rotation(90.0, 0.0, 1.0, 0.0),
+    "shaft_high": rotation(90.0, 0.0, 1.0, 0.0),
+    "ring_1": rotation(90.0, 0.0, 1.0, 0.0),
+    "ring_2": rotation(90.0, 0.0, 1.0, 0.0),
+    "ring_3": rotation(90.0, 0.0, 1.0, 0.0),
+}
+
+
 # Where each group's GROUP_DEF puts its centre, which is the one thing about a
 # group that the script itself never states — it is in the model file.  The
 # fixture in golden_test.go decides these.
@@ -67,13 +118,26 @@ class Group:
 
     def __init__(self, name: str) -> None:
         self.name = name
+        self.centre = CENTRES.get(name, (0.0, 0.0, 0.0))
+        self.start = START_ORI.get(name, IDENTITY)
+        self.ori = self.start
+        self.pos: tuple[float, float, float] | None = None
         self.angle = 0.0
         self.axis = (0.0, 0.0, 0.0)
-        self.pos: tuple[float, float, float] | None = None
-        self.centre = CENTRES.get(name, (0.0, 0.0, 0.0))
+
+    @method
+    def getOri(self):
+        return Matrix(self.ori)
+
+    @method
+    def getPosOri(self):
+        m = Matrix(self.ori)
+        m.pos = self.pos if self.pos is not None else self.centre
+        return m
 
     @method
     def setOri(self, m):  # LDCad's own spelling
+        self.ori = m.m
         self.angle, self.axis = m.angle, m.axis
 
     @method
@@ -82,17 +146,49 @@ class Group:
 
     @method
     def setPosOri(self, m):
-        self.angle, self.axis, self.pos = m.angle, m.axis, m.pos
+        self.ori, self.pos = m.m, m.pos
+        self.angle, self.axis = m.angle, m.axis
 
 
 class Matrix:
-    def __init__(self) -> None:
+    """A 3x3 orientation, and the turn that was last multiplied into it.
+
+    The angle is carried alongside the matrix because a matrix cannot tell 370
+    degrees from 10, and several of the tests below are about exactly that --
+    a shaft accumulating turns across a shift rather than restarting. Geometry
+    comes from the matrix; how far something has turned comes from the angle.
+    """
+
+    def __init__(self, data=IDENTITY) -> None:
+        self.m = tuple(data)
+        self.pos = None
         self.angle = 0.0
         self.axis = (0.0, 0.0, 0.0)
-        self.pos = None
+
+    @method
+    def clone(self):
+        m = Matrix(self.m)
+        m.pos, m.angle, m.axis = self.pos, self.angle, self.axis
+        return m
+
+    @method
+    def setIdentity(self):
+        self.m = IDENTITY
 
     @method
     def setRotate(self, deg, x, y, z):
+        self.m = rotation(deg, x, y, z)
+        self.angle, self.axis = deg, (x, y, z)
+
+    @method
+    def mulRotateBA(self, deg, x, y, z):
+        """self = rotateMatrix * self, as the API reference spells it."""
+        self.m = mat_mul(rotation(deg, x, y, z), self.m)
+        self.angle, self.axis = deg, (x, y, z)
+
+    @method
+    def mulRotateAB(self, deg, x, y, z):
+        self.m = mat_mul(self.m, rotation(deg, x, y, z))
         self.angle, self.axis = deg, (x, y, z)
 
     @method
@@ -186,31 +282,29 @@ def lua_and_stub():
 def applied(group: Group, point) -> tuple[float, float, float]:
     """Where a part at `point` ends up, under the transform the group was given.
 
-    A group's placement is its CENTRE, not the model's origin.  LDCad's
-    scripting reference is explicit: setPos "applies to the groups center
-    position not the main item's true position", and getPos "returns the
-    position of the linked LDCad group current center point".  So the contents
-    are held relative to the centre, and the placement says where that centre
-    goes and how it is turned:
+    Two things decide it, and both were got wrong in turn.
 
-        p' = R*(p - centre) + (position or centre)
+    A group's placement is its CENTRE, not the model's origin.  The scripting
+    reference: setPos "applies to the groups center position not the main item's
+    true position", getPos "returns the position of the linked LDCad group
+    current center point".  So the contents are held relative to the centre.
 
-    This used to model it as p' = R*p + t about the origin, which is what the
-    generator was written against, and both were wrong together — so these tests
-    passed while LDCad scattered the parts.  A stub can only ever check that the
-    code agrees with the model of LDCad it was built from; it took opening a
-    file in LDCad to find out the model was wrong.
+    And setOri is ABSOLUTE -- it replaces a group's orientation rather than
+    adding to it.  A group whose parts are already turned, which is every group
+    holding a gear on a shaft, therefore moves by the difference between the
+    orientation it is given and the one it started with:
+
+        p' = (ori * start^-1) * (p - centre) + (position or centre)
+
+    Setting the orientation to a bare rotation R, as the generator first did,
+    gives R * start^-1 -- which is only the rotation you wanted when the group
+    started square to the model.  That is why START_ORI above is not the
+    identity: with it, a stub can tell the two apart.
     """
+    delta = mat_mul(group.ori, transpose(group.start))
     cx, cy, cz = group.centre
-    x, y, z = point[0] - cx, point[1] - cy, point[2] - cz
-    ax, ay, az = group.axis
-    th = math.radians(group.angle)
-    c, s_ = math.cos(th), math.sin(th)
-    dot = ax * x + ay * y + az * z
-    # Rodrigues.
-    rx = x * c + (ay * z - az * y) * s_ + ax * dot * (1 - c)
-    ry = y * c + (az * x - ax * z) * s_ + ay * dot * (1 - c)
-    rz = z * c + (ax * y - ay * x) * s_ + az * dot * (1 - c)
+    local = (point[0] - cx, point[1] - cy, point[2] - cz)
+    rx, ry, rz = mat_apply(delta, local)
     tx, ty, tz = group.pos if group.pos is not None else group.centre
     return (rx + tx, ry + ty, rz + tz)
 
@@ -345,36 +439,47 @@ def test_a_part_off_the_axis_sweeps_a_circle_around_it(lua_and_stub):
 
 
 def test_the_pivot_correction_would_now_be_caught():
-    """The control, and the reason these tests can be trusted again.
+    """Control for the first wrong belief: that placement was about the origin.
 
-    The generator used to add t = q - R*q to every turning group, to move the
-    pivot from the model origin onto the shaft.  Against a stub that also
-    believed placement was about the origin, that was right and everything
-    passed.  Against LDCad it threw each group off its axis by twice its
-    distance from the origin.
+    The generator used to add t = q - R*q to every turning group, to drag the
+    pivot from the model origin onto the shaft. Against a stub that shared the
+    belief it was right, and everything passed. Against LDCad it threw each
+    group off its axis by twice its distance from the origin.
 
-    So: hand a group exactly that old offset and check the axis does NOT hold
-    still.  If this ever stops failing, `applied` has drifted back to the model
-    the generator was written against and the tests above mean nothing.
+    So: give a group the correct orientation but that old offset as a position,
+    and require the axis NOT to hold still.
     """
     g = Group("shaft_output")  # centre (0, 0, -40), axis along x
-    g.angle, g.axis = 90.0, (1.0, 0.0, 0.0)
+    g.ori = mat_mul(rotation(90.0, 1.0, 0.0, 0.0), g.start)
 
-    # t = q - R*q for q = the group's centre, which is what used to be emitted.
     qx, qy, qz = g.centre
-    th = math.radians(g.angle)
-    c, s_ = math.cos(th), math.sin(th)
-    # q lies across the axis here, so R*q is the two-term form.
-    rqx, rqy, rqz = (
-        qx * c + (0.0 * qz - 0.0 * qy) * s_,
-        qy * c + (0.0 * qx - 1.0 * qz) * s_,
-        qz * c + (1.0 * qy - 0.0 * qx) * s_,
-    )
+    rqx, rqy, rqz = mat_apply(rotation(90.0, 1.0, 0.0, 0.0), g.centre)
     g.pos = (qx - rqx, qy - rqy, qz - rqz)
 
     on_the_axis = (123.0, 0.0, -40.0)
-    moved = applied(g, on_the_axis)
-    assert math.dist(moved, on_the_axis) > 1.0, (
+    assert math.dist(applied(g, on_the_axis), on_the_axis) > 1.0, (
         "the old pivot correction left a point on the axis where it was, so "
-        "these tests cannot tell the two conventions apart"
+        "these tests cannot tell that convention from the right one"
+    )
+
+
+def test_a_bare_rotation_would_now_be_caught():
+    """Control for the second wrong belief: that setOri adds to what is there.
+
+    It replaces. A group holding a gear on a shaft starts already turned, so
+    handing it a bare rotation snaps it to that orientation instead of turning
+    it by that much -- which is what LDCad showed, and what the stub could not
+    show while it assumed every group started square to the model.
+
+    So: give a group the bare rotation the generator used to set, and require
+    the axis NOT to hold still.
+    """
+    g = Group("shaft_output")
+    g.ori = rotation(90.0, 1.0, 0.0, 0.0)  # no regard for where it started
+
+    on_the_axis = (123.0, 0.0, -40.0)
+    assert math.dist(applied(g, on_the_axis), on_the_axis) > 1.0, (
+        "a bare rotation left a point on the axis where it was; START_ORI must "
+        "have drifted back to the identity, and with it goes the only reason "
+        "this file can tell the two spellings of setOri apart"
     )

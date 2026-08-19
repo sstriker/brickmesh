@@ -159,11 +159,18 @@ func writeAnimation(b *strings.Builder, ani Animation, i int, seconds, turns flo
 	// the per-frame work stays small.
 	fmt.Fprintf(b, "function onStart%d()\n", i)
 	b.WriteString("  local sf=ldc.subfile()\n")
+	// The orientation each group starts with, kept because setOri is absolute:
+	// it replaces a group's orientation rather than adding to it, so turning a
+	// group by an angle means multiplying that angle onto what it already had.
+	// Only a group whose parts are placed square to the model would come out
+	// right without this, and a gear on a shaft never is.
 	for j, t := range ani.Turning {
 		fmt.Fprintf(b, "  grp%d_%d=sf:getGroup(%q)\n", i, j, t.Group)
+		fmt.Fprintf(b, "  ori%d_%d=grp%d_%d:getOri()\n", i, j, i, j)
 	}
 	for k, sl := range slidingOf(ani) {
 		fmt.Fprintf(b, "  ring%d_%d=sf:getGroup(%q)\n", i, k, sl.Group)
+		fmt.Fprintf(b, "  rori%d_%d=ring%d_%d:getOri()\n", i, k, i, k)
 	}
 	b.WriteString("end\n\n")
 
@@ -190,16 +197,16 @@ func slidingOf(ani Animation) []Sliding {
 // that state puts them.
 func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 	fmt.Fprintf(b, "  local input=t*%g*360 --degrees turned by the input\n", turns)
-	b.WriteString("  local m=ldc.matrix()\n")
 	for j, t := range ani.Turning {
 		axis := t.Axis.Unit()
 		fmt.Fprintf(b, "\n  --%s turns %.4f per turn of the input\n", t.Group, t.Speed)
 		fmt.Fprintf(b, "  local a=input*%.6f\n", t.Speed)
-		fmt.Fprintf(b, "  m:setRotate(a, %g, %g, %g)\n",
-			round6(axis.X), round6(axis.Y), round6(axis.Z))
-		// Orientation only. A group's placement is its center, so this turns
-		// about the center already and setting a position would move it.
-		fmt.Fprintf(b, "  grp%d_%d:setOri(m)\n", i, j)
+		// R times what it started with, about the group's own center, which is
+		// where a group turns. Position is left alone: setOri does not touch it.
+		fmt.Fprintf(b, "  local m%d=ori%d_%d:clone()\n", j, i, j)
+		fmt.Fprintf(b, "  m%d:mulRotateBA(a, %g, %g, %g)\n",
+			j, round6(axis.X), round6(axis.Y), round6(axis.Z))
+		fmt.Fprintf(b, "  grp%d_%d:setOri(m%d)\n", i, j, j)
 	}
 	for k, sl := range ani.Sliding {
 		axis := sl.Axis.Unit()
@@ -210,14 +217,14 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 		}
 		fmt.Fprintf(b, "\n  --%s turns with its shaft and sits %s\n", sl.Group, where)
 		fmt.Fprintf(b, "  local a=input*%.6f\n", sl.Speed)
-		fmt.Fprintf(b, "  m:setRotate(a, %g, %g, %g)\n",
-			round6(axis.X), round6(axis.Y), round6(axis.Z))
-		// A ring turns about its shaft and slides along it, so unlike the
-		// shafts it does need a position — and the position is where its
-		// center goes, stated outright rather than as an offset.
-		fmt.Fprintf(b, "  m:setPos(%g, %g, %g)\n",
+		fmt.Fprintf(b, "  local rm%d=rori%d_%d:clone()\n", k, i, k)
+		fmt.Fprintf(b, "  rm%d:mulRotateBA(a, %g, %g, %g)\n",
+			k, round6(axis.X), round6(axis.Y), round6(axis.Z))
+		fmt.Fprintf(b, "  ring%d_%d:setOri(rm%d)\n", i, k, k)
+		// A ring slides as well as turning, so unlike a shaft it also gets a
+		// position — where its center goes, which setPos sets outright.
+		fmt.Fprintf(b, "  ring%d_%d:setPos(%g, %g, %g)\n", i, k,
 			round6(pos.X), round6(pos.Y), round6(pos.Z))
-		fmt.Fprintf(b, "  ring%d_%d:setPosOri(m)\n", i, k)
 	}
 }
 
@@ -278,7 +285,6 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
   if u<0 then u=0 elseif u>1 then u=1 end
 `)
 	fmt.Fprintf(b, "  local turns=%g\n", turns)
-	b.WriteString("  local m=ldc.matrix()\n\n")
 
 	// Speeds, group by group, segment by segment.
 	b.WriteString("  --speed[group][segment], in turns per turn of the input\n")
@@ -308,9 +314,10 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 	for j, t := range ani.Turning {
 		axis := t.Axis.Unit()
 		fmt.Fprintf(b, "  local a%d=angle(speed[%d])\n", j, j+1)
-		fmt.Fprintf(b, "  m:setRotate(a%d, %g, %g, %g)\n",
-			j, round6(axis.X), round6(axis.Y), round6(axis.Z))
-		fmt.Fprintf(b, "  grp%d_%d:setOri(m)\n", i, j)
+		fmt.Fprintf(b, "  local m%d=ori%d_%d:clone()\n", j, i, j)
+		fmt.Fprintf(b, "  m%d:mulRotateBA(a%d, %g, %g, %g)\n",
+			j, j, round6(axis.X), round6(axis.Y), round6(axis.Z))
+		fmt.Fprintf(b, "  grp%d_%d:setOri(m%d)\n", i, j, j)
 	}
 
 	if len(slidingOf(ani)) == 0 {
@@ -362,14 +369,16 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "    local a=where[%d][seg+1]\n", k+1)
 		fmt.Fprintf(b, "    local at=a+(where[%d][nxt+1]-a)*f\n", k+1)
 		fmt.Fprintf(b, "    local ra=angle(ringSpeed[%d])\n", k+1)
-		fmt.Fprintf(b, "    m:setRotate(ra, %g, %g, %g)\n",
+		fmt.Fprintf(b, "    local rm=rori%d_%d:clone()\n", i, k)
+		fmt.Fprintf(b, "    rm:mulRotateBA(ra, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))
+		fmt.Fprintf(b, "    ring%d_%d:setOri(rm)\n", i, k)
 		// Where the center goes: engaged, plus however far along it has slid.
-		fmt.Fprintf(b, "    m:setPos(%g+(%g)*at, %g+(%g)*at, %g+(%g)*at)\n",
+		fmt.Fprintf(b, "    ring%d_%d:setPos(%g+(%g)*at, %g+(%g)*at, %g+(%g)*at)\n",
+			i, k,
 			round6(e.X), round6(d.X-e.X),
 			round6(e.Y), round6(d.Y-e.Y),
 			round6(e.Z), round6(d.Z-e.Z))
-		fmt.Fprintf(b, "    ring%d_%d:setPosOri(m)\n", i, k)
 		b.WriteString("  end\n")
 	}
 }
