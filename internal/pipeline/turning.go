@@ -11,7 +11,7 @@ import (
 	"brickmesh/internal/geom"
 	"brickmesh/internal/ldr"
 	"brickmesh/internal/mech"
-	"brickmesh/internal/shadow"
+	"brickmesh/internal/part"
 )
 
 // turning works out what moves when a shaft turns, and about which axis.
@@ -74,31 +74,17 @@ type port struct {
 	cross bool // an axle keys into it rather than spinning inside it
 }
 
-// portsOf reads a placed part's connection points from the shadow library.
-func portsOf(lib *shadow.Library, p ldr.Part) []port {
+// portsOf puts a placed part's connection points into the model's coordinates.
+func portsOf(src part.Holes, p ldr.Part) []port {
 	var out []port
-	for _, s := range lib.Snaps(strings.TrimSuffix(p.Name, ".dat")) {
-		if s.Kind != "SNAP_CYL" {
-			continue
-		}
+	for _, h := range src.Holes(strings.TrimSuffix(p.Name, ".dat")) {
 		out = append(out, port{
-			at:  p.Rot.Apply(s.Pos).Add(p.Pos),
-			dir: p.Rot.Apply(s.Axis()).Unit(),
-			// Sections are a kind and a size: A is axle-shaped, R round, S
-			// solid. One A section is enough to key the whole hole.
-			cross: hasAxleSection(s.Secs),
+			at:    p.Rot.Apply(h.Pos).Add(p.Pos),
+			dir:   p.Rot.Apply(h.Axis).Unit(),
+			cross: h.Cross,
 		})
 	}
 	return out
-}
-
-func hasAxleSection(secs string) bool {
-	for _, f := range strings.Fields(secs) {
-		if f == "A" {
-			return true
-		}
-	}
-	return false
 }
 
 // whatTurns seeds from the shafts and spreads outward.

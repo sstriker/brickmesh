@@ -27,25 +27,19 @@ import (
 func TestNoStructuralPartCanBeKeyedToATurningShaft(t *testing.T) {
 	deps := requireLibraries(t)
 	for _, beam := range part.Beams {
-		snaps := deps.Shadow.Snaps(strings.TrimSuffix(beam.Part, ".dat"))
-		if len(snaps) == 0 {
-			t.Errorf("%s has no shadow data, so this cannot tell whether it is "+
-				"keyed to anything", beam.Part)
+		holes := deps.Shadow.Holes(strings.TrimSuffix(beam.Part, ".dat"))
+		if len(holes) == 0 {
+			t.Errorf("%s has no connection points, so this cannot tell whether "+
+				"it is keyed to anything", beam.Part)
 			continue
 		}
-		for _, s := range snaps {
-			// Sections are given as a kind and a size: R round, A axle-shaped,
-			// S solid. An A section is a hole an axle is keyed into.
-			for _, field := range strings.Fields(s.Secs) {
-				if field != "A" {
-					continue
-				}
-				t.Errorf("%s has an axle-shaped hole (%q). A part keyed to a "+
-					"turning shaft turns with it, and clearance.classOf would "+
-					"still call this structure and test it standing still. "+
-					"Deriving what turns from the ports rather than from the "+
-					"part is the fix", beam.Part, s.Secs)
+		for _, h := range holes {
+			if !h.Cross {
+				continue
 			}
+			t.Errorf("%s has a cross hole at %+v. A part keyed to a turning "+
+				"shaft turns with it, and the structural search would still "+
+				"place this as if it stood still", beam.Part, h.Pos)
 		}
 	}
 }

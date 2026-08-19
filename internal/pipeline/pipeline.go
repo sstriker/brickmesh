@@ -25,12 +25,10 @@ import (
 	"brickmesh/internal/layout"
 	"brickmesh/internal/ldcad"
 	"brickmesh/internal/ldr"
-	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/part"
 	"brickmesh/internal/progress"
 	"brickmesh/internal/rigidity"
-	"brickmesh/internal/shadow"
 	"brickmesh/internal/synth"
 	"brickmesh/internal/voxel"
 )
@@ -100,8 +98,12 @@ var axleLengths = []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16}
 
 // Deps are the libraries the pipeline reads from.
 type Deps struct {
-	Lib    *ldraw.Library
-	Shadow *shadow.Library
+	// Lib is where triangles come from. An interface rather than the parts
+	// library, because in a browser they come out of a mesh blob instead.
+	Lib part.Shapes
+	// Shadow is where connection points come from: the shadow library on a
+	// machine with one, the published catalogue in a browser.
+	Shadow part.Holes
 	Rast   *voxel.Rasterizer
 }
 

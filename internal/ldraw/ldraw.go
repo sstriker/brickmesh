@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"brickmesh/internal/geom"
+	"brickmesh/internal/part"
 )
 
 const (
@@ -136,45 +137,10 @@ func (l *Library) Fetch(name string) (string, error) {
 
 // Geometry is a resolved part: every vertex and triangle in the part's own
 // frame.
-type Geometry struct {
-	Name  string
-	Title string
-	Verts []geom.Vec3
-	Tris  [][3]geom.Vec3
-}
-
-// BBox returns the low and high corners.
-func (g *Geometry) BBox() (lo, hi geom.Vec3) {
-	if len(g.Verts) == 0 {
-		return
-	}
-	lo, hi = g.Verts[0], g.Verts[0]
-	for _, v := range g.Verts[1:] {
-		lo = geom.Vec3{X: min(lo.X, v.X), Y: min(lo.Y, v.Y), Z: min(lo.Z, v.Z)}
-		hi = geom.Vec3{X: max(hi.X, v.X), Y: max(hi.Y, v.Y), Z: max(hi.Z, v.Z)}
-	}
-	return
-}
-
-func (g *Geometry) Size() geom.Vec3 {
-	lo, hi := g.BBox()
-	return hi.Sub(lo)
-}
-
-// ThinAxis is the index of the shortest bbox dimension. For disc-shaped parts
-// that is the rotation axis in the part's default orientation. Reported so it
-// can be eyeballed, never trusted blindly — the shadow library knows better.
-func (g *Geometry) ThinAxis() int {
-	s := g.Size()
-	idx, best := 0, s.X
-	if s.Y < best {
-		idx, best = 1, s.Y
-	}
-	if s.Z < best {
-		idx = 2
-	}
-	return idx
-}
+// Geometry is a part's triangles. The type lives in internal/part, because the
+// engine reads the same triangles out of a mesh blob in a browser where no .dat
+// file and no parser exist.
+type Geometry = part.Shape
 
 // Geometry resolves a part by name, caching the result.
 func (l *Library) Geometry(name string) (*Geometry, error) {

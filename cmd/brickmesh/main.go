@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"brickmesh/internal/extract"
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/part"
@@ -155,7 +156,7 @@ func libraries() (pipeline.Deps, error) {
 	}
 	return pipeline.Deps{
 		Lib:    lib,
-		Shadow: shadow.Open(root),
+		Shadow: extract.Ports{Lib: shadow.Open(root)},
 		Rast:   voxel.NewRasterizer(lib),
 	}, nil
 }

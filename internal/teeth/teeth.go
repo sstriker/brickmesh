@@ -20,7 +20,7 @@ import (
 	"math"
 
 	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"brickmesh/internal/part"
 )
 
 // TrustThreshold is the sharpness below which a phase should not be relied on.
@@ -45,7 +45,7 @@ func Frame(axis geom.Vec3) (u, v geom.Vec3) {
 
 // Angles is the angular position of each tooth, in degrees, in the part's own
 // frame. It returns one per tooth, ascending.
-func Angles(lib *ldraw.Library, part string, axis geom.Vec3, teeth int) ([]float64, error) {
+func Angles(lib part.Shapes, part string, axis geom.Vec3, teeth int) ([]float64, error) {
 	offset, _, err := phaseOf(lib, part, axis, teeth)
 	if err != nil {
 		return nil, err
@@ -60,14 +60,14 @@ func Angles(lib *ldraw.Library, part string, axis geom.Vec3, teeth int) ([]float
 
 // Sharpness is how cleanly the teeth cluster, from 0 to 1. A low value means
 // the reading is unreliable and the phase it implies should not be trusted.
-func Sharpness(lib *ldraw.Library, part string, axis geom.Vec3, teeth int) (float64, error) {
+func Sharpness(lib part.Shapes, part string, axis geom.Vec3, teeth int) (float64, error) {
 	_, sharp, err := phaseOf(lib, part, axis, teeth)
 	return sharp, err
 }
 
 // phaseOf folds every tooth onto one pitch window and takes the circular mean,
 // which is far steadier than picking peaks out of a sparse cloud of vertices.
-func phaseOf(lib *ldraw.Library, part string, axis geom.Vec3, teeth int) (offset, sharpness float64, err error) {
+func phaseOf(lib part.Shapes, part string, axis geom.Vec3, teeth int) (offset, sharpness float64, err error) {
 	if teeth <= 0 {
 		return 0, 0, fmt.Errorf("%s: a gear needs teeth", part)
 	}
@@ -116,7 +116,7 @@ func phaseOf(lib *ldraw.Library, part string, axis geom.Vec3, teeth int) (offset
 	return offset, math.Hypot(sumSin/n, sumCos/n), nil
 }
 
-func tipAngles(g *ldraw.Geometry, radii []float64, u, v geom.Vec3, tip, frac float64) []float64 {
+func tipAngles(g *part.Shape, radii []float64, u, v geom.Vec3, tip, frac float64) []float64 {
 	var out []float64
 	for i, p := range g.Verts {
 		if radii[i] <= frac*tip {
@@ -149,7 +149,7 @@ type Phase struct {
 
 // MeshPhase works out the rotation that puts a tooth of A on the line of
 // centers and a gap of B facing back at it.
-func MeshPhase(lib *ldraw.Library, partA string, teethA int, axisA geom.Vec3,
+func MeshPhase(lib part.Shapes, partA string, teethA int, axisA geom.Vec3,
 	partB string, teethB int, axisB geom.Vec3, towardB geom.Vec3) (Phase, error) {
 
 	uA, vA := Frame(axisA)

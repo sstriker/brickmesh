@@ -25,7 +25,7 @@ import (
 
 	"brickmesh/internal/collide"
 	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"brickmesh/internal/part"
 )
 
 // Verdicts.
@@ -48,8 +48,8 @@ type Result struct {
 }
 
 // MeshFor builds a collision mesh from a library part.
-func MeshFor(lib *ldraw.Library, part string) (*collide.Mesh, error) {
-	g, err := lib.Geometry(part)
+func MeshFor(lib part.Shapes, name string) (*collide.Mesh, error) {
+	g, err := lib.Geometry(name)
 	if err != nil {
 		return nil, err
 	}

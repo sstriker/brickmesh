@@ -39,7 +39,7 @@ import (
 	"sync"
 
 	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"brickmesh/internal/part"
 )
 
 // Defaults naming the parts this was worked out on: the differential housing
@@ -106,7 +106,7 @@ func (r Result) String() string {
 
 // RingTeeth isolates the ring gear's tooth surface from the housing around it,
 // by radius from the differential's own axis.
-func RingTeeth(lib *ldraw.Library, part string, minRadius float64) ([]geom.Vec3, error) {
+func RingTeeth(lib part.Shapes, part string, minRadius float64) ([]geom.Vec3, error) {
 	g, err := lib.Geometry(part)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func RingTeeth(lib *ldraw.Library, part string, minRadius float64) ([]geom.Vec3,
 }
 
 // Solve sweeps the driver and returns where it engages.
-func Solve(lib *ldraw.Library, diffPart, driverPart string, opts Options) (Result, error) {
+func Solve(lib part.Shapes, diffPart, driverPart string, opts Options) (Result, error) {
 	ring, err := RingTeeth(lib, diffPart, opts.RingMinRadius)
 	if err != nil {
 		return Result{}, err

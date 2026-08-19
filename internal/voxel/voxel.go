@@ -25,7 +25,7 @@ import (
 	"sync"
 
 	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"brickmesh/internal/part"
 )
 
 const (
@@ -39,7 +39,7 @@ type Cells []geom.Cell
 
 // Rasterizer turns parts into cells, caching per part and orientation.
 type Rasterizer struct {
-	Lib *ldraw.Library
+	Lib part.Shapes
 
 	mu    sync.Mutex
 	cache map[cacheKey]Cells
@@ -50,7 +50,7 @@ type cacheKey struct {
 	rot  int
 }
 
-func NewRasterizer(lib *ldraw.Library) *Rasterizer {
+func NewRasterizer(lib part.Shapes) *Rasterizer {
 	return &Rasterizer{Lib: lib, cache: map[cacheKey]Cells{}}
 }
 

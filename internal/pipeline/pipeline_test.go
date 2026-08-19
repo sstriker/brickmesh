@@ -13,6 +13,7 @@ import (
 
 	"brickmesh/internal/clutch"
 	"brickmesh/internal/collide"
+	"brickmesh/internal/extract"
 	"brickmesh/internal/geom"
 	"brickmesh/internal/interfere"
 	"brickmesh/internal/ldr"
@@ -35,7 +36,8 @@ func requireLibraries(t *testing.T) Deps {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Deps{Lib: lib, Shadow: shadow.Open(root), Rast: voxel.NewRasterizer(lib)}
+	return Deps{Lib: lib, Shadow: extract.Ports{Lib: shadow.Open(root)},
+		Rast: voxel.NewRasterizer(lib)}
 }
 
 const reduction = `{
@@ -120,17 +122,20 @@ func TestTheModelReadsBackAsGeometry(t *testing.T) {
 	// Read it back through the shared cache. A part is mostly references to
 	// primitives, so it can only resolve where those live; the model goes in
 	// beside them under a name of its own and comes out again after.
-	name := "brickmesh-roundtrip-test.dat"
-	if deps.Lib.Root == "" {
+	// Its own handle on the library, since Deps carries the interface now and
+	// this test is about where files sit on disk.
+	lib := ldraw.New("")
+	if lib.Root == "" {
 		t.Skip("no extracted library to put the model beside")
 	}
-	path := filepath.Join(deps.Lib.Root, name)
+	name := "brickmesh-roundtrip-test.dat"
+	path := filepath.Join(lib.Root, name)
 	if err := os.WriteFile(path, []byte(res.Model.Encode()), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(path)
 
-	reader := ldraw.New(deps.Lib.CacheDir)
+	reader := ldraw.New(lib.CacheDir)
 	reader.Offline = true
 	g, err := reader.Geometry(strings.TrimSuffix(name, ".dat"))
 	if err != nil {
