@@ -14,6 +14,7 @@ import (
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/layout"
+	"brickmesh/internal/part"
 	"brickmesh/internal/progress"
 	"brickmesh/internal/rigidity"
 	"brickmesh/internal/voxel"
@@ -145,8 +146,12 @@ func absVec(v geom.Vec3) geom.Vec3 {
 
 // Searcher finds structures that bear a layout's shafts.
 type Searcher struct {
-	Rast      *voxel.Rasterizer
-	Axes      AxisSource
+	Rast *voxel.Rasterizer
+	// Ports is where connection points come from. It used to be an AxisSource,
+	// which answered one question — which way does this part's holes face —
+	// and that was enough only while every part in the inventory was a straight
+	// liftarm. See part.WorldPorts.
+	Ports     part.Holes
 	Inventory []Beam
 	// Taken is shaft already spoken for by something that is not a gear — a
 	// driving ring and the joiner under it — in half studs, keyed by shaft.
@@ -170,21 +175,19 @@ type Searcher struct {
 	// part is not touching it, it is inside it.
 	Reserved map[geom.Cell]bool
 
-	counts map[string]int
-	rots   map[string][]int
-	axes   map[string]geom.Vec3
-	mu     sync.Mutex
+	rots  map[string][]int
+	ports map[string][]part.Hole
+	mu    sync.Mutex
 }
 
-func NewSearcher(r *voxel.Rasterizer, axes AxisSource, inventory []Beam) *Searcher {
+func NewSearcher(r *voxel.Rasterizer, ports part.Holes, inventory []Beam) *Searcher {
 	if inventory == nil {
 		inventory = Beams
 	}
 	return &Searcher{
-		Rast: r, Axes: axes, Inventory: inventory,
-		counts: HoleCounts(inventory),
-		rots:   map[string][]int{},
-		axes:   map[string]geom.Vec3{},
+		Rast: r, Ports: ports, Inventory: inventory,
+		rots:  map[string][]int{},
+		ports: map[string][]part.Hole{},
 	}
 }
 
@@ -202,46 +205,66 @@ func (s *Searcher) rotations(part string) ([]int, error) {
 	return r, nil
 }
 
-func (s *Searcher) localAxis(part string) (geom.Vec3, error) {
+// localPorts are a part's connection points in its own frame, cached.
+//
+// One list per part rather than one axis per part: a straight liftarm's holes
+// all face the same way, and taking that for a rule is what kept anything else
+// out of the inventory.
+func (s *Searcher) localPorts(name string) ([]part.Hole, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if a, ok := s.axes[part]; ok {
-		return a, nil
+	if p, ok := s.ports[name]; ok {
+		if len(p) == 0 {
+			return nil, fmt.Errorf("%s: no connection points", name)
+		}
+		return p, nil
 	}
-	a, err := LocalHoleAxis(s.Axes, part)
-	if err != nil {
-		return geom.Vec3{}, err
+	p := s.Ports.Holes(name)
+	s.ports[name] = p
+	if len(p) == 0 {
+		return nil, fmt.Errorf("%s: no connection points", name)
 	}
-	s.axes[part] = a
-	return a, nil
+	return p, nil
 }
 
 // CandidatesFor lists every way to lay a load-bearing part so that one of its
 // holes lands on point with the hole axis along direction.
 func (s *Searcher) CandidatesFor(point, direction geom.Vec3) ([]Placed, error) {
 	d := direction.Unit()
+	seen := map[Placed]bool{}
 	var out []Placed
 	for _, beam := range s.Inventory {
-		local, err := s.localAxis(beam.Part)
+		ports, err := s.localPorts(beam.Part)
 		if err != nil {
-			continue // no shadow data: cannot place it responsibly
+			continue // nothing describes it: cannot place it responsibly
 		}
 		rots, err := s.rotations(beam.Part)
 		if err != nil {
 			return nil, err
 		}
-		offsets := HoleOffsets(beam.Holes)
 		for _, ri := range rots {
 			r := geom.Rotations[ri]
-			if math.Abs(math.Abs(r.Apply(local).Dot(d))-1) > 1e-6 {
-				continue
-			}
-			for _, off := range offsets {
-				origin := point.Sub(r.Apply(off))
+			// Hole by hole: a part may present one hole along the shaft while
+			// its others face elsewhere, which is the whole use of it.
+			for _, h := range ports {
+				if h.Cross {
+					// An axle seizes in a cross hole. A bearing has to let the
+					// shaft turn.
+					continue
+				}
+				if math.Abs(math.Abs(r.Apply(h.Axis).Dot(d))-1) > 1e-6 {
+					continue
+				}
+				origin := point.Sub(r.Apply(h.Pos))
 				if !origin.OnLattice(HalfStud) {
 					continue
 				}
-				out = append(out, Placed{Part: beam.Part, Rot: ri, Origin: origin.Round(3)})
+				c := Placed{Part: beam.Part, Rot: ri, Origin: origin.Round(3)}
+				if seen[c] {
+					continue // two holes of one part can land the same way
+				}
+				seen[c] = true
+				out = append(out, c)
 			}
 		}
 	}
@@ -402,13 +425,13 @@ func (s *Searcher) describe(p Placed) (*candidate, error) {
 		cells[i] = c.Add(shift)
 	}
 
-	holes, _, err := WorldHoles(s.Axes, p, s.counts[p.Part])
+	ports, err := part.WorldPorts(s.Ports, p)
 	if err != nil {
 		return nil, err
 	}
-	rounded := make([]geom.Vec3, len(holes))
-	for i, h := range holes {
-		rounded[i] = h.Round(3)
+	rounded := make([]geom.Vec3, len(ports))
+	for i, h := range ports {
+		rounded[i] = h.Pos.Round(3)
 	}
 
 	g, err := s.Rast.Lib.Geometry(p.Part)

@@ -26,6 +26,16 @@ func (axisAlongY) RotationAxis(string) (geom.Vec3, string, bool) {
 	return geom.Vec3{Y: 1}, "test", true
 }
 
+// The holes themselves, which is what the search asks for now: five in a line
+// one stud apart, all facing along Y, which is what the fixture beam is.
+func (axisAlongY) Holes(name string) []part.Hole {
+	out := make([]part.Hole, 0, 5)
+	for _, off := range part.HoleOffsets(5) {
+		out = append(out, part.Hole{Pos: off, Axis: geom.Vec3{Y: 1}})
+	}
+	return out
+}
+
 var testInventory = []part.Beam{{Part: "fixbeam", Holes: 5}}
 
 func searcher(t *testing.T) *Searcher {
@@ -97,7 +107,7 @@ func TestCandidatesPutAHoleOnThePoint(t *testing.T) {
 		if !c.Origin.OnLattice(HalfStud) {
 			t.Errorf("%+v is off the lattice", c)
 		}
-		holes, axis, err := part.WorldHoles(s.Axes, c, 5)
+		holes, axis, err := part.WorldHoles(s.Ports, c, 5)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,11 +155,11 @@ func TestSynthesizeCoversEveryRequirement(t *testing.T) {
 		for _, r := range reqs {
 			borne := false
 			for _, p := range sol.Parts {
-				holes, _, err := part.WorldHoles(s.Axes, p, s.counts[p.Part])
+				ports, err := part.WorldPorts(s.Ports, p)
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, h := range holes {
+				for _, h := range positions(ports) {
 					if h.Sub(r.Point).Len() < 1e-6 {
 						borne = true
 					}
@@ -245,11 +255,11 @@ func TestConnectorsSpanTwoHolesOnALine(t *testing.T) {
 	// lying alongside within a pin's reach along the hole axis, which is how
 	// two parts are actually joined.
 	for _, p := range got {
-		holes, axis, err := part.WorldHoles(s.Axes, p, 5)
+		holes, axis, err := part.WorldHoles(s.Ports, p, 5)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reaches(holes, axis, geom.Vec3{}) || !reaches(holes, axis, geom.Vec3{Z: 40}) {
+		if !reachesByPin(holes, axis, geom.Vec3{}) || !reachesByPin(holes, axis, geom.Vec3{Z: 40}) {
 			t.Errorf("%+v reaches neither hole, even by pin", p)
 		}
 	}
@@ -257,7 +267,7 @@ func TestConnectorsSpanTwoHolesOnALine(t *testing.T) {
 
 // reaches reports whether any of a part's holes could take a pin to the target:
 // on the same axis line, and within a pin's span along it.
-func reaches(holes []geom.Vec3, axis, target geom.Vec3) bool {
+func reachesByPin(holes []geom.Vec3, axis, target geom.Vec3) bool {
 	for _, h := range holes {
 		d := target.Sub(h)
 		along := d.Dot(axis)
@@ -296,4 +306,12 @@ func TestRepairLeavesAConnectedStructureAlone(t *testing.T) {
 	if len(got) != len(parts) {
 		t.Errorf("added %d parts to an already connected structure", len(got)-len(parts))
 	}
+}
+
+func positions(ports []part.Hole) []geom.Vec3 {
+	out := make([]geom.Vec3, len(ports))
+	for i, h := range ports {
+		out[i] = h.Pos
+	}
+	return out
 }

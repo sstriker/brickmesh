@@ -87,12 +87,12 @@ func (a Axle) Covers(hole, axis geom.Vec3) bool {
 
 // FindJoints finds coincident holes with parallel axes: a pin can go through
 // there.
-func FindJoints(src part.AxisSource, parts []part.Placed, inventory []part.Beam) ([]Joint, error) {
+func FindJoints(src part.Holes, parts []part.Placed, inventory []part.Beam) ([]Joint, error) {
 	return FindJointsWith(src, parts, inventory, nil)
 }
 
 // FindJointsWith also counts the parts an axle threads together.
-func FindJointsWith(src part.AxisSource, parts []part.Placed, inventory []part.Beam,
+func FindJointsWith(src part.Holes, parts []part.Placed, inventory []part.Beam,
 	axles []Axle) ([]Joint, error) {
 
 	joints, err := findPinJoints(src, parts, inventory)
@@ -110,14 +110,12 @@ func FindJointsWith(src part.AxisSource, parts []part.Placed, inventory []part.B
 //
 // In a chain rather than every pair: five parts on one axle are four
 // constraints, not ten, and the mobility formula counts what it is given.
-func findAxleJoints(src part.AxisSource, parts []part.Placed, inventory []part.Beam,
+func findAxleJoints(src part.Holes, parts []part.Placed, _ []part.Beam,
 	axles []Axle) ([]Joint, error) {
 
 	if len(axles) == 0 {
 		return nil, nil
 	}
-	counts := part.HoleCounts(inventory)
-
 	var out []Joint
 	for _, axle := range axles {
 		type onAxle struct {
@@ -127,19 +125,17 @@ func findAxleJoints(src part.AxisSource, parts []part.Placed, inventory []part.B
 		}
 		var found []onAxle
 		for i, p := range parts {
-			n, ok := counts[p.Part]
-			if !ok {
-				continue
-			}
-			pts, axis, err := part.WorldHoles(src, p, n)
+			ports, err := part.WorldPorts(src, p)
 			if err != nil {
-				return nil, err
+				continue // nothing to thread
 			}
-			for _, h := range pts {
-				if !axle.Covers(h, axis) {
+			for _, h := range ports {
+				// Each hole on its own axis: a part can present one hole to the
+				// shaft and face its others elsewhere.
+				if !axle.Covers(h.Pos, h.Axis) {
 					continue
 				}
-				found = append(found, onAxle{i, h.Sub(axle.Point).Dot(axle.Dir), h})
+				found = append(found, onAxle{i, h.Pos.Sub(axle.Point).Dot(axle.Dir), h.Pos})
 				break // one hole is enough to be on it
 			}
 		}
@@ -154,38 +150,32 @@ func findAxleJoints(src part.AxisSource, parts []part.Placed, inventory []part.B
 	return out, nil
 }
 
-func findPinJoints(src part.AxisSource, parts []part.Placed, inventory []part.Beam) ([]Joint, error) {
-	counts := part.HoleCounts(inventory)
-	type holes struct {
-		pts  []geom.Vec3
-		axis geom.Vec3
-	}
-	data := make([]holes, 0, len(parts))
+func findPinJoints(src part.Holes, parts []part.Placed, _ []part.Beam) ([]Joint, error) {
+	data := make([][]part.Hole, 0, len(parts))
 	for _, p := range parts {
-		n, ok := counts[p.Part]
-		if !ok {
-			return nil, fmt.Errorf("%s is not in the inventory", p.Part)
-		}
-		pts, axis, err := part.WorldHoles(src, p, n)
+		ports, err := part.WorldPorts(src, p)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s has no connection points: %w", p.Part, err)
 		}
-		data = append(data, holes{pts, axis})
+		data = append(data, ports)
 	}
 
 	var out []Joint
 	for i := 0; i < len(parts); i++ {
 		for j := i + 1; j < len(parts); j++ {
-			if math.Abs(math.Abs(data[i].axis.Dot(data[j].axis))-1) > 1e-6 {
-				continue // holes do not line up
-			}
-			for _, a := range data[i].pts {
-				for _, b := range data[j].pts {
-					if !withinPinReach(a, b, data[i].axis) {
+			// Hole by hole rather than part by part: two parts may line up on
+			// one pair of holes and face different ways on the rest, which is
+			// exactly what a perpendicular connector is for.
+			for _, a := range data[i] {
+				for _, b := range data[j] {
+					if math.Abs(math.Abs(a.Axis.Dot(b.Axis))-1) > 1e-6 {
+						continue // these two holes do not line up
+					}
+					if !withinPinReach(a.Pos, b.Pos, a.Axis) {
 						continue
 					}
 					out = append(out, Joint{A: i, B: j,
-						Point: round3(a), Axis: round3(abs3(data[i].axis))})
+						Point: round3(a.Pos), Axis: round3(abs3(a.Axis))})
 				}
 			}
 		}
@@ -259,12 +249,12 @@ func Mobility(nParts int, joints []Joint) (int, string) {
 }
 
 // Analyze reports whether the structure hangs together and whether it is rigid.
-func Analyze(src part.AxisSource, parts []part.Placed, inventory []part.Beam) ([]mech.Finding, error) {
+func Analyze(src part.Holes, parts []part.Placed, inventory []part.Beam) ([]mech.Finding, error) {
 	return AnalyzeWith(src, parts, inventory, nil)
 }
 
 // AnalyzeWith counts the shafts as what holds the bearings together.
-func AnalyzeWith(src part.AxisSource, parts []part.Placed, inventory []part.Beam,
+func AnalyzeWith(src part.Holes, parts []part.Placed, inventory []part.Beam,
 	axles []Axle) ([]mech.Finding, error) {
 
 	joints, err := FindJointsWith(src, parts, inventory, axles)
@@ -317,7 +307,7 @@ type Summary struct {
 }
 
 // Summarize reports the joint structure of a set of placed parts.
-func Summarize(src part.AxisSource, parts []part.Placed, inventory []part.Beam) (Summary, error) {
+func Summarize(src part.Holes, parts []part.Placed, inventory []part.Beam) (Summary, error) {
 	joints, err := FindJoints(src, parts, inventory)
 	if err != nil {
 		return Summary{}, err

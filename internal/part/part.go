@@ -75,8 +75,37 @@ func LocalHoleAxis(src AxisSource, part string) (geom.Vec3, error) {
 	return axis.Unit(), nil
 }
 
+// WorldPorts returns a placed part's connection points in world coordinates,
+// each carrying its own axis.
+//
+// This is what WorldHoles could not say. A part had one hole axis, because the
+// shadow library's RotationAxis gives one per part and a straight liftarm has
+// only one — but an angle connector has holes facing two ways, and it is the
+// part that ties two bearing walls together. Ports now come from the library
+// rather than being laid out from a hole count, so a part is whatever shape it
+// is. See extract.EntryForWith.
+func WorldPorts(src Holes, p Placed) ([]Hole, error) {
+	local := src.Holes(p.Part)
+	if len(local) == 0 {
+		return nil, fmt.Errorf("%s: no connection points", p.Part)
+	}
+	r := geom.Rotations[p.Rot]
+	out := make([]Hole, 0, len(local))
+	for _, h := range local {
+		out = append(out, Hole{
+			Pos:   r.Apply(h.Pos).Add(p.Origin),
+			Axis:  r.Apply(h.Axis).Unit(),
+			Cross: h.Cross,
+		})
+	}
+	return out, nil
+}
+
 // WorldHoles returns a placed part's hole positions and its hole axis, both in
 // world coordinates.
+//
+// Deprecated: it cannot describe a part whose holes face more than one way, and
+// it lays holes out from a count rather than reading them. Use WorldPorts.
 func WorldHoles(src AxisSource, p Placed, nHoles int) ([]geom.Vec3, geom.Vec3, error) {
 	local, err := LocalHoleAxis(src, p.Part)
 	if err != nil {

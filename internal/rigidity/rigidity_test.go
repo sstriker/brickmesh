@@ -6,16 +6,34 @@ package rigidity
 import (
 	"testing"
 
+	"strings"
+
 	"brickmesh/internal/geom"
 	"brickmesh/internal/part"
 )
 
 // A stand-in for the shadow library: every beam's holes run along Y, which is
 // how a liftarm lying in the XZ plane behaves. No download, no fixture.
+//
+// It now answers with the holes themselves rather than with one axis for the
+// part, which is what the real libraries do since the port extractor started
+// following the primitives a part places.
 type holesAlongY struct{}
 
 func (holesAlongY) RotationAxis(string) (geom.Vec3, string, bool) {
 	return geom.Vec3{Y: 1}, "test", true
+}
+
+func (holesAlongY) Holes(name string) []part.Hole {
+	n, ok := part.HoleCounts(inventory)[strings.TrimSuffix(name, ".dat")]
+	if !ok {
+		return nil
+	}
+	out := make([]part.Hole, 0, n)
+	for _, off := range part.HoleOffsets(n) {
+		out = append(out, part.Hole{Pos: off, Axis: geom.Vec3{Y: 1}})
+	}
+	return out
 }
 
 var inventory = []part.Beam{{Part: "beam3", Holes: 3}, {Part: "beam5", Holes: 5}}
@@ -178,16 +196,21 @@ func TestUnknownPartIsAnError(t *testing.T) {
 	}
 }
 
-type noAxis struct{}
+type nothingDescribed struct{}
 
-func (noAxis) RotationAxis(string) (geom.Vec3, string, bool) {
+func (nothingDescribed) RotationAxis(string) (geom.Vec3, string, bool) {
 	return geom.Vec3{}, "", false
 }
 
-func TestMissingHoleAxisIsAnError(t *testing.T) {
-	_, err := FindJoints(noAxis{}, []part.Placed{beam("beam3", geom.Vec3{})}, inventory)
+func (nothingDescribed) Holes(string) []part.Hole { return nil }
+
+// A part nothing describes cannot be analysed, and saying so beats treating it
+// as a part with no holes — which would come out as a structure that simply
+// falls apart, and read as a fact about the structure.
+func TestAPartWithNoDescribedHolesIsAnError(t *testing.T) {
+	_, err := FindJoints(nothingDescribed{}, []part.Placed{beam("beam3", geom.Vec3{})}, inventory)
 	if err == nil {
-		t.Error("expected an error when the hole axis is unknown")
+		t.Error("expected an error when nothing describes the part's holes")
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"brickmesh/internal/extract"
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/progress"
 	"brickmesh/internal/shadow"
@@ -25,7 +26,8 @@ func searcherForCancel(t *testing.T) *Searcher {
 		t.Fatal(err)
 	}
 	lib := ldraw.New("")
-	return NewSearcher(voxel.NewRasterizer(lib), shadow.Open(root), nil)
+	return NewSearcher(voxel.NewRasterizer(lib),
+		extract.NewPorts(shadow.Open(root), lib), nil)
 }
 
 // A search told to stop before it starts does no restarts and says why.

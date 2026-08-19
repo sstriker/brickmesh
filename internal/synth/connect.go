@@ -30,7 +30,7 @@ const maxRepairRounds = 12
 // double up on a joint that is already there.
 func (s *Searcher) StiffenToRigid(chosen []Placed) ([]Placed, error) {
 	for round := 0; round < maxRepairRounds; round++ {
-		joints, err := rigidity.FindJointsWith(s.Axes, chosen, s.Inventory, s.Shafts)
+		joints, err := rigidity.FindJointsWith(s.Ports, chosen, s.Inventory, s.Shafts)
 		if err != nil {
 			return nil, err
 		}
@@ -101,7 +101,7 @@ func (s *Searcher) brace(chosen []Placed, joints []rigidity.Joint) (*Placed, err
 	// So candidates are scored rather than ordered, and the one that closes its
 	// gap with the least beam left over wins.
 	sort.SliceStable(options, func(i, j int) bool {
-		return s.counts[options[i].Part] > s.counts[options[j].Part]
+		return s.span(options[i].Part) > s.span(options[j].Part)
 	})
 
 	var best *Placed
@@ -133,7 +133,7 @@ func (s *Searcher) brace(chosen []Placed, joints []rigidity.Joint) (*Placed, err
 		if !ok {
 			continue
 		}
-		over := float64(s.counts[cand.Part]-1)*geom.Stud - span
+		over := s.span(cand.Part) - span
 		if over < bestOver {
 			out := cand
 			best, bestOver = &out, over
@@ -232,7 +232,7 @@ func rigidClusters(n int, joints []rigidity.Joint) []int {
 // bridges them.
 func (s *Searcher) RepairConnectivity(chosen []Placed) ([]Placed, error) {
 	for round := 0; round < maxRepairRounds; round++ {
-		joints, err := rigidity.FindJointsWith(s.Axes, chosen, s.Inventory, s.Shafts)
+		joints, err := rigidity.FindJointsWith(s.Ports, chosen, s.Inventory, s.Shafts)
 		if err != nil {
 			return nil, err
 		}
@@ -288,7 +288,7 @@ func (s *Searcher) bridgeBetween(chosen []Placed, a, b []int) (*Placed, error) {
 	}
 	// Shortest beam first: a bridge is dead weight, so use as little as spans it.
 	sort.SliceStable(options, func(i, j int) bool {
-		return s.counts[options[i].Part] < s.counts[options[j].Part]
+		return s.span(options[i].Part) < s.span(options[j].Part)
 	})
 
 	for _, cand := range options {
@@ -363,12 +363,14 @@ func (s *Searcher) holesOf(chosen []Placed, idx []int) (map[geom.Vec3]bool, erro
 func (s *Searcher) holeRefs(chosen []Placed, idx []int) []hole {
 	var out []hole
 	for _, i := range idx {
-		pts, axis, err := part.WorldHoles(s.Axes, chosen[i], s.counts[chosen[i].Part])
+		ports, err := part.WorldPorts(s.Ports, chosen[i])
 		if err != nil {
 			continue
 		}
-		for _, p := range pts {
-			out = append(out, hole{pos: p.Round(3), axis: axis, owner: i})
+		for _, p := range ports {
+			// Each hole keeps its own axis. Sharing one across a part is what
+			// made a perpendicular connector impossible to express.
+			out = append(out, hole{pos: p.Pos.Round(3), axis: p.Axis, owner: i})
 		}
 	}
 	return out
@@ -419,11 +421,10 @@ func (s *Searcher) ConnectorsBetween(holesA, holesB map[geom.Vec3]bool) ([]Place
 
 	for ha := range holesA {
 		for hb := range holesB {
-			span, ok := studSpan(ha, hb)
-			if !ok {
+			if _, ok := studSpan(ha, hb); !ok {
 				continue
 			}
-			found, err := s.beamsSpanning(ha, hb, span)
+			found, err := s.partsSpanning(ha, hb)
 			if err != nil {
 				return nil, err
 			}
@@ -469,52 +470,60 @@ func studSpan(a, b geom.Vec3) (int, bool) {
 	return int(math.Round(k)), true
 }
 
-// beamsSpanning lists the beams long enough to reach across, laid so both holes
-// fall on them.
-func (s *Searcher) beamsSpanning(ha, hb geom.Vec3, span int) ([]Placed, error) {
-	d := hb.Sub(ha).Unit()
+// partsSpanning lists the ways to lay a part so that two of its holes fall on
+// two given points.
+//
+// It used to be beamsSpanning, and it knew what a beam was: length along local
+// Z, every hole on one axis across it, holes laid out from a count. That is
+// true of a straight liftarm and of nothing else, and it is the reason nothing
+// else could be in the inventory. Now it asks the only question that matters —
+// can two of this part's holes reach both points — which a straight liftarm
+// answers the same way it always did and an angle connector can answer at all.
+func (s *Searcher) partsSpanning(ha, hb geom.Vec3) ([]Placed, error) {
+	need := hb.Sub(ha).Len()
+	seen := map[Placed]bool{}
 	var out []Placed
 
 	for _, beam := range s.Inventory {
-		if beam.Holes < span+1 {
-			continue
-		}
-		local, err := s.localAxis(beam.Part)
+		ports, err := s.localPorts(beam.Part)
 		if err != nil {
 			continue
+		}
+		if reach(ports) < need-1e-6 {
+			continue // cannot reach across, whatever way it is turned
 		}
 		rots, err := s.rotations(beam.Part)
 		if err != nil {
 			return nil, err
 		}
-		offsets := part.HoleOffsets(beam.Holes)
-
 		for _, ri := range rots {
 			r := geom.Rotations[ri]
-			// The beam's length has to lie along d, and its hole axis across it.
-			if math.Abs(math.Abs(r.Apply(geom.Vec3{Z: 1}).Dot(d))-1) > 1e-6 {
-				continue
+			turned := make([]part.Hole, len(ports))
+			for i, h := range ports {
+				turned[i] = part.Hole{
+					Pos: r.Apply(h.Pos), Axis: r.Apply(h.Axis).Unit(), Cross: h.Cross,
+				}
 			}
-			if math.Abs(r.Apply(local).Dot(d)) > 1e-6 {
-				continue
-			}
-			// A bridge whose holes land exactly on the targets sits in the
-			// same plane as the parts it joins, and runs straight through
-			// them. Real construction lays it alongside and pins through, so
-			// the sideways offsets are tried as well: a part's width along the
-			// hole axis, either way, which is within a pin's reach.
-			holeAxis := r.Apply(local)
-			for _, shift := range []float64{0, part.Stud, -part.Stud} {
-				beside := holeAxis.Scale(shift)
-				for _, off := range offsets {
-					origin := ha.Add(beside).Sub(r.Apply(off))
+			for i := range turned {
+				// A bridge whose holes land exactly on the targets sits in the
+				// same plane as the parts it joins, and runs straight through
+				// them. Real construction lays it alongside and pins through,
+				// so the sideways offsets are tried as well: a part's width
+				// along the hole axis, either way, within a pin's reach.
+				for _, shift := range []float64{0, part.Stud, -part.Stud} {
+					beside := turned[i].Axis.Scale(shift)
+					origin := ha.Add(beside).Sub(turned[i].Pos)
 					if !origin.OnLattice(HalfStud) {
 						continue
 					}
-					if !spansBoth(r, origin, offsets, ha.Add(beside), hb.Add(beside)) {
+					if !reaches(turned, origin, i, hb.Add(beside)) {
 						continue
 					}
-					out = append(out, Placed{Part: beam.Part, Rot: ri, Origin: origin.Round(3)})
+					c := Placed{Part: beam.Part, Rot: ri, Origin: origin.Round(3)}
+					if !seen[c] {
+						seen[c] = true
+						out = append(out, c)
+					}
 				}
 			}
 		}
@@ -522,18 +531,45 @@ func (s *Searcher) beamsSpanning(ha, hb geom.Vec3, span int) ([]Placed, error) {
 	return out, nil
 }
 
-func spansBoth(r geom.Mat3, origin geom.Vec3, offsets []geom.Vec3, ha, hb geom.Vec3) bool {
-	var reachesA, reachesB bool
-	for _, off := range offsets {
-		h := r.Apply(off).Add(origin).Round(3)
-		if h == ha.Round(3) {
-			reachesA = true
-		}
-		if h == hb.Round(3) {
-			reachesB = true
+// span is how far a part reaches, measured from its holes rather than from a
+// hole count.
+//
+// The count was a stand-in for length and it only stood in for a straight
+// liftarm, where the two are the same thing. Anything else in the inventory —
+// an angle connector, a perpendicular joiner — has a count that says nothing
+// about how far it reaches.
+func (s *Searcher) span(name string) float64 {
+	ports, err := s.localPorts(name)
+	if err != nil {
+		return 0
+	}
+	return reach(ports)
+}
+
+// reach is the furthest apart two of a part's holes are.
+func reach(ports []part.Hole) float64 {
+	worst := 0.0
+	for i := range ports {
+		for j := i + 1; j < len(ports); j++ {
+			worst = math.Max(worst, ports[i].Pos.Sub(ports[j].Pos).Len())
 		}
 	}
-	return reachesA && reachesB
+	return worst
+}
+
+// reaches reports whether any hole other than the one already placed lands on
+// the far point.
+func reaches(turned []part.Hole, origin geom.Vec3, placed int, at geom.Vec3) bool {
+	want := at.Round(3)
+	for j := range turned {
+		if j == placed {
+			continue
+		}
+		if turned[j].Pos.Add(origin).Round(3) == want {
+			return true
+		}
+	}
+	return false
 }
 
 // AbsoluteCells is absoluteCells, for tests in other packages.

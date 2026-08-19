@@ -58,6 +58,7 @@ type Library struct {
 
 	mu       sync.Mutex
 	geoms    map[string]*Geometry
+	refs     map[string][]part.Ref
 	fetch    sync.Once
 	fetchErr error
 }
@@ -316,6 +317,16 @@ type Ref = part.Ref
 // holes means walking this rather than reading the beam's own shadow file —
 // which declares one hole, at the end, and says nothing about the other twelve.
 func (l *Library) Refs(name string) ([]part.Ref, error) {
+	// Cached like geometry is. Fetch reads from disk every time, and the port
+	// extractor walks a part's whole subfile tree — twenty-five files for a
+	// beam — which is fine once and ruinous in the inner loop of a search.
+	l.mu.Lock()
+	if r, ok := l.refs[name]; ok {
+		l.mu.Unlock()
+		return r, nil
+	}
+	l.mu.Unlock()
+
 	text, err := l.Fetch(name)
 	if err != nil {
 		return nil, err
@@ -335,5 +346,11 @@ func (l *Library) Refs(name string) ([]part.Ref, error) {
 			Rot:  rot, Pos: trans,
 		})
 	}
+	l.mu.Lock()
+	if l.refs == nil {
+		l.refs = map[string][]part.Ref{}
+	}
+	l.refs[name] = out
+	l.mu.Unlock()
 	return out, nil
 }

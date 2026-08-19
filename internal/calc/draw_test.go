@@ -26,7 +26,7 @@ func TestTheDrawBufferIsTheModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parts := publish(t, lib, extract.Ports{Lib: shadow.Open(root), Geom: lib}, "")
+	parts := publish(t, lib, extract.NewPorts(shadow.Open(root), lib), "")
 
 	doc, err := os.ReadFile("../../examples/reduction.json")
 	if err != nil {

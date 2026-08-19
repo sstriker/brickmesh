@@ -45,7 +45,7 @@ func TestTheSameModelComesOutOfThePublishedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ports := extract.Ports{Lib: shadow.Open(root), Geom: lib}
+	ports := extract.NewPorts(shadow.Open(root), lib)
 
 	for _, path := range examples(t) {
 		t.Run(filepath.Base(path), func(t *testing.T) {
@@ -135,7 +135,7 @@ func publishInto(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rawCatalog, rawMeshes := publishedBytes(t, lib, extract.Ports{Lib: shadow.Open(root), Geom: lib}, "")
+	rawCatalog, rawMeshes := publishedBytes(t, lib, extract.NewPorts(shadow.Open(root), lib), "")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func publishInto(t *testing.T, dir string) {
 
 // publish writes the two files for every part the model needs, and a few more,
 // then reads them back the way a browser would.
-func publish(t *testing.T, lib *ldraw.Library, ports extract.Ports, model string) *Parts {
+func publish(t *testing.T, lib *ldraw.Library, ports *extract.Ports, model string) *Parts {
 	t.Helper()
 	rawCatalog, rawMeshes := publishedBytes(t, lib, ports, model)
 	parts, err := Load(rawCatalog, rawMeshes)
@@ -161,7 +161,7 @@ func publish(t *testing.T, lib *ldraw.Library, ports extract.Ports, model string
 }
 
 // publishedBytes builds the two files.
-func publishedBytes(t *testing.T, lib *ldraw.Library, ports extract.Ports,
+func publishedBytes(t *testing.T, lib *ldraw.Library, ports *extract.Ports,
 	model string) ([]byte, []byte) {
 
 	t.Helper()
@@ -194,7 +194,7 @@ func publishedBytes(t *testing.T, lib *ldraw.Library, ports extract.Ports,
 
 // publishedFrom builds the two files for exactly the parts named, so a test can
 // publish a deliberately incomplete set and see what the engine does with it.
-func publishedFrom(t *testing.T, lib *ldraw.Library, ports extract.Ports,
+func publishedFrom(t *testing.T, lib *ldraw.Library, ports *extract.Ports,
 	names []string) ([]byte, []byte) {
 
 	t.Helper()

@@ -4,6 +4,8 @@
 package extract
 
 import (
+	"sync"
+
 	"brickmesh/internal/geom"
 	"brickmesh/internal/part"
 	"brickmesh/internal/shadow"
@@ -27,10 +29,30 @@ type Ports struct {
 	// beam reports the one hole its own shadow file declares rather than the
 	// thirteen it has. See EntryForWith.
 	Geom part.Subfiles
+
+	// Answers are cached because working one out means walking a part's whole
+	// subfile tree, and the structural search asks for the same dozen parts
+	// hundreds of thousands of times. Used through a pointer for that reason:
+	// a value copy would each keep their own and share nothing.
+	cache sync.Map
+}
+
+// NewPorts is the shadow library and the parts library together.
+func NewPorts(lib *shadow.Library, geom part.Subfiles) *Ports {
+	return &Ports{Lib: lib, Geom: geom}
 }
 
 // Holes is every connection point on a part, in the part's own frame.
-func (p Ports) Holes(name string) []part.Hole {
+func (p *Ports) Holes(name string) []part.Hole {
+	if got, ok := p.cache.Load(name); ok {
+		return got.([]part.Hole)
+	}
+	out := p.holes(name)
+	p.cache.Store(name, out)
+	return out
+}
+
+func (p *Ports) holes(name string) []part.Hole {
 	e := EntryForWith(p.Lib, p.Geom, name)
 	if e == nil {
 		return nil
@@ -50,6 +72,6 @@ func (p Ports) Holes(name string) []part.Hole {
 
 // RotationAxis is the direction a part's holes face, which is what the
 // structural search asks for.
-func (p Ports) RotationAxis(name string) (geom.Vec3, string, bool) {
+func (p *Ports) RotationAxis(name string) (geom.Vec3, string, bool) {
 	return p.Lib.RotationAxis(name)
 }
