@@ -5,6 +5,7 @@ package assets
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"brickmesh/internal/geom"
@@ -40,9 +41,17 @@ func NewShapes(catalog *Catalog, index *MeshIndex,
 			"they are addressed by the same index, so they have to agree",
 			len(catalog.Parts), index.Count)
 	}
-	byID := make(map[string]int, len(catalog.Parts))
+	// Under both spellings. The extractor names parts without the suffix and
+	// the engine asks for them with it, which is the sort of difference that
+	// costs an afternoon: every lookup misses, nothing errors, and a model
+	// comes out with its gears placed and no frame around them.
+	byID := make(map[string]int, len(catalog.Parts)*2)
 	for i, p := range catalog.Parts {
 		byID[p.ID] = i
+		byID[strings.TrimSuffix(p.ID, ".dat")] = i
+		if !strings.HasSuffix(p.ID, ".dat") {
+			byID[p.ID+".dat"] = i
+		}
 	}
 	return &Shapes{
 		catalog: catalog, index: index, fetch: fetch,

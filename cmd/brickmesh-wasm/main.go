@@ -16,6 +16,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"syscall/js"
 
 	"brickmesh/internal/calc"
@@ -23,6 +25,8 @@ import (
 
 func main() {
 	js.Global().Set("brickmeshCheck", js.FuncOf(check))
+	js.Global().Set("brickmeshLoadParts", js.FuncOf(loadParts))
+	js.Global().Set("brickmeshBuild", js.FuncOf(build))
 	js.Global().Set("brickmeshReady", js.ValueOf(true))
 	// A WebAssembly module whose main returns is torn down, taking the exported
 	// functions with it. Blocking forever is how a Go module stays callable.
@@ -40,4 +44,42 @@ func check(_ js.Value, args []js.Value) any {
 		return `{"error":"brickmeshCheck needs a mechanism description"}`
 	}
 	return string(calc.CheckJSON([]byte(args[0].String())))
+}
+
+// parts is the catalogue and mesh blob, once loaded. Held because a page solves
+// the same mechanism many times as it is edited and the parts do not change.
+var parts *calc.Parts
+
+// loadParts takes the two published files as byte arrays.
+//
+// Arrays rather than URLs: fetching is the page's job, and it already has to do
+// it for everything else. Keeping the network out of here leaves this callable
+// from a test with the bytes in hand.
+func loadParts(_ js.Value, args []js.Value) any {
+	if len(args) < 2 {
+		return `{"error":"brickmeshLoadParts needs the catalogue and the meshes"}`
+	}
+	catalog := make([]byte, args[0].Length())
+	js.CopyBytesToGo(catalog, args[0])
+	meshes := make([]byte, args[1].Length())
+	js.CopyBytesToGo(meshes, args[1])
+
+	got, err := calc.Load(catalog, meshes)
+	if err != nil {
+		return fmt.Sprintf(`{"error":%q}`, err.Error())
+	}
+	parts = got
+	return `{"ok":true}`
+}
+
+// build places a mechanism and returns the model and the animation with it.
+func build(_ js.Value, args []js.Value) any {
+	if len(args) < 1 {
+		return `{"error":"brickmeshBuild needs a mechanism description"}`
+	}
+	if parts == nil {
+		return `{"error":"the parts have not been loaded yet"}`
+	}
+	animate := len(args) > 1 && args[1].Truthy()
+	return string(parts.BuildJSON(context.Background(), []byte(args[0].String()), animate))
 }

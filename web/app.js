@@ -15,6 +15,8 @@ const EXAMPLES = [
 ];
 
 const specEl = document.getElementById("spec");
+const buildEl = document.getElementById("build");
+const downloadsEl = document.getElementById("downloads");
 const answerEl = document.getElementById("answer");
 const statusEl = document.getElementById("status");
 
@@ -189,9 +191,87 @@ function waitFor(cond, tries = 200, every = 10) {
   });
 }
 
+// The parts are 5 MB and only a build needs them, so they are fetched the first
+// time someone asks for a model rather than on load. The calculator stays
+// instant for everyone who only wanted to know a ratio.
+let partsLoaded = false;
+
+async function loadParts() {
+  if (partsLoaded) return;
+  statusEl.textContent = "fetching the parts (about 5 MB, once)…";
+  const [catalog, meshes] = await Promise.all([
+    fetchBytes("data/catalog.bin"),
+    fetchBytes("data/meshes.bin"),
+  ]);
+  const answer = JSON.parse(brickmeshLoadParts(catalog, meshes));
+  if (answer.error) throw new Error(answer.error);
+  partsLoaded = true;
+  statusEl.textContent = "";
+}
+
+async function fetchBytes(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`${path}: ${res.status} ${res.statusText}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+// Building places the gears, frames them and writes the files. It runs where
+// the page runs, so the page stops while it does — a few seconds for a
+// gearbox. Saying so is better than looking hung.
+async function buildModel() {
+  downloadsEl.hidden = true;
+  buildEl.disabled = true;
+  try {
+    await loadParts();
+    statusEl.textContent = "placing the gears and finding a frame…";
+    // Yield first, or the browser never paints the line above.
+    await new Promise((r) => setTimeout(r, 0));
+
+    const built = JSON.parse(brickmeshBuild(specEl.value, true));
+    statusEl.textContent = "";
+    if (built.error) {
+      render({ error: built.error });
+      return;
+    }
+    render(built);
+    if (built.ldr) offerDownloads(built);
+  } catch (err) {
+    statusEl.textContent = `could not build it: ${err.message}`;
+  } finally {
+    buildEl.disabled = false;
+  }
+}
+
+// The two files, as things to save. Made here rather than fetched: they were
+// just computed in this tab and never existed anywhere else.
+function offerDownloads(built) {
+  downloadsEl.replaceChildren();
+  const name = (JSON.parse(specEl.value).name || "model")
+    .replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+
+  downloadsEl.append(el("span", `${built.parts} parts:`, "count"));
+  downloadsEl.append(saveAs(`${name}.ldr`, built.ldr,
+    "the model, which Stud.io opens directly"));
+  if (built.lua) {
+    downloadsEl.append(saveAs(`${name}.lua`, built.lua,
+      "the LDCad animation; keep it beside the .ldr"));
+  }
+  downloadsEl.hidden = false;
+}
+
+function saveAs(filename, text, title) {
+  const link = el("a", filename);
+  link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  link.download = filename;
+  link.title = title;
+  return link;
+}
+
 async function start() {
   buildExampleButtons();
   specEl.addEventListener("input", scheduleCheck);
+  specEl.addEventListener("input", () => { downloadsEl.hidden = true; });
+  buildEl.addEventListener("click", buildModel);
 
   const go = new Go();
   try {

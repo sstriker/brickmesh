@@ -143,3 +143,23 @@ footer {
 footer p { margin: 0 0 0.5rem; }
 footer a { color: var(--accent); }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* The model, once it has been built: two files and what they cost. */
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.8rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.downloads a {
+  color: var(--accent);
+  font-size: 0.9rem;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.downloads a:hover { border-bottom-color: var(--accent); }
+.downloads .count { color: var(--dim); font-size: 0.82rem; }
