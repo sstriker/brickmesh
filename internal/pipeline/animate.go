@@ -147,6 +147,14 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 		name = m.Name
 	}
 	ani := ldcad.Animation{Name: name, Sliding: slidingIn(rings, speeds, state)}
+	// Which shafts nothing drives but a driving ring. While the ring slides
+	// between gears it is in neither, so these hold still rather than turning
+	// at a ratio no engagement is delivering.
+	viaRing := map[string]bool{}
+	for _, site := range res.ringSites {
+		viaRing[site.rides] = true
+	}
+
 	for _, id := range m.Order() {
 		group, ok := groupOf[id]
 		if !ok {
@@ -159,6 +167,7 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 		ani.Turning = append(ani.Turning, ldcad.Turning{
 			Group: group, Axis: place.Direction, Speed: speeds[id],
 			Through: place.Point.Scale(synth.HalfStud),
+			ViaRing: viaRing[id],
 		})
 	}
 	if len(ani.Turning) == 0 {
@@ -173,6 +182,10 @@ type ringGroup struct {
 	group  string
 	shaft  string // the one it is splined to, whose speed it turns at
 	states []string
+	// mateStates are the states in which this ring engages the gear on its
+	// other face, when one ring sits between two of them. Empty for a ring that
+	// serves a single gear, which then only has engaged and clear.
+	mateStates []string
 	// axis it turns about, which is also the one it slides along.
 	axis                geom.Vec3
 	engaged, disengaged geom.Vec3
@@ -187,10 +200,15 @@ func ringGroups(res *Result) []ringGroup {
 			continue
 		}
 		base := place.Point.Scale(synth.HalfStud)
+		var mateStates []string
+		if site.mate != nil {
+			mateStates = site.mate.coupling.States
+		}
 		out = append(out, ringGroup{
 			group:      fmt.Sprintf("ring_%d", i+1),
 			shaft:      site.rides,
 			states:     site.coupling.States,
+			mateStates: mateStates,
 			axis:       place.Direction,
 			engaged:    base.Add(place.Direction.Scale(site.engaged * synth.HalfStud)),
 			disengaged: base.Add(place.Direction.Scale(site.disengaged * synth.HalfStud)),
@@ -221,10 +239,22 @@ func slidingIn(rings []ringGroup, speeds map[string]float64,
 
 	var out []ldcad.Sliding
 	for _, r := range rings {
-		at := 1.0 // clear
+		// A ring that serves one gear has two positions, engaged and clear. One
+		// that sits between two has three, and the middle is neutral: it drives
+		// nothing there, which is why the shaft it rides holds still.
+		at := 1.0 // clear, or engaging the far gear if there is one
+		if len(r.mateStates) > 0 {
+			at = 0.5 // neutral until a state claims it
+		}
 		for _, s := range r.states {
 			if s == state {
 				at = 0
+				break
+			}
+		}
+		for _, s := range r.mateStates {
+			if s == state {
+				at = 1
 				break
 			}
 		}

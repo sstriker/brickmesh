@@ -402,13 +402,48 @@ def test_a_shaft_does_not_jump_when_the_ratio_changes(lua_and_stub):
             "the cumulative sum is not carrying the finished segments")
 
 
+SHIFT = 0.25  # the share of each segment a ring spends sliding
+
+
 def test_the_output_ends_where_the_ratios_say_it_should(lua_and_stub):
     runtime, stub = lua_and_stub
     frame(runtime, stub, "shift", 1.0)
     per_segment = INPUT_TURNS * 360 / 3
-    want = sum(r * per_segment for r in (-1 / 3, -0.6, -1.0))
+    # Times (1 - SHIFT), because the output is driven through a ring and stands
+    # still while that ring is between gears. It turns for three quarters of
+    # each state and coasts to a stop for the last quarter.
+    want = sum(r * per_segment * (1 - SHIFT) for r in (-1 / 3, -0.6, -1.0))
     assert stub.group("shaft_output").angle == pytest.approx(want, abs=1.0)
     assert not math.isnan(stub.group("shaft_output").angle)
+
+
+def test_a_shaft_driven_through_a_ring_holds_still_while_the_ring_slides(lua_and_stub):
+    """Nothing drives it, so it must not turn.
+
+    A driving ring in neither gear is driving nothing. The clutch gears on that
+    shaft keep going, because the input still reaches them through their mesh,
+    but the shaft itself is free — and turning it anyway showed a drive that was
+    not there. Spotted by someone watching the model, not by any check here.
+    """
+    runtime, stub = lua_and_stub
+
+    # The first segment runs 0 .. 1/3 of the animation; its ring slides through
+    # the last quarter of that, from 0.25 to 1/3.
+    start_of_slide = (1 / 3) * (1 - SHIFT)
+    frame(runtime, stub, "shift", start_of_slide + 1e-4)
+    held = stub.group("shaft_output").angle
+    gear = stub.group("shaft_first").angle
+
+    frame(runtime, stub, "shift", (1 / 3) - 1e-4)
+    assert stub.group("shaft_output").angle == pytest.approx(held, abs=0.5), (
+        "the output kept turning while its ring was between gears, with "
+        "nothing engaged to drive it"
+    )
+    moved = abs(stub.group("shaft_first").angle - gear)
+    assert moved > 10, (
+        f"the clutch gear only moved {moved:.1f} degrees during the shift; it "
+        "is driven by the input through its mesh and should not have stopped"
+    )
 
 
 def test_a_shaft_turns_about_its_own_axis(lua_and_stub):

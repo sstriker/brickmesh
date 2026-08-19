@@ -32,7 +32,11 @@ func shiftSample() Script {
 		out := []Turning{
 			{Group: "shaft_input", Axis: x, Speed: 1,
 				Through: geom.Vec3{Y: 0, Z: 0}},
-			{Group: "shaft_output", Axis: x, Speed: ratios[s],
+			// Driven only through a ring, which is what a gearbox output is.
+			// Marked here so the sample exercises the hold: without it every
+			// group in the fixture would be driven straight from the input and
+			// the shift would never pass through neutral.
+			{Group: "shaft_output", Axis: x, Speed: ratios[s], ViaRing: true,
 				Through: geom.Vec3{Y: 0, Z: -40}},
 		}
 		for i, name := range []string{"first", "second", "third"} {

@@ -274,6 +274,7 @@ function onFrame3()
   local u=(t-acc)/frac[seg+1] --0..1 within this segment
   if u<0 then u=0 elseif u>1 then u=1 end
   local turns=4
+  local shift=0.25
   --speed[group][segment], in turns per turn of the input
   local speed={
     {1.000000, 1.000000, 1.000000}, --shaft_input
@@ -291,11 +292,23 @@ function onFrame3()
     return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
+  --And for a shaft driven only through a driving ring: it turns while the ring
+  --is in a gear and holds still while the ring is sliding between gears, when
+  --nothing is driving it at all. The gears on it keep going either way, since
+  --the input still reaches them through their mesh.
+  local function angleViaRing(sp)
+    local a=0
+    for k=1,seg do a=a+sp[k]*(1-shift)*frac[k]*turns*360 end
+    local held=u
+    if held>1-shift then held=1-shift end
+    return a+sp[seg+1]*held*frac[seg+1]*turns*360
+  end
+
   local a0=angle(speed[1])
   local m0=ori3_0:clone()
   m0:mulRotateAB(a0, 1, 0, 0)
   grp3_0:setOri(m0)
-  local a1=angle(speed[2])
+  local a1=angleViaRing(speed[2])
   local m1=ori3_1:clone()
   m1:mulRotateAB(a1, 1, 0, 0)
   grp3_1:setOri(m1)
@@ -314,7 +327,6 @@ function onFrame3()
 
   --A ring holds its place for most of a segment and moves near the end of it,
   --so the shift is a thing that happens rather than a thing between frames.
-  local shift=0.25
   local f=0
   if u>1-shift then f=(u-(1-shift))/shift end
   local nxt=seg+1
@@ -337,7 +349,7 @@ function onFrame3()
   do --ring_1
     local a=where[1][seg+1]
     local at=a+(where[1][nxt+1]-a)*f
-    local ra=angle(ringSpeed[1])
+    local ra=angleViaRing(ringSpeed[1])
     local rm=rori3_0:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_0:setOri(rm)
@@ -346,7 +358,7 @@ function onFrame3()
   do --ring_2
     local a=where[2][seg+1]
     local at=a+(where[2][nxt+1]-a)*f
-    local ra=angle(ringSpeed[2])
+    local ra=angleViaRing(ringSpeed[2])
     local rm=rori3_1:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_1:setOri(rm)
@@ -355,7 +367,7 @@ function onFrame3()
   do --ring_3
     local a=where[3][seg+1]
     local at=a+(where[3][nxt+1]-a)*f
-    local ra=angle(ringSpeed[3])
+    local ra=angleViaRing(ringSpeed[3])
     local rm=rori3_2:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_2:setOri(rm)

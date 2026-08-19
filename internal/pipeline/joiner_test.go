@@ -23,12 +23,15 @@ func TestEveryRingRidesAJoiner(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Whichever generation the gearbox ended up using. Two clutch gears sharing
+	// one ring settle that between them, so naming a system here would test the
+	// choice rather than the property.
 	var rings, joiners []ldr.Part
 	for _, p := range res.Model.Parts {
-		switch p.Name {
-		case clutch.First.Ring:
+		switch {
+		case isRing(p.Name):
 			rings = append(rings, p)
-		case clutch.First.Joiner:
+		case isJoiner(p.Name):
 			joiners = append(joiners, p)
 		}
 	}

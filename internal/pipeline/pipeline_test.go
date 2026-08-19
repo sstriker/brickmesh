@@ -240,8 +240,13 @@ func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 			gears = append(gears, p)
 		}
 	}
-	if len(rings) != 2 {
-		t.Fatalf("got %d driving rings, want one per shift", len(rings))
+	// One, not one per shift. A driving ring has dogs on both faces, so a ring
+	// between two clutch gears engages either by sliding — which is how a
+	// two-speed is really built, and what this used to get wrong by putting two
+	// rings back to back.
+	if len(rings) != 1 {
+		t.Fatalf("got %d driving rings; two shifts on one shaft, with nothing "+
+			"between the gears, is one ring engaging either side", len(rings))
 	}
 
 	// Not "is it on top of a gear" but "can it be built": every ring is turned
@@ -281,15 +286,26 @@ func TestAShiftedSixteenBecomesAClutchGear(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := clutch.First.Gears[16]
+	// A clutch variant, not one system's in particular: where two gears share a
+	// ring the generation is settled by the pair, and this gearbox's 16t shares
+	// with a 20t that only the second system makes.
+	var want []string
+	for _, sys := range clutch.Systems {
+		if name, ok := sys.Gears[16]; ok {
+			want = append(want, name)
+		}
+	}
 	var found bool
 	for _, p := range res.Model.Parts {
-		if p.Name == want {
-			found = true
+		for _, name := range want {
+			if p.Name == name {
+				found = true
+			}
 		}
 	}
 	if !found {
-		t.Errorf("no %s in the model: the shifted 16t should be the clutch variant", want)
+		t.Errorf("none of %v in the model: the shifted 16t should be a clutch "+
+			"variant, whichever generation the pair settled on", want)
 	}
 }
 

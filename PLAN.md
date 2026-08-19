@@ -241,9 +241,17 @@ therefore means the box is buildable and the shift mechanism is not.
       one a shift gets depends on the gear it has to lock to. They were absent
       from the parts mirror this used to read; fetching the official library
       whole made them measurable. See `internal/clutch`.
-- [ ] one ring per two gears. A ring engages a gear on either side, so a
-      three-speed needs two rings and not three; the report says so but the
-      placement does not do it
+- [x] one ring per two gears. A ring engages a gear on either side, so a
+      three-speed needs two rings and not four. The report said so every time it
+      ran while the placement went ahead anyway.
+
+      What made it more than bookkeeping is that the hardware generation was
+      chosen per gear: the 20t exists only in the second system and the 16t in
+      both, so taking the first that fits each landed a pair in two generations,
+      and a ring of one does not grip the other's gears. A pair settles it
+      between them now, through clutch.ForBoth.
+
+      The two-speed goes from 17 parts to 14 and the three-speed from 31 to 25.
 - [ ] a selector element, so the shift itself is part of the mechanism rather
       than an instruction to the builder
 - [ ] a slip element for the other kind of clutch — the old white 24t whose

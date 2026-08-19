@@ -94,6 +94,26 @@ func For(teeth int) (System, bool) {
 	return System{}, false
 }
 
+// ForBoth is a system that has a clutch gear for both tooth counts.
+//
+// One driving ring between two clutch gears engages either by sliding, which is
+// how a two-speed is really built — but only if both gears belong to the same
+// generation, since a ring of one does not grip the other's dogs. Choosing a
+// system per gear picks the first that fits each and can land two gears in
+// different generations that could otherwise have shared a ring: the 20t exists
+// only in the second system, while the 16t exists in both and would be given
+// the first.
+func ForBoth(a, b int) (System, bool) {
+	for _, s := range Systems {
+		_, hasA := s.Gears[a]
+		_, hasB := s.Gears[b]
+		if hasA && hasB {
+			return s, true
+		}
+	}
+	return System{}, false
+}
+
 // Shiftable reports whether any system has a clutch gear with this many teeth.
 //
 // 24 is not among them, and that is not an omission in the library. The parts

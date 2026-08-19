@@ -858,3 +858,45 @@ nothing.
 The subtractor escaped only because its one group is called `shaft_case`, and
 the 2-speed worked because it got there first. Opening a reduction beside a
 gearbox is not a corner case; it is what looking at a set of examples means.
+
+## A ring in neutral drives nothing
+
+Reported by someone watching the model: during a shift the axle carrying the
+driving ring kept turning while the ring was between gears, engaged with
+neither. The gears on that axle should turn — the input still reaches them
+through their mesh — and the axle itself should not, because nothing is driving
+it.
+
+Every named state does engage something, so this was only ever visible during
+the `shift` animation, in the quarter of each segment where the ring is sliding.
+The walk accrued angle at the outgoing ratio right through it, which draws a
+drive that is not there.
+
+Shafts driven only through a ring are now marked, and hold still while their
+ring is in neither gear. It changes the arithmetic: over a three-state walk the
+output turns three quarters of what the ratios alone would give, because for the
+other quarter it is not connected to anything.
+
+## Two shifts, one ring
+
+A driving ring has dogs on both faces, so one sitting between two clutch gears
+engages either by sliding. The engine placed one per shift — two rings back to
+back, which no builder would do — and said so in its own report every time it
+ran, while going ahead and doing it anyway.
+
+What made this more than bookkeeping is that the hardware generation was chosen
+per gear. The 20t exists only in the second system; the 16t exists in both, and
+taking the first that fits gave it the first system's part. Two gears that could
+have shared a ring were therefore in two generations, and a ring of one does not
+grip the other's gears — so the merge could never fire until the choice moved up
+to the pair. `clutch.ForBoth` picks a generation that serves both.
+
+| | parts before | after |
+| --- | --- | --- |
+| gearbox-2-speed | 17 | 14 |
+| gearbox-3-speed-compound | 31 | 25 |
+
+A shared ring has three positions rather than two: engaged with one gear,
+neutral, engaged with the other. That needed no change to the animation format —
+the neutral is simply the midpoint of a travel whose two ends are both
+engagements, so the same interpolation carries it.

@@ -472,6 +472,24 @@ type ringSite struct {
 	engaged, disengaged float64
 	// joiner is where the ridged joiner under the ring is centered.
 	joiner float64
+	// mate is the second gear this same ring engages, when it sits between two
+	// of them and reaches either by sliding.
+	//
+	// A driving ring has dogs on both faces. One between two clutch gears is
+	// how a real two-speed is built, and placing one ring per shift put two
+	// rings back to back where a builder would use a single part — the report
+	// said as much and the placement did it anyway.
+	//
+	// When this is set, disengaged is not "clear of the gear": it is the
+	// position that engages the mate, and the neutral where neither is engaged
+	// is halfway between the two.
+	mate *ringMate
+}
+
+// ringMate is the far side of a shared ring.
+type ringMate struct {
+	coupling mech.Coupling
+	station  layout.Station
 }
 
 // ringSites works out where every shift's driving ring goes.
@@ -480,21 +498,27 @@ type ringSite struct {
 // engages is not the plain gear, it is the clutch variant, and buildModel picks
 // the part before any ring is placed.
 func ringSites(m *mech.Mechanism, res *Result) []ringSite {
+	shifts := shiftsOf(m, res)
+	paired := pairShifts(res, shifts)
+
 	var out []ringSite
-	for _, link := range m.Links {
-		c, ok := link.(mech.Coupling)
-		if !ok || len(c.States) == 0 {
-			continue // a permanent coupling is a joiner, not a shift
+	for _, sh := range shifts {
+		if sh.folded {
+			continue // its ring is the one its partner carries
 		}
-		station, found := stationOn(res.Stations, c.B)
-		rides := c.A
-		if !found {
-			station, found = stationOn(res.Stations, c.A)
-			rides = c.B
+		c, station, rides := sh.coupling, sh.station, sh.rides
+
+		// Two gears sharing one ring settle the hardware between them: a ring
+		// of one generation does not grip the other's gears, so a pair has to
+		// be of one generation even where each gear alone could be either.
+		if mate, ok := paired[sh.key()]; ok {
+			site, ok := betweenSites(res, sh, mate)
+			if ok {
+				out = append(out, site)
+				continue
+			}
 		}
-		if !found {
-			continue // nothing to engage: reported by CheckShiftable already
-		}
+
 		// Which hardware can shift this gear at all decides everything after
 		// it: the ring, the joiner under it, the gear itself, and how much
 		// shaft the three of them need.
@@ -534,11 +558,129 @@ func ringSites(m *mech.Mechanism, res *Result) []ringSite {
 	return out
 }
 
+// shift is one coupling that a ring has to make, before any hardware is chosen.
+type shift struct {
+	coupling mech.Coupling
+	station  layout.Station
+	rides    string
+	folded   bool // its ring is carried by the partner it shares with
+}
+
+func (s shift) key() string {
+	return fmt.Sprintf("%s@%g/%s", s.station.Shaft, s.station.Axial, s.rides)
+}
+
+// shiftsOf lists the couplings that need a ring, and the gear each engages.
+func shiftsOf(m *mech.Mechanism, res *Result) []*shift {
+	var out []*shift
+	for _, link := range m.Links {
+		c, ok := link.(mech.Coupling)
+		if !ok || len(c.States) == 0 {
+			continue // a permanent coupling is a joiner, not a shift
+		}
+		station, found := stationOn(res.Stations, c.B)
+		rides := c.A
+		if !found {
+			station, found = stationOn(res.Stations, c.A)
+			rides = c.B
+		}
+		if !found {
+			continue // nothing to engage: reported by CheckShiftable already
+		}
+		out = append(out, &shift{coupling: c, station: station, rides: rides})
+	}
+	return out
+}
+
+// pairShifts finds the shifts that one ring can serve two of.
+//
+// A driving ring has dogs on both faces, so one sitting between two clutch
+// gears engages either by sliding. One per shift puts two of them back to back,
+// which no builder would do — and the report said so every time it ran while
+// the placement went ahead anyway.
+func pairShifts(res *Result, shifts []*shift) map[string]*shift {
+	out := map[string]*shift{}
+	for i, a := range shifts {
+		if a.folded {
+			continue
+		}
+		for _, b := range shifts[i+1:] {
+			if b.folded || !canPair(res, a, b) {
+				continue
+			}
+			out[a.key()] = b
+			b.folded = true
+			break
+		}
+	}
+	return out
+}
+
+// canPair reports whether one ring could serve both shifts.
+func canPair(res *Result, a, b *shift) bool {
+	if a.rides != b.rides || a.station.Axial == b.station.Axial {
+		return false
+	}
+	if _, ok := clutch.ForBoth(a.station.Teeth, b.station.Teeth); !ok {
+		return false
+	}
+	pa, oka := res.Layout.Place[a.station.Shaft]
+	pb, okb := res.Layout.Place[b.station.Shaft]
+	if !oka || !okb || pa.Key() != pb.Key() {
+		return false
+	}
+	// Nothing may stand between them, or the ring cannot reach across.
+	lo, hi := a.station.Axial, b.station.Axial
+	if hi < lo {
+		lo, hi = hi, lo
+	}
+	for _, st := range res.Stations {
+		if p, ok := res.Layout.Place[st.Shaft]; !ok || p.Key() != pa.Key() {
+			continue
+		}
+		if st.Axial > lo && st.Axial < hi {
+			return false
+		}
+	}
+	return true
+}
+
+// betweenSites builds the one ring that sits between two gears.
+func betweenSites(res *Result, a, b *shift) (ringSite, bool) {
+	system, ok := clutch.ForBoth(a.station.Teeth, b.station.Teeth)
+	if !ok {
+		return ringSite{}, false
+	}
+	lo, hi := a, b
+	if hi.station.Axial < lo.station.Axial {
+		lo, hi = hi, lo
+	}
+	// Each engaged position is on the face looking at the other gear.
+	near := lo.station.Axial + system.Engaged
+	far := hi.station.Axial - system.Engaged
+	if far <= near {
+		return ringSite{}, false // no room to sit between and reach either
+	}
+	return ringSite{
+		coupling: lo.coupling, station: lo.station, rides: lo.rides,
+		system:  system,
+		engaged: near, disengaged: far,
+		// One joiner under the whole travel, centred between the two gears.
+		joiner: (lo.station.Axial + hi.station.Axial) / 2,
+		mate:   &ringMate{coupling: hi.coupling, station: hi.station},
+	}, true
+}
+
 // gearAt names the part for a station, using the clutch variant where a ring
 // engages it.
 func gearAt(st layout.Station, sites []ringSite) (string, bool) {
 	for _, site := range sites {
-		if site.station.Shaft != st.Shaft || site.station.Axial != st.Axial {
+		on := site.station.Shaft == st.Shaft && site.station.Axial == st.Axial
+		if site.mate != nil && site.mate.station.Shaft == st.Shaft &&
+			site.mate.station.Axial == st.Axial {
+			on = true
+		}
+		if !on {
 			continue
 		}
 		if name, ok := site.system.Gears[st.Teeth]; ok {
@@ -580,16 +722,27 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 	if len(sites) == 0 {
 		return
 	}
+	shared := 0
+	for _, site := range sites {
+		if site.mate != nil {
+			shared++
+		}
+	}
+	sharing := ""
+	if shared > 0 {
+		sharing = fmt.Sprintf(" %d of them sits between two clutch gears and "+
+			"engages either by sliding, which is one part where a ring per shift "+
+			"would have used two.", shared)
+	}
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
-			"%d driving ring(s) placed, each three half studs from its gear's "+
-				"center so its dogs sit in the recesses. What moves them is not "+
-				"placed: %v. The catch's hold on a ring is a fit, and the sweep that "+
-				"settles whether gears mesh cannot settle a fit: in LDraw a spline "+
-				"that grips reads as a spline that collides. See docs/shifting.md. "+
-				"Two rings beside the same gear could be one ring engaging either "+
-				"side.",
-			len(sites), SelectorParts)})
+			"%d driving ring(s) placed, each at its system's engaged distance "+
+				"from the gear's center so its dogs sit in the recesses.%s What "+
+				"moves them is not placed: %v. The catch's hold on a ring is a fit, "+
+				"and the sweep that settles whether gears mesh cannot settle a fit: "+
+				"in LDraw a spline that grips reads as a spline that collides. See "+
+				"docs/shifting.md.",
+			len(sites), sharing, SelectorParts)})
 
 	if len(nominal) > 0 {
 		res.Findings = append(res.Findings, mech.Finding{

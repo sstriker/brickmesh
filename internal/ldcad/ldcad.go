@@ -71,6 +71,14 @@ type Turning struct {
 	// Speed in turns per turn of the input, signed: the ratio the functional
 	// layer solved for.
 	Speed float64
+	// ViaRing marks a shaft that is driven only through a driving ring.
+	//
+	// It matters during a shift and nowhere else. While the ring is sliding it
+	// is in neither gear, so nothing drives this shaft: the clutch gears on it
+	// keep turning, because the input still drives them through their mesh,
+	// and the shaft itself is free. Turning it anyway showed a drive that was
+	// not there.
+	ViaRing bool
 }
 
 // Sliding is a group that moves along its shaft as well as turning about it.
@@ -298,6 +306,10 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
   if u<0 then u=0 elseif u>1 then u=1 end
 `)
 	fmt.Fprintf(b, "  local turns=%g\n", turns)
+	// Declared here rather than beside the rings, because the shafts the rings
+	// drive need it too: it is the share of a segment in which nothing is
+	// engaged.
+	fmt.Fprintf(b, "  local shift=%g\n", shiftFraction)
 
 	// Speeds, group by group, segment by segment.
 	b.WriteString("  --speed[group][segment], in turns per turn of the input\n")
@@ -323,10 +335,26 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
     return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
+  --And for a shaft driven only through a driving ring: it turns while the ring
+  --is in a gear and holds still while the ring is sliding between gears, when
+  --nothing is driving it at all. The gears on it keep going either way, since
+  --the input still reaches them through their mesh.
+  local function angleViaRing(sp)
+    local a=0
+    for k=1,seg do a=a+sp[k]*(1-shift)*frac[k]*turns*360 end
+    local held=u
+    if held>1-shift then held=1-shift end
+    return a+sp[seg+1]*held*frac[seg+1]*turns*360
+  end
+
 `)
 	for j, t := range ani.Turning {
 		axis := t.Axis.Unit()
-		fmt.Fprintf(b, "  local a%d=angle(speed[%d])\n", j, j+1)
+		fn := "angle"
+		if t.ViaRing {
+			fn = "angleViaRing"
+		}
+		fmt.Fprintf(b, "  local a%d=%s(speed[%d])\n", j, fn, j+1)
 		fmt.Fprintf(b, "  local m%d=ori%d_%d:clone()\n", j, i, j)
 		fmt.Fprintf(b, "  m%d:mulRotateAB(a%d, %g, %g, %g)\n",
 			j, j, round6(axis.X), round6(axis.Y), round6(axis.Z))
@@ -339,13 +367,12 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 	fmt.Fprintf(b, `
   --A ring holds its place for most of a segment and moves near the end of it,
   --so the shift is a thing that happens rather than a thing between frames.
-  local shift=%g
   local f=0
   if u>1-shift then f=(u-(1-shift))/shift end
   local nxt=seg+1
   if nxt>segs-1 then nxt=segs-1 end
 
-`, shiftFraction)
+`)
 
 	b.WriteString("  --ringSpeed[ring][segment]: a ring is splined to its shaft\n")
 	b.WriteString("  local ringSpeed={\n")
@@ -381,7 +408,9 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "  do --%s\n", sl.Group)
 		fmt.Fprintf(b, "    local a=where[%d][seg+1]\n", k+1)
 		fmt.Fprintf(b, "    local at=a+(where[%d][nxt+1]-a)*f\n", k+1)
-		fmt.Fprintf(b, "    local ra=angle(ringSpeed[%d])\n", k+1)
+		// A ring is splined to the shaft it rides, so it holds when that shaft
+		// does.
+		fmt.Fprintf(b, "    local ra=angleViaRing(ringSpeed[%d])\n", k+1)
 		fmt.Fprintf(b, "    local rm=rori%d_%d:clone()\n", i, k)
 		fmt.Fprintf(b, "    rm:mulRotateAB(ra, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))
