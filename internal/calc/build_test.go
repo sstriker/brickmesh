@@ -273,13 +273,21 @@ func sameMechanism(a, b string) (bool, string) {
 
 // mechanismOf keeps the parts that make the mechanism and drops the frame.
 //
-// The frame is beams, and which beams a search picks is not part of what the
-// files have to reproduce. Everything else — the gears, the rings, the joiners
-// they slide on, the axles through them — is.
+// The frame is beams, connectors and the pins through them, and which of those
+// a search picks is not part of what the files have to reproduce: two frames
+// can bear the same shafts equally well, and the two port sources order a
+// part's holes differently often enough that the search breaks a tie the other
+// way. What it has to reproduce is the mechanism — the gears, the rings, the
+// joiners they slide on, the axles through them — and that the frame it did
+// pick passes its own checks, which the caller asserts separately.
 func mechanismOf(all []placement) []placement {
 	frame := map[string]bool{}
 	for _, b := range part.Beams {
 		frame[b.Part] = true
+	}
+	for _, p := range []string{pipeline.PinPart, pipeline.AxlePinPart,
+		pipeline.LongPinPart} {
+		frame[p] = true
 	}
 	var out []placement
 	for _, p := range all {

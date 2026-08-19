@@ -550,3 +550,41 @@ frame may turn, and that is now asserted of the models the search produces.
 
 Every example is rigid with no warnings, which is what M2 claimed when it was
 first called done. The difference is that the claim now survives asking why.
+
+## The joints were counted and never built
+
+Every check the engine ran counted joints. None of them placed one. So a model
+came out as beams and connectors lying against each other with nothing through
+them — the frame of a two-speed gearbox was four parts and no fasteners — and it
+read as correct in every report, because every report was about the joints
+rather than about the pins.
+
+Pins are real parts. They cost something, they fill the holes they pass
+through, and leaving them out understates the part count and overstates what is
+left free for anything else to use.
+
+One pin per run of joints along a hole line: three parts stacked at one hole are
+two joints and one pin through all three, while two pairs on the same line a
+long way apart are two pins. Merging by line alone would have dropped the second
+of those, which is a joint the rigidity count is leaning on with nothing in it —
+so runs are merged only where their spans touch. The pin sits midway along the
+run, and a run deeper than two parts gets the three-stud pin.
+
+Lines a shaft already runs down are skipped. The axle is the fastener there, and
+a pin in the same hole would be two things in one place.
+
+### Two things it turned up
+
+**A connection was being counted twice.** Two parts with coincident holes on a
+shaft are found by both halves of the joint finder: once as a pin through those
+holes, once as two parts threaded on the same axle. It is one connection. The
+test on mobility is `M <= 0`, so over-counting is the direction that calls a
+hinge rigid — the three-speed compound box read `M = -15` and is really `M = 0`.
+Still rigid, but exactly, not comfortably.
+
+**The two port sources order a part's holes differently**, and the search breaks
+ties on that order, so the browser and the command line can pick different — and
+equally valid — frames. It surfaced because pins made the difference visible in
+the comparison. The model comparison already tolerated frame ties flipping and
+now counts pins as frame; the mechanism still has to match numerically, and the
+frame still has to pass its own checks.

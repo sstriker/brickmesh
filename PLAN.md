@@ -188,16 +188,15 @@ one.
       faces along its shaft and the two sit apart along that same direction, so
       a pin between them would have to run down the shaft's own line. The shaft
       IS what joins them.
-- [ ] wiring `internal/connect` in needs richer ports first. The A* search
-      matches ports by position, but a port is a point in the catalog while the
-      shadow library describes a segment: a pin's entry is a centered cylinder
-      of sections 2+16+4+16+2, 40 LDU end to end. Without that extent nothing
-      can express a pin reaching between two parts lying against each other.
-      Beams are worse: 32523 declares ONE hole and leaves the rest to the
-      part's own geometry, so the default catalog has a single port for a
-      three-hole beam and `--infer-holes` is opt-in.
-- [ ] count the pins that hole-to-hole joins require; they are real parts and
-      currently invisible in both the cost and the output
+- [x] the ports are rich enough now. "32523 declares ONE hole and leaves the
+      rest to the part's own geometry" was the blocker, and following the
+      primitives a part places is the answer — a three-hole beam has three
+      holes and `--infer-holes` has nothing left to infer. The pin extent this
+      also asked for is carried as `rigidity.PinReach` rather than as a segment
+      in the catalog, which is the same 40 LDU by a shorter road.
+- [x] the pins are placed, not just counted. One per run of joints on a hole
+      line, midway along it, skipping the lines a shaft already fills, and
+      long-pin where a run is deeper than two parts.
 - [ ] feed rigidity back in as a hard constraint rather than a post-check
 
 Acceptance: synthesized structures report `M <= 0` from `rigidity.analyze`.
@@ -238,11 +237,10 @@ therefore means the box is buildable and the shift mechanism is not.
       engages, and the station allocator reserves the room for it. What moves
       the ring is named in the report rather than placed, since its position
       follows from the shift linkage and not from the mechanism.
-- [ ] the newer switching systems. Only the classic one can be placed: 18947 of
-      the Chiron and the MT-10's ring, selector 35188, shifter 4158, fork 4159
-      and the 2474 stepper are all absent from the parts mirror this reads, and
-      Rebrickable's numbers are not always LDraw's — 2473 and 2474 resolve to
-      "moved to" stubs there. Worth pinning down before promising them.
+- [x] the newer switching systems. Both generations are placed now, and which
+      one a shift gets depends on the gear it has to lock to. They were absent
+      from the parts mirror this used to read; fetching the official library
+      whole made them measurable. See `internal/clutch`.
 - [ ] one ring per two gears. A ring engages a gear on either side, so a
       three-speed needs two rings and not three; the report says so but the
       placement does not do it
@@ -394,9 +392,12 @@ Not verified by running it: there is no Lua interpreter on this machine, so the
 tests check the file's structure and that the solved ratios reach it, not that
 LDCad accepts it. Worth opening once.
 
-- [ ] move the driving rings, so a shift can be watched rather than switched
+- [x] move the driving rings, so a shift can be watched rather than switched
       between
-- [ ] the shift itself as an animation: ring slides, dog engages, ratio changes
+- [x] the shift itself as an animation: a `shift` animation walks the states,
+      sliding each ring between engaged and clear over the last quarter of each
+      segment, so the shift is a thing that happens rather than a thing between
+      frames
 
 ## Open question: bevel engagement
 

@@ -49,6 +49,10 @@ type Joint struct {
 	A, B  int
 	Point geom.Vec3
 	Axis  geom.Vec3 // sign-free
+	// Mate is the hole on B that Point on A lines up with. The two are a pin's
+	// length apart at most, and the pin that realises the joint goes between
+	// them. Equal to Point when the holes coincide.
+	Mate geom.Vec3
 }
 
 func round3(v geom.Vec3) geom.Vec3 {
@@ -103,7 +107,44 @@ func FindJointsWith(src part.Holes, parts []part.Placed, inventory []part.Beam,
 	if err != nil {
 		return nil, err
 	}
-	return append(joints, threaded...), nil
+	return dedupe(append(joints, threaded...)), nil
+}
+
+// dedupe drops a connection counted twice.
+//
+// Two parts with coincident holes on a shaft are found by both halves: once as
+// a pin through those holes, and once as two parts threaded on the same axle.
+// It is one connection. Counting it twice makes the mobility number more
+// negative than it should be, and the test on that number is M <= 0 — so over
+// counting is the direction that calls a hinge rigid.
+func dedupe(joints []Joint) []Joint {
+	type key struct {
+		a, b  int
+		point geom.Vec3
+		axis  geom.Vec3
+	}
+	seen := make(map[key]bool, len(joints))
+	out := joints[:0]
+	for _, j := range joints {
+		a, b, at := j.A, j.B, j.Point
+		if a > b {
+			// Same connection whichever end it was found from. The axle pass
+			// threads parts in order along the shaft and can name them the
+			// other way round.
+			a, b = b, a
+			at = j.Mate
+			if at == (geom.Vec3{}) {
+				at = j.Point
+			}
+		}
+		k := key{a, b, round3(at), round3(abs3(j.Axis))}
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, j)
+	}
+	return out
 }
 
 // findAxleJoints threads the parts on each axle together in order.
@@ -143,7 +184,8 @@ func findAxleJoints(src part.Holes, parts []part.Placed, _ []part.Beam,
 		for k := 1; k < len(found); k++ {
 			out = append(out, Joint{
 				A: found[k-1].idx, B: found[k].idx,
-				Point: round3(found[k].at), Axis: round3(abs3(axle.Dir)),
+				Point: round3(found[k].at), Mate: round3(found[k-1].at),
+				Axis: round3(abs3(axle.Dir)),
 			})
 		}
 	}
@@ -175,7 +217,8 @@ func findPinJoints(src part.Holes, parts []part.Placed, _ []part.Beam) ([]Joint,
 						continue
 					}
 					out = append(out, Joint{A: i, B: j,
-						Point: round3(a.Pos), Axis: round3(abs3(a.Axis))})
+						Point: round3(a.Pos), Mate: round3(b.Pos),
+						Axis: round3(abs3(a.Axis))})
 				}
 			}
 		}

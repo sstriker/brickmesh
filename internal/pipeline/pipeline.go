@@ -228,6 +228,12 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	if err != nil {
 		return res, err
 	}
+	// The fasteners, after the frame is settled and before anything measures
+	// the model: a pin occupies the holes it goes through, so a check that ran
+	// first would be checking a model that is not the one written out.
+	if err := placePins(res, deps, model); err != nil {
+		return res, fmt.Errorf("placing the pins: %w", err)
+	}
 	res.Model = model
 
 	opts.Progress.Report(progress.Report{Stage: progress.StagePhase})
@@ -1190,6 +1196,12 @@ func Placeable() []string {
 			add(n)
 		}
 	}
+	// The fasteners. Easy to forget, and forgetting them is the same bug as
+	// before: no geometry in the browser, so the clearance sweep skips them and
+	// the renderer leaves them out, and nothing says so.
+	add(PinPart)
+	add(AxlePinPart)
+	add(LongPinPart)
 	sort.Strings(out)
 	return out
 }

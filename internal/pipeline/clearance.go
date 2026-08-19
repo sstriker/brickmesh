@@ -189,6 +189,12 @@ func mayBeInside(a, b ldr.Part) bool {
 	switch {
 	case ka == classAxle || kb == classAxle:
 		return true // an axle goes through bores, joiners and beam holes
+	case ka == classPin || kb == classPin:
+		// A pin is the same fit as an axle and for the same reason: it is a
+		// cylinder that lives inside the holes of the things it fastens. It is
+		// only here at all because the joints are now built rather than merely
+		// counted.
+		return true
 	case ka == classGear && kb == classRing:
 		return true // dogs in the recesses: the engagement itself
 	case ka == classGear && kb == classGear:
@@ -205,6 +211,7 @@ const (
 	classRing
 	classJoiner
 	classAxle
+	classPin
 	classStructure
 )
 
@@ -216,11 +223,19 @@ func classOf(p ldr.Part) int {
 		return classJoiner
 	case isAxle(p.Name):
 		return classAxle
+	case isPin(p.Name):
+		return classPin
 	}
 	if _, _, ok := gearFromLabel(p.Label); ok {
 		return classGear
 	}
 	return classStructure
+}
+
+// isPin is the fasteners the engine places. Named rather than inferred, the
+// same way the axles are: a part is a pin here because this put it there.
+func isPin(name string) bool {
+	return name == PinPart || name == AxlePinPart || name == LongPinPart
 }
 
 func isAxle(name string) bool {
