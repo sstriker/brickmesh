@@ -588,3 +588,23 @@ equally valid — frames. It surfaced because pins made the difference visible i
 the comparison. The model comparison already tolerated frame ties flipping and
 now counts pins as frame; the mechanism still has to match numerically, and the
 frame still has to pass its own checks.
+
+### And the pin was lying across the holes
+
+The first pins went in at exactly the right points and fastened nothing.
+
+A pin's direction was read off its ports, on the reasoning that a pin is one
+cylinder and every port on it points along it. That is true of 3673, which says
+X twice. It is not true of 2780, which declares its pin by including 3673 whole
+and then, once its own subfiles are followed, turns up a third port facing Y
+from a piece of the friction slot. Which of the two came first was an accident
+of sorting.
+
+It looked right in the file. The joint it was first tested on happened to run
+along Y, so the wrong axis and the right one agreed, and the emitted line was an
+identity rotation that read as obviously fine.
+
+The shape settles it: a pin is long in one direction and short in the other two.
+The test now asks that a pin's longest dimension lie along the joint it fills,
+not merely that a pin sits at the right point, and it fails on the old code —
+four joints in the subtractor, each with a pin across it.

@@ -202,14 +202,35 @@ func onAnAxleAt(res *Result, at, axis geom.Vec3) bool {
 	return false
 }
 
-// localPinAxis is the direction a pin points in its own frame.
+// localPinAxis is the direction a pin points in its own frame, taken from the
+// shape rather than from its ports.
+//
+// The ports were the obvious source and they are wrong. 2780 declares its pin
+// by including 3673 whole, and 3673 says X twice — but walking 2780's own
+// subfiles turns up another port facing Y, from a piece of the friction slot,
+// and which of the two comes first is an accident of sorting. Picking the first
+// laid one pin across the holes it was meant to go through, which looked right
+// in the file because the joint it happened to be tested on ran the same way.
+//
+// A pin is long in exactly one direction and short in the other two, so the
+// shape answers unambiguously.
 func localPinAxis(deps Deps, name string) (geom.Vec3, error) {
-	holes := deps.Shadow.Holes(name)
-	if len(holes) == 0 {
-		return geom.Vec3{}, fmt.Errorf("%s has no ports", name)
+	if deps.Lib == nil {
+		return geom.Vec3{}, fmt.Errorf("no parts library to measure %s", name)
 	}
-	// Any of them: a pin is one cylinder and every port on it points along it.
-	return holes[0].Axis.Unit(), nil
+	g, err := deps.Lib.Geometry(name)
+	if err != nil {
+		return geom.Vec3{}, err
+	}
+	lo, hi := g.BBox()
+	size := hi.Sub(lo)
+	switch {
+	case size.X >= size.Y && size.X >= size.Z:
+		return geom.Vec3{X: 1}, nil
+	case size.Y >= size.Z:
+		return geom.Vec3{Y: 1}, nil
+	}
+	return geom.Vec3{Z: 1}, nil
 }
 
 // rotationTaking finds a lattice rotation that turns from onto to.

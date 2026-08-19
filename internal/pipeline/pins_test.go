@@ -41,7 +41,7 @@ func TestEveryJointHasSomethingInIt(t *testing.T) {
 				if onAnAxleAt(res, j.Point, j.Axis) {
 					continue // the shaft is the fastener there
 				}
-				if !filled(res, j) {
+				if !filled(t, deps, res, j) {
 					t.Errorf("the joint at %v along %v holds two frame parts "+
 						"together and has neither a pin nor a shaft in it",
 						j.Point, j.Axis)
@@ -52,7 +52,12 @@ func TestEveryJointHasSomethingInIt(t *testing.T) {
 }
 
 // filled reports whether a pin lies along the joint's line and covers it.
-func filled(res *Result, j rigidity.Joint) bool {
+//
+// Along, not merely at: a pin turned across the holes it passes through sits at
+// exactly the right point and fastens nothing, and that is what happened when
+// the pin's own direction was read off its ports instead of its shape.
+func filled(t *testing.T, deps Deps, res *Result, j rigidity.Joint) bool {
+	t.Helper()
 	along := j.Axis.Unit()
 	lo, hi := j.Point.Dot(along), j.Mate.Dot(along)
 	if lo > hi {
@@ -65,6 +70,12 @@ func filled(res *Result, j rigidity.Joint) bool {
 		// On the same line: the offset across the axis is nothing.
 		d := p.Pos.Sub(j.Point)
 		if d.Sub(along.Scale(d.Dot(along))).Len() > 1e-6 {
+			continue
+		}
+		// And pointing along it. Measured from the shape, which is the one
+		// description of a pin that cannot be ambiguous: it is long in one
+		// direction and short in the other two.
+		if !longestAlong(t, deps, p.Name, p.Rot, along) {
 			continue
 		}
 		// And long enough to reach both holes from where it sits. Half a pin
@@ -118,4 +129,26 @@ func TestPinsLieAlongTheirJoints(t *testing.T) {
 		t.Fatal("the subtractor's frame is two connectors and a beam pinned " +
 			"together; no pins were placed, so the test above proves nothing")
 	}
+}
+
+// longestAlong reports whether a placed part's longest dimension lies along d.
+func longestAlong(t *testing.T, deps Deps, name string, rot geom.Mat3, d geom.Vec3) bool {
+	t.Helper()
+	g, err := deps.Lib.Geometry(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lo, hi := g.BBox()
+	var span, worst float64
+	for _, a := range []geom.Vec3{{X: 1}, {Y: 1}, {Z: 1}} {
+		// The extent along a, turned into the model's frame.
+		e := hi.Sub(lo)
+		reach := math.Abs(e.Dot(a))
+		w := rot.Apply(a)
+		if math.Abs(math.Abs(w.Dot(d))-1) < 1e-6 {
+			span = reach
+		}
+		worst = math.Max(worst, reach)
+	}
+	return span > 0 && math.Abs(span-worst) < 1e-6
 }
