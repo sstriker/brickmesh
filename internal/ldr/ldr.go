@@ -44,11 +44,27 @@ type Part struct {
 
 // Group is a set of parts LDCad can move as one.
 //
-// Center is what it turns about, which for a shaft is a point on its axis. A
-// script reaches a group by name, so the names are the interface between the
+// A script reaches a group by name, so the names are the interface between the
 // model and the animation.
+//
+// Center is what the group turns about, and it is written out as 0 0 0 whatever
+// is put here, because LDCad reads it RELATIVE TO THE GROUP'S MAIN ITEM and not
+// as a point in the model. Its own meta reference says so in four words —
+// "Relative center to use for this group" — and this engine read it as a model
+// coordinate and wrote the point on the shaft. LDCad then added that to the main
+// item's own position and turned every group about somewhere off in space.
+//
+// Measured, in the end, rather than argued: a group whose parts sit on a shaft
+// at z=-40, declared [center=0 0 -40], reported its centre at z=-80.
+//
+// Zero is the right answer here and not merely a safe one. Every part in one of
+// these groups sits on the shaft it turns about, so the main item's own origin
+// is a point on the axis — which is exactly what the centre needs to be.
 type Group struct {
-	Name   string
+	Name string
+	// Center is kept because callers compute it and tests read it, and because
+	// a group whose members are not all on its axis would need it. Nothing is
+	// emitted from it today; see above.
 	Center geom.Vec3
 }
 
@@ -107,10 +123,11 @@ func (m *Model) Encode() string {
 	ids := make(map[string]int, len(m.Groups))
 	for i, g := range m.Groups {
 		ids[g.Name] = i
+		// center=0 0 0: the main item's own origin, which is on the shaft.
+		// See the note on Group.Center for why this is not g.Center.
 		fmt.Fprintf(&b, "0 !LDCAD GROUP_DEF [topLevel=true] [LID=%d] [GID=%s] "+
-			"[name=%s] [center=%s %s %s]\n",
-			i, groupID(g.Name), g.Name,
-			trim(g.Center.X), trim(g.Center.Y), trim(g.Center.Z))
+			"[name=%s] [center=0 0 0]\n",
+			i, groupID(g.Name), g.Name)
 	}
 	if len(m.Groups) > 0 {
 		b.WriteString("\n")

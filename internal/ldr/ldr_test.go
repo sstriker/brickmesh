@@ -153,8 +153,10 @@ func TestGroupsAreDeclaredAndReferenced(t *testing.T) {
 	if !strings.Contains(out, "[LID=0]") || !strings.Contains(out, "[LID=1]") {
 		t.Error("both groups should be declared, with ids in order")
 	}
-	if !strings.Contains(out, "[name=shaft_output] [center=0 0 -40]") {
-		t.Errorf("the group's center is what it turns about:\n%s", out)
+	// Zero, not the -40 the caller asked for: LDCad reads a centre relative to
+	// the group's main item. See TestAGroupCentreIsWrittenRelativeAndSoIsAlwaysZero.
+	if !strings.Contains(out, "[name=shaft_output] [center=0 0 0]") {
+		t.Errorf("the group's centre should be written relative, as zero:\n%s", out)
 	}
 
 	// A GROUP_NXT applies to the line after it, so it has to sit directly
@@ -201,5 +203,39 @@ func TestTheScriptIsReferencedWhenSet(t *testing.T) {
 	m.Script = "m.lua"
 	if !strings.Contains(m.Encode(), "0 !LDCAD SCRIPT [source=m.lua]") {
 		t.Error("the script should be referenced from the header")
+	}
+}
+
+// LDCad reads a group's centre relative to the group's main item, not as a
+// point in the model. Its meta reference says so in four words — "Relative
+// center to use for this group" — and this engine read it as a model
+// coordinate, wrote the point on the shaft, and had LDCad add that to the main
+// item's own position and turn every group about somewhere off in space.
+//
+// Measured rather than argued: a group whose parts sit on a shaft at z=-40,
+// declared [center=0 0 -40], reported its centre at z=-80.
+//
+// Zero is right rather than merely safe. Every part in one of these groups sits
+// on the shaft it turns about, so the main item's own origin is a point on the
+// axis, which is what the centre has to be.
+func TestAGroupCentreIsWrittenRelativeAndSoIsAlwaysZero(t *testing.T) {
+	m := New("centres")
+	m.Groups = []Group{
+		{Name: "on_the_origin", Center: geom.Vec3{}},
+		{Name: "off_somewhere", Center: geom.Vec3{X: 140, Z: -40}},
+	}
+	m.Parts = []Part{{Name: "3737.dat", Rot: geom.Rotations[0],
+		Pos: geom.Vec3{X: 140, Z: -40}, Group: "off_somewhere"}}
+
+	out := m.Encode()
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.Contains(line, "GROUP_DEF") {
+			continue
+		}
+		if !strings.Contains(line, "[center=0 0 0]") {
+			t.Errorf("a group centre reached the file as something other than "+
+				"zero, so LDCad will add it to the main item's position and "+
+				"turn the group about the wrong point:\n  %s", line)
+		}
 	}
 }

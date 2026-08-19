@@ -736,3 +736,46 @@ matrices rather than an angle and an axis, and carries two controls — one that
 hands a group the old pivot offset, one that hands it a bare rotation — each
 required to move a point that should be still. If either stops failing, the
 file has drifted back to agreeing with whatever the generator does.
+
+### And it was the centre being relative, which one run settled
+
+Neither of the two readings above was the cause. Both were changes to how the
+turn was expressed; the fault was in the model file, one line up.
+
+The diagnostic asked LDCad what a group's placement actually is, and got:
+
+```
+rest   pos 140.00  0.00 -80.00   ori 1 0 0 | 0 1 0 | 0 0 1
+```
+
+That group's parts sit on a shaft at z=-40, and it was declared
+`[center=0 0 -40]` — the point on the shaft. LDCad reported its centre at
+z=-80, because a group's centre is read **relative to the group's main item**.
+The main item is an axle at (140, 0, -40); add the declared -40 and you get -80.
+
+So every group had been turning about a point 40 LDU off its own shaft. The
+files now write `[center=0 0 0]`, which puts the centre on the main item's own
+origin — and every part in one of these groups sits on the shaft it turns about,
+so that origin is a point on the axis. That is not merely safe, it is the right
+answer.
+
+LDCad's meta reference does say so, in four words: "Relative center to use for
+this group". It was read as a model coordinate.
+
+Two other things the same run settled, both of which had been guessed at:
+a group's orientation starts as the identity, and `mulRotateBA`, `mulRotateAB`
+and a bare `setRotate` therefore all agreed. So the orientation change was
+harmless and was not the cause.
+
+### The lesson, which cost three rounds
+
+Every one of these was inferred from prose that admitted two readings, and each
+wrong reading is invisible for a group sitting square at the origin — which is
+what every example in LDCad's own set happens to be. The engine's own tests
+could not break the tie either, because the stub was built from the same reading
+as the generator.
+
+What settled it in two minutes was asking the software what it thought, in
+numbers. That option existed from the first round. Reach for it sooner: when a
+contract is ambiguous and the other side is running on the same machine, measure
+it rather than read harder.
