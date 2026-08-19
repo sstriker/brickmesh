@@ -779,3 +779,39 @@ What settled it in two minutes was asking the software what it thought, in
 numbers. That option existed from the first round. Reach for it sooner: when a
 contract is ambiguous and the other side is running on the same machine, measure
 it rather than read harder.
+
+### mulRotateAB and mulRotateBA are the other way round
+
+The centre fix left the axles right and every gear tumbling. The report that
+came back — "the axles are now correct, but some parts are spinning on the wrong
+axis" — is what made this quick, because the model says which groups are which:
+`shaft_input` and `shaft_output` end in an axle placed square to the model, and
+those two behaved. `shaft_low`, `shaft_high`, `ring_1` and `ring_2` hold only a
+gear or a ring, placed turned, and those tumbled.
+
+So the run measured what a quarter turn about x does to the 20t gear, five ways.
+Its axis is its own local z, which its placement sends to world x, so a correct
+turn leaves the third column of its orientation at (1, 0, 0):
+
+| call | where the gear's axis ends up | |
+| --- | --- | --- |
+| `mulRotateBA`, world x | (0.00, 0.16, −0.99) | wrong — what was shipped |
+| `mulRotateAB`, world x | (1.00, 0.00, 0.00) | **right** |
+| bare `setRotate` | (0.00, −1.00, 0.00) | wrong |
+| `mulRotateAB`, local z | (0.00, 1.00, 0.00) | wrong |
+| `mulRotateBA`, local z | (1.00, 0.00, 0.00) | right, same matrix as AB |
+
+The reference says `mulRotateAB` is `self=self*rotate` and `mulRotateBA` is
+`self=rotate*self`, which makes BA the one that applies a rotation in the
+model's frame. In effect it is the other way round. There is no attempt here to
+explain the naming; the measurement decides.
+
+And it is invisible unless a group is placed turned, because for a square one
+the two orders coincide. Every group in LDCad's own examples is square, and so
+was every group in this engine's tests until the stub was given a starting
+orientation.
+
+That was the last of it. Four wrong readings of the same page — the centre, the
+frame the placement is in, whether setOri adds or replaces, and now the
+multiplication order — and every one of them is invisible for a group sitting
+square at the origin.

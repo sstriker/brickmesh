@@ -180,14 +180,24 @@ class Matrix:
         self.m = rotation(deg, x, y, z)
         self.angle, self.axis = deg, (x, y, z)
 
+    # These two are the way round LDCad behaves, which is not the way round its
+    # reference describes them. The reference says AB is self*rotate and BA is
+    # rotate*self; measured against LDCad, AB is the one that turns a group
+    # about an axis in the model's frame. A gear placed turned, asked for a
+    # quarter turn about x, kept its axis on x under AB and lost it under BA.
+    #
+    # It cannot be seen at all on a group whose main item is placed square,
+    # since then the orders coincide. That is why it took a model with gears in
+    # it to notice.
+
     @method
-    def mulRotateBA(self, deg, x, y, z):
-        """self = rotateMatrix * self, as the API reference spells it."""
+    def mulRotateAB(self, deg, x, y, z):
+        """Measured: the rotation lands in the model's frame."""
         self.m = mat_mul(rotation(deg, x, y, z), self.m)
         self.angle, self.axis = deg, (x, y, z)
 
     @method
-    def mulRotateAB(self, deg, x, y, z):
+    def mulRotateBA(self, deg, x, y, z):
         self.m = mat_mul(self.m, rotation(deg, x, y, z))
         self.angle, self.axis = deg, (x, y, z)
 

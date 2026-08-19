@@ -46,7 +46,7 @@ func TestTheScriptUsesTheLDCadAPI(t *testing.T) {
 		// needs what it started with.
 		":getOri()",
 		":clone()",
-		":mulRotateBA(",
+		":mulRotateAB(",
 		// setOri, not setPosOri: a group's placement is its own center, so a
 		// rotation turns it about its own axis already. Setting a position as
 		// well is what threw every group off its axis the first time LDCad ran

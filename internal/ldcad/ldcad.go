@@ -7,6 +7,19 @@
 // declares groups — GROUP_DEF for each, GROUP_NXT tagging the part lines — and
 // a script reaches them by name and sets their orientation once per frame.
 // The API used here is exactly the one in LDCad's own 5510 example: a matrix
+// mulRotateAB is the one that turns a group about a model axis.
+//
+// Measured, not read. LDCad's reference says mulRotateAB is self=self*rotate
+// and mulRotateBA is self=rotate*self, and on that reading BA is what applies a
+// rotation in the model's frame. It is the other way round in effect: asked to
+// turn a 20t gear a quarter turn about x, AB left the gear's axis on x and BA
+// threw it to (0, 0.16, -0.99).
+//
+// The difference is invisible for a group whose main item is placed square,
+// because then the two orders coincide — which is why the shafts carrying an
+// axle animated correctly while every group holding only a gear or a ring
+// tumbled. Whatever the naming means, the measurement decides.
+//
 // A group's placement is its center, not the model's origin.
 //
 // That is the whole of it, and getting it backwards is what made the first
@@ -204,7 +217,7 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 		// R times what it started with, about the group's own center, which is
 		// where a group turns. Position is left alone: setOri does not touch it.
 		fmt.Fprintf(b, "  local m%d=ori%d_%d:clone()\n", j, i, j)
-		fmt.Fprintf(b, "  m%d:mulRotateBA(a, %g, %g, %g)\n",
+		fmt.Fprintf(b, "  m%d:mulRotateAB(a, %g, %g, %g)\n",
 			j, round6(axis.X), round6(axis.Y), round6(axis.Z))
 		fmt.Fprintf(b, "  grp%d_%d:setOri(m%d)\n", i, j, j)
 	}
@@ -218,7 +231,7 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "\n  --%s turns with its shaft and sits %s\n", sl.Group, where)
 		fmt.Fprintf(b, "  local a=input*%.6f\n", sl.Speed)
 		fmt.Fprintf(b, "  local rm%d=rori%d_%d:clone()\n", k, i, k)
-		fmt.Fprintf(b, "  rm%d:mulRotateBA(a, %g, %g, %g)\n",
+		fmt.Fprintf(b, "  rm%d:mulRotateAB(a, %g, %g, %g)\n",
 			k, round6(axis.X), round6(axis.Y), round6(axis.Z))
 		fmt.Fprintf(b, "  ring%d_%d:setOri(rm%d)\n", i, k, k)
 		// A ring slides as well as turning, so unlike a shaft it also gets a
@@ -315,7 +328,7 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		axis := t.Axis.Unit()
 		fmt.Fprintf(b, "  local a%d=angle(speed[%d])\n", j, j+1)
 		fmt.Fprintf(b, "  local m%d=ori%d_%d:clone()\n", j, i, j)
-		fmt.Fprintf(b, "  m%d:mulRotateBA(a%d, %g, %g, %g)\n",
+		fmt.Fprintf(b, "  m%d:mulRotateAB(a%d, %g, %g, %g)\n",
 			j, j, round6(axis.X), round6(axis.Y), round6(axis.Z))
 		fmt.Fprintf(b, "  grp%d_%d:setOri(m%d)\n", i, j, j)
 	}
@@ -370,7 +383,7 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		fmt.Fprintf(b, "    local at=a+(where[%d][nxt+1]-a)*f\n", k+1)
 		fmt.Fprintf(b, "    local ra=angle(ringSpeed[%d])\n", k+1)
 		fmt.Fprintf(b, "    local rm=rori%d_%d:clone()\n", i, k)
-		fmt.Fprintf(b, "    rm:mulRotateBA(ra, %g, %g, %g)\n",
+		fmt.Fprintf(b, "    rm:mulRotateAB(ra, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))
 		fmt.Fprintf(b, "    ring%d_%d:setOri(rm)\n", i, k)
 		// Where the center goes: engaged, plus however far along it has slid.
