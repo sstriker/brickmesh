@@ -291,6 +291,9 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 	searcher := synth.NewSearcher(deps.Rast, deps.Shadow, opts.Inventory)
 	searcher.Taken = ringSpans(res)
 	searcher.Reserved = turningCells(res, deps)
+	// The same joints the rigidity report counts. Without these the search
+	// braces against a frame it believes to be in loose pieces.
+	searcher.Shafts = res.Axles
 	solutions, err := searcher.Synthesize(ctx, res.Layout, res.Stations, synth.Options{
 		Restarts: opts.Restarts, Seed: opts.Seed, Progress: opts.Progress,
 	})

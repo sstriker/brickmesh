@@ -30,14 +30,14 @@ const maxRepairRounds = 12
 // double up on a joint that is already there.
 func (s *Searcher) StiffenToRigid(chosen []Placed) ([]Placed, error) {
 	for round := 0; round < maxRepairRounds; round++ {
-		joints, err := rigidity.FindJoints(s.Axes, chosen, s.Inventory)
+		joints, err := rigidity.FindJointsWith(s.Axes, chosen, s.Inventory, s.Shafts)
 		if err != nil {
 			return nil, err
 		}
 		if m, _ := rigidity.Mobility(len(chosen), joints); m <= 0 {
 			return chosen, nil
 		}
-		brace, err := s.brace(chosen)
+		brace, err := s.brace(chosen, joints)
 		if err != nil {
 			return nil, err
 		}
@@ -49,12 +49,26 @@ func (s *Searcher) StiffenToRigid(chosen []Placed) ([]Placed, error) {
 	return chosen, nil
 }
 
-// brace finds a beam that pins to the structure in two places at once.
-func (s *Searcher) brace(chosen []Placed) (*Placed, error) {
+// brace finds a beam that ties two parts that can still move relative to each
+// other.
+//
+// "Two places at once" is what this used to ask, and two places on the same
+// beam satisfied it. Mobility is a count — 3(n-1) - 2j — and it does not know
+// which parts a joint is between, so a beam bolted twice to one bearing lowers
+// the number by exactly as much as one spanning the frame, and the search took
+// it. On a subtractor that produced a 13-hole beam hanging eight studs off the
+// side while the two bearings it was supposed to tie could still counter-rotate
+// about the shaft between them.
+//
+// So the candidate has to reach two parts that are not already rigid with each
+// other. Parts joined by two or more pins are one body for this purpose, and
+// the shafts count among those pins.
+func (s *Searcher) brace(chosen []Placed, joints []rigidity.Joint) (*Placed, error) {
 	all := make([]int, len(chosen))
 	for i := range all {
 		all[i] = i
 	}
+	rigid := rigidClusters(len(chosen), joints)
 	holes := s.holeRefs(chosen, all)
 	positions, err := s.holesOf(chosen, all)
 	if err != nil {
@@ -76,12 +90,22 @@ func (s *Searcher) brace(chosen []Placed) (*Placed, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Longest first: a brace across the whole frame triangulates it, while a
-	// short one beside an existing joint adds a part and no stiffness.
+	// Longest first was the rule, on the reasoning that a brace across the
+	// whole frame triangulates it while a short one beside an existing joint
+	// adds a part and no stiffness. That reasoning is now carried by the
+	// bridging test below, which says outright what "across the frame" was
+	// standing in for — and length on its own only buys overhang. A two-speed
+	// gearbox got a 13-hole beam to close a gap of one stud, seven studs of it
+	// hanging past the end of the mechanism.
+	//
+	// So candidates are scored rather than ordered, and the one that closes its
+	// gap with the least beam left over wins.
 	sort.SliceStable(options, func(i, j int) bool {
 		return s.counts[options[i].Part] > s.counts[options[j].Part]
 	})
 
+	var best *Placed
+	bestOver := math.Inf(1)
 	for _, cand := range options {
 		if s.reserves(mustCells(s, cand)) {
 			continue
@@ -103,16 +127,19 @@ func (s *Searcher) brace(chosen []Placed) (*Placed, error) {
 		if shared != 0 && float64(shared) > ContactFraction*float64(smaller) {
 			continue
 		}
-		// Two joints, not one: a beam pinned in a single place is a flag, not a
-		// brace, and leaves the mobility exactly where it was.
+		// It has to bridge two bodies that are not already one.
 		candHoles := s.holeRefs([]Placed{cand}, []int{0})
-		if pinnedAt(candHoles, holes) < 2 {
+		span, ok := bridgeSpan(candHoles, holes, rigid)
+		if !ok {
 			continue
 		}
-		out := cand
-		return &out, nil
+		over := float64(s.counts[cand.Part]-1)*geom.Stud - span
+		if over < bestOver {
+			out := cand
+			best, bestOver = &out, over
+		}
 	}
-	return nil, nil
+	return best, nil
 }
 
 func mustCells(s *Searcher, p Placed) []geom.Cell {
@@ -123,18 +150,79 @@ func mustCells(s *Searcher, p Placed) []geom.Cell {
 	return cells
 }
 
-// pinnedAt counts how many distinct holes of the structure a candidate could
-// take a pin to.
-func pinnedAt(cand, targets []hole) int {
-	seen := map[geom.Vec3]bool{}
+// bridgeSpan reports how far apart the two pinned holes are, across the widest
+// pair the candidate reaches in two different bodies, and whether it reaches two
+// at all.
+//
+// The span is what the beam is doing; the rest of its length is overhang.
+func bridgeSpan(cand, targets []hole, rigid []int) (float64, bool) {
+	reached := map[int][]geom.Vec3{}
 	for _, c := range cand {
 		for _, t := range targets {
 			if joins([]hole{c}, []hole{t}) {
-				seen[t.pos] = true
+				reached[rigid[t.owner]] = append(reached[rigid[t.owner]], c.pos)
 			}
 		}
 	}
-	return len(seen)
+	if len(reached) < 2 {
+		return 0, false
+	}
+	var groups [][]geom.Vec3
+	for _, g := range reached {
+		groups = append(groups, g)
+	}
+	span := 0.0
+	for i := range groups {
+		for j := i + 1; j < len(groups); j++ {
+			for _, a := range groups[i] {
+				for _, b := range groups[j] {
+					span = math.Max(span, a.Sub(b).Len())
+				}
+			}
+		}
+	}
+	return span, true
+}
+
+// rigidClusters groups parts that are already held rigid with respect to each
+// other, and returns each part's cluster.
+//
+// Two parts pinned in two or more places cannot move relative to each other, so
+// for the purpose of finding what still needs bracing they are one body. A
+// single pin between them is a hinge and leaves them separate.
+func rigidClusters(n int, joints []rigidity.Joint) []int {
+	count := map[[2]int]int{}
+	for _, j := range joints {
+		a, b := j.A, j.B
+		if a > b {
+			a, b = b, a
+		}
+		count[[2]int{a, b}]++
+	}
+	cluster := make([]int, n)
+	for i := range cluster {
+		cluster[i] = i
+	}
+	find := func(i int) int {
+		for cluster[i] != i {
+			cluster[i] = cluster[cluster[i]]
+			i = cluster[i]
+		}
+		return i
+	}
+	for pair, c := range count {
+		if c < 2 {
+			continue
+		}
+		a, b := find(pair[0]), find(pair[1])
+		if a != b {
+			cluster[a] = b
+		}
+	}
+	for i := range cluster {
+		cluster[i] = find(i)
+	}
+	return cluster
 }
 
 // RepairConnectivity adds beams until the structure is one whole.
@@ -144,7 +232,7 @@ func pinnedAt(cand, targets []hole) int {
 // bridges them.
 func (s *Searcher) RepairConnectivity(chosen []Placed) ([]Placed, error) {
 	for round := 0; round < maxRepairRounds; round++ {
-		joints, err := rigidity.FindJoints(s.Axes, chosen, s.Inventory)
+		joints, err := rigidity.FindJointsWith(s.Axes, chosen, s.Inventory, s.Shafts)
 		if err != nil {
 			return nil, err
 		}
@@ -258,6 +346,10 @@ func (s *Searcher) reserves(cells []geom.Cell) bool {
 type hole struct {
 	pos  geom.Vec3
 	axis geom.Vec3
+	// owner is which of the chosen parts this hole belongs to. A brace has to
+	// tie two things together, and without this "two holes" counted two holes
+	// of the same beam — which is a flag bolted to one part, not a brace.
+	owner int
 }
 
 func (s *Searcher) holesOf(chosen []Placed, idx []int) (map[geom.Vec3]bool, error) {
@@ -276,7 +368,7 @@ func (s *Searcher) holeRefs(chosen []Placed, idx []int) []hole {
 			continue
 		}
 		for _, p := range pts {
-			out = append(out, hole{pos: p.Round(3), axis: axis})
+			out = append(out, hole{pos: p.Round(3), axis: axis, owner: i})
 		}
 	}
 	return out

@@ -127,15 +127,50 @@ func TestEveryExampleHoldsTogetherAndDoesNotHinge(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			hinged := false
 			for _, f := range res.Findings {
 				if f.Level == "OK" {
 					continue
 				}
 				switch f.Check {
-				case "rigidity", "connectivity", "structure", "framing", "clearance":
+				case "rigidity":
+					// Two of the examples are a shaft line with a bearing wall
+					// at each end and nothing else to tie the walls together.
+					// Nothing in the inventory can: every hole of a straight
+					// liftarm faces one way, so a liftarm reaches one wall or
+					// the other and never both. That is proved, with a control,
+					// by TestNoStraightBeamTiesTwoWallsOnAShaftLine in synth.
+					//
+					// This used to pass, and it passed falsely. Mobility is a
+					// count that does not know which parts a joint is between,
+					// so the search satisfied it by bolting a beam twice to one
+					// wall — which lowers the number and removes no freedom.
+					// Fixing the search to bridge two bodies took the false
+					// verdict away and left the true one.
+					if !hingeIsKnown(filepath.Base(path)) {
+						t.Errorf("%s: %s", f.Check, f.Detail)
+					}
+					hinged = true
+				case "connectivity", "structure", "framing", "clearance":
 					t.Errorf("%s: %s", f.Check, f.Detail)
 				}
+			}
+			// And the list does not get to go stale: when the inventory grows a
+			// part that can close these frames, this fails and says so.
+			if hingeIsKnown(filepath.Base(path)) && !hinged {
+				t.Errorf("%s no longer hinges. Take it out of knownHinges, and "+
+					"see whether TestNoStraightBeamTiesTwoWallsOnAShaftLine "+
+					"still holds", filepath.Base(path))
 			}
 		})
 	}
 }
+
+// knownHinges are the examples whose frame cannot be closed with the parts the
+// structural search has. See PLAN.md M2 and docs/findings.md.
+var knownHinges = map[string]bool{
+	"subtractor.json":               true,
+	"gearbox-3-speed-compound.json": true,
+}
+
+func hingeIsKnown(name string) bool { return knownHinges[name] }

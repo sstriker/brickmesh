@@ -399,3 +399,62 @@ Three changes, and the third is the one that generalises:
 The measurement, retaken: tier 1 goes from 135 parts to 147, and `meshes.bin`
 from 5.2 MB to 5.7 MB. Half a megabyte was the whole cost of shipping the parts
 the engine actually uses.
+
+## A brace that braces nothing, and the count that accepted it
+
+The same render that found the missing gears found this. It is worth separating
+from that one, because the missing gears were an absence and this is an answer
+that was confidently wrong.
+
+A reduction came out with three 13-hole beams marching 35 studs off the end of a
+10-stud mechanism, each pinned to the last, none of them reaching the far
+bearing. Every check said OK: connected, rigid, nothing sharing space.
+
+Two mistakes, stacked.
+
+**The search and the report disagreed about what was holding the frame.**
+`rigidity.AnalyzeWith` counts the shafts — an axle through two bearings ties
+them together, and leaving it out is why a structure can look like loose pieces
+when the build would hold. `StiffenToRigid` called `FindJoints` without them. So
+the search believed the two bearings were unconnected and braced until Grübler
+was satisfied, while the axle they both carried had been holding them all along.
+
+**Mobility is a count, and a count does not know which parts a joint is
+between.** M = 3(n-1) - 2j falls by one for any beam pinned in two places. Two
+holes of the same bearing are two places. So a beam bolted twice to one wall
+scored exactly as well as one spanning the frame, and since `brace` preferred
+the longest beam available, it took the longest beam available.
+
+Fixed by giving the search the shafts, and by requiring a brace to reach two
+parts that are not already rigid with respect to each other — parts joined by
+two or more pins being one body for this purpose. Candidates are then scored by
+overhang, the beam length left over past the gap it closes, rather than ordered
+by length; length-first was standing in for "across the frame", which the
+bridging test now says outright.
+
+| example | parts before | after | structure volume before | after |
+| --- | --- | --- | --- | --- |
+| reduction | 9 | 6 | 387.7 | 23.5 |
+| gearbox-2-speed | 21 | 16 | 128.8 | 42.5 |
+| gearbox-3-speed-compound | 38 | 28 | 273.9 | 128.2 |
+| subtractor | 4 | 3 | 125.1 | 23.5 |
+
+Cubic studs.
+
+### What it was hiding
+
+Two examples now report that they hinge, and they do. A shaft passes through a
+bearing, so the bearing's holes face along the shaft; every hole of a straight
+liftarm faces the same way, so the liftarm lies across the shaft with all its
+holes at one point along it; and a pin joins two holes only if they lie on one
+line within two studs of each other. A liftarm therefore reaches one bearing
+wall or the other and never both, whatever its length and wherever it is put.
+
+So two walls on a shaft line cannot be tied together by anything in the
+inventory, and they can counter-rotate about the shaft between them. Closing
+that needs a part with holes on more than one axis, which `part.WorldHoles`
+cannot express — it returns one axis for a whole part.
+
+The warnings are the honest version of a verdict that was previously OK. M2 was
+marked done on "every example comes out rigid, with no warnings at all", and
+that is the measure this defect was defeating. PLAN.md M2 is reopened.

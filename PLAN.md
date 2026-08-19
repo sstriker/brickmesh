@@ -67,18 +67,20 @@ Two caveats came out of writing them:
   signature as a hole. Every such hit lies outside the part, so position alone
   separates them, but `find_holes` does not do it for you.
 
-## M2 — finish structural synthesis — DONE
+## M2 — finish structural synthesis — REOPENED
 
-Every example now comes out in one piece and rigid, with no warnings at all.
-Three separate things had to be true, and they were separate warnings for a
+> Reopened 2026-08-19. It was marked done on the strength of "every example
+> comes out in one piece and rigid, with no warnings at all", and that measure
+> was wrong. Two examples do hinge, and the parts to stop them are not in the
+> inventory. See the note at the end of this section.
+
+Three separate things have to be true, and they were separate warnings for a
 long time: bearing every shaft, holding together, and not folding up.
 
 The last of those is the one that was missing. `StiffenToRigid` keeps adding
-beams while Grübler says the frame still has a degree of freedom, choosing the
-longest brace that pins in two places at once, which triangulates rather than
-doubling up on a joint that already exists. It runs on the chosen solution
-rather than inside the search: sixty restarts each stiffening an answer that is
-then thrown away costs minutes for nothing.
+beams while Grübler says the frame still has a degree of freedom. It runs on the
+chosen solution rather than inside the search: sixty restarts each stiffening an
+answer that is then thrown away costs minutes for nothing.
 
 The connectivity half turned out to be mostly a layout question rather than a
 search one. Two parallel shafts an odd half stud apart cannot share a beam, and
@@ -90,7 +92,43 @@ multiple of 8 lands on a valid centre distance, but only a multiple of 16 lands
 on one you can frame.
 
 `internal/connect`'s A* search is still not wired in. It was the plan for this,
-and it turned out not to be what was wrong.
+and it turned out not to be what was wrong — but see below, because it is not
+what is wrong now either.
+
+### Why this is open again
+
+Mobility is a count: 3(n-1) - 2j for a planar frame. It does not know which
+parts a joint is between. So a beam bolted twice to one bearing lowers the
+number by exactly as much as one spanning the frame, and `brace` — which asked
+only for "two places at once", and took two holes of the same part as two
+places — preferred the longest beam available and took it.
+
+The result satisfied every check and was visible only once models were drawn: a
+reduction braced with three 13-hole beams marching 35 studs off the end of a
+10-stud mechanism, each pinned to the last, none reaching the far bearing, which
+the axle had been holding all along. The rigidity report counted the shafts as
+joints; the search did not, so it believed the bearings were loose and braced
+them. Both halves are fixed — the search is given the shafts, and a brace must
+now bridge two bodies that are not already rigid with respect to each other.
+
+What that uncovered is a real gap. Two examples cannot be made rigid at all:
+
+- **subtractor** — two bearing walls on one shaft line, which can counter-rotate
+  about the shaft.
+- **gearbox-3-speed-compound** — the same, on one of its lines.
+
+No straight liftarm can close either. A shaft passes through a bearing, so the
+bearing's holes face along the shaft; every hole of a straight liftarm faces the
+same way, so it lies across the shaft with all its holes at one point along it;
+and a pin joins two holes only if they are on one line within two studs. So a
+liftarm reaches one wall or the other and never both, whatever its length. That
+is proved with a control in `TestNoStraightBeamTiesTwoWallsOnAShaftLine`.
+
+- [ ] the inventory needs a part with holes on more than one axis — an angle or
+      perpendicular connector — which `part.WorldHoles` cannot express, since it
+      returns one axis for a whole part. That signature is the actual work.
+- [ ] until then the two hinges are reported honestly and listed in
+      `knownHinges`, which fails if one of them stops hinging.
 
 - [x] a joint is now what a joint is: two holes facing the same way, on one
       axis line, within a pin's reach of each other. Holes at the very same

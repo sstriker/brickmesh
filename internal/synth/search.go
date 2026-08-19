@@ -15,6 +15,7 @@ import (
 	"brickmesh/internal/geom"
 	"brickmesh/internal/layout"
 	"brickmesh/internal/progress"
+	"brickmesh/internal/rigidity"
 	"brickmesh/internal/voxel"
 )
 
@@ -151,6 +152,17 @@ type Searcher struct {
 	// driving ring and the joiner under it — in half studs, keyed by shaft.
 	// Nothing may be pinned through it.
 	Taken map[string][][2]float64
+	// Shafts are the axles running through the structure, which tie the
+	// bearings on one line to each other.
+	//
+	// Given to the searcher because the rigidity report counts them and the
+	// search did not, so the two disagreed about whether anything was holding
+	// the frame together — and the search is the one that responds by adding
+	// parts. It braced a reduction with three 13-hole beams marching 35 studs
+	// off the end of a 10-stud mechanism, each pinned to the last, satisfying
+	// Grubler while the far bearing was already tied to the near one by the
+	// very axle it carried. See docs/findings.md.
+	Shafts []rigidity.Axle
 	// Reserved is space no beam may enter at all, however little of it.
 	//
 	// Unlike the ordinary overlap rule this admits no contact fraction: the
