@@ -354,3 +354,48 @@ larger inventory, and for a model read back in from somewhere else.
 It matters more for rigidity than for clearance. A part keyed to a turning shaft
 is not a structural member, and counting its pin joints as if it were would call
 a frame rigid when it is free to rotate — wrong in the direction that says yes.
+
+## The published site had no gear geometry, and said everything was fine
+
+Found by building the preview renderer, which is the first thing that made the
+browser's idea of a model visible rather than merely reported.
+
+The site ships tier 1. Tier is graded from a part's title: tier 1 is beams,
+pins, axles, bushes and axle joiners; tier 2 is everything else titled
+`Technic `. A gear is titled `Technic Gear 24 Tooth`, so **every gear graded
+tier 2 and none of them shipped**. Two more never shipped at any tier: 3647 and
+32270 have no shadow file, so they carry no ports, and the extractor drops
+anything portless.
+
+Twelve parts in all: every gear, both driving rings, both clutch gears.
+
+What made it survive is that nothing failed. Three separate stages read
+geometry, and all three treat its absence as nothing to do:
+
+- the **clearance sweep** skipped every pair it could not measure and then
+  reported "no two of the 9 parts share space" — a clear verdict on the parts
+  that were left, phrased as a verdict on the model;
+- the **tooth phase** stage had nothing to read the teeth from, so gears came
+  out unphased and the emitted `.ldr` had teeth passing through teeth;
+- the **renderer** drew the model without them.
+
+The tests did not catch it because the fixture that publishes the two files for
+the tests listed the parts again, by hand, and listed them correctly. So the
+browser-versus-native comparison compared two things that were both right, while
+the generator that builds the real files was wrong. A fixture that reimplements
+the thing it is checking will agree with itself.
+
+Three changes, and the third is the one that generalises:
+
+1. `pipeline.Placeable()` is now the single list of what the engine can put in a
+   model, and `assets.WithPlaceable` adds all of it to the catalogue whatever the
+   tier says. Tier decides how common a part is; it never knew what this engine
+   places, and the two were allowed to disagree.
+2. The test fixture reads that same list instead of repeating it.
+3. **Missing geometry is a finding.** The sweep names the parts it could not
+   measure and withholds the clear verdict, because "checked and clear" and
+   "not checked" had been coming out as the same sentence.
+
+The measurement, retaken: tier 1 goes from 135 parts to 147, and `meshes.bin`
+from 5.2 MB to 5.7 MB. Half a megabyte was the whole cost of shipping the parts
+the engine actually uses.

@@ -1146,3 +1146,47 @@ func alignZTo(dir geom.Vec3) (geom.Mat3, bool) {
 	}
 	return geom.Mat3{}, false
 }
+
+// Placeable is every part the engine can put into a model.
+//
+// It exists because "which parts does the browser need" was being answered by
+// tier, and tier is a judgement about how common a part is, not about what this
+// engine places. They disagreed: gears are titled "Technic Gear ..." and so
+// grade as tier 2, the site shipped tier 1, and every model it built came out
+// with no gear geometry at all. Nothing said so — a part with no triangles is
+// skipped by the clearance sweep and skipped by the renderer, so the page drew
+// gearboxes without gears and reported that nothing collided, having never
+// looked. See docs/findings.md.
+//
+// 3647 and 32270 have no shadow file, so they carry no ports and the extractor
+// drops them however high the tier goes. That is the second half of the same
+// problem: what the engine places and what the shadow library describes are
+// different sets, and the assets have to cover the union.
+func Placeable() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(name string) {
+		if name != "" && !seen[name] {
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+	for _, n := range GearParts {
+		add(n)
+	}
+	for _, n := range AxleParts {
+		add(n)
+	}
+	for _, b := range part.Beams {
+		add(b.Part)
+	}
+	for _, s := range clutch.Systems {
+		add(s.Ring)
+		add(s.Joiner)
+		for _, n := range s.Gears {
+			add(n)
+		}
+	}
+	sort.Strings(out)
+	return out
+}

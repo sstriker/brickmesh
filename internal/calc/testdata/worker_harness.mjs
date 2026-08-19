@@ -20,6 +20,7 @@ const sandbox = {
   console, setTimeout, clearTimeout, performance, TextEncoder, TextDecoder,
   crypto: webcrypto, WebAssembly, URL, Uint8Array, Promise, JSON, Object, Array,
   String, Number, Math, Error, fs, require: createRequire(import.meta.url),
+  ArrayBuffer, Float32Array, Uint32Array, Int32Array, DataView,
 };
 sandbox.self = sandbox;
 sandbox.globalThis = sandbox;
@@ -62,3 +63,25 @@ console.log(`${path.basename(specFile)}: ok=${a.ok} parts=${a.parts} ` +
   `in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 console.log(`  progress reported: ${progress.join(" -> ")}`);
 console.log(`  answer id matches the question: ${answer.id === 1}`);
+
+// The triangles the page draws. Reported rather than merely counted, because a
+// buffer that arrives the wrong size draws a model the wrong shape and the page
+// itself cannot tell.
+if (!answer.triangles) {
+  console.log("  triangles: none");
+} else {
+  const floats = new Float32Array(answer.triangles);
+  const stride = 9;
+  let finite = true;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < floats.length; i += stride) {
+    for (let k = 0; k < 3; k++) {
+      if (!Number.isFinite(floats[i + k])) finite = false;
+      lo[k] = Math.min(lo[k], floats[i + k]);
+      hi[k] = Math.max(hi[k], floats[i + k]);
+    }
+  }
+  const span = hi.map((v, k) => (v - lo[k]).toFixed(0)).join("x");
+  console.log(`  triangles: ${floats.length / stride / 3} spanning ${span} LDU ` +
+    `finite=${finite} whole=${floats.length % (stride * 3) === 0}`);
+}

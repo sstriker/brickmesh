@@ -165,26 +165,18 @@ func publishedBytes(t *testing.T, lib *ldraw.Library, ports extract.Ports,
 	model string) ([]byte, []byte) {
 
 	t.Helper()
-	catalog := assets.Catalog{}
-	var meshes []assets.Mesh
 
 	// Everything the engine can place, not only what this model used: the
 	// browser gets one catalogue for every mechanism.
+	//
+	// Taken from pipeline.Placeable rather than listed again here. It used to be
+	// listed again here, and that is why a real gap went unseen for as long as
+	// it did: this fixture had every gear while the generator that builds the
+	// published files had none, so the tests agreed with each other and both
+	// disagreed with the site.
 	ids := map[string]bool{}
-	for _, p := range pipeline.GearParts {
+	for _, p := range pipeline.Placeable() {
 		ids[p] = true
-	}
-	for _, p := range pipeline.AxleParts {
-		ids[p] = true
-	}
-	for _, b := range beamsOf() {
-		ids[b] = true
-	}
-	for _, extra := range []string{
-		"6539.dat", "6538a.dat", "6542a.dat",
-		"18947.dat", "18948.dat", "18946.dat", "81346.dat",
-	} {
-		ids[extra] = true
 	}
 	for _, line := range strings.Split(model, "\n") {
 		if f := strings.Fields(line); len(f) >= 15 && f[0] == "1" {
@@ -197,6 +189,17 @@ func publishedBytes(t *testing.T, lib *ldraw.Library, ports extract.Ports,
 		names = append(names, id)
 	}
 	sortStrings(names)
+	return publishedFrom(t, lib, ports, names)
+}
+
+// publishedFrom builds the two files for exactly the parts named, so a test can
+// publish a deliberately incomplete set and see what the engine does with it.
+func publishedFrom(t *testing.T, lib *ldraw.Library, ports extract.Ports,
+	names []string) ([]byte, []byte) {
+
+	t.Helper()
+	catalog := assets.Catalog{}
+	var meshes []assets.Mesh
 	for _, id := range names {
 		g, err := lib.Geometry(id)
 		if err != nil {
@@ -234,14 +237,6 @@ func publishedBytes(t *testing.T, lib *ldraw.Library, ports extract.Ports,
 		t.Fatal(err)
 	}
 	return rawCatalog, rawMeshes
-}
-
-func beamsOf() []string {
-	var out []string
-	for _, b := range part.Beams {
-		out = append(out, b.Part)
-	}
-	return out
 }
 
 func sortStrings(v []string) {

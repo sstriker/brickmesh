@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 
 	"brickmesh/internal/collide"
 	"brickmesh/internal/geom"
@@ -36,6 +38,20 @@ func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 	// A part swept about the wrong axis is worse than one not swept at all.
 	spin := checkTurning(res, deps)
 	parts := res.Model.Parts
+
+	// A part with no triangles cannot be swept, cannot be compared, and was
+	// being skipped without a word — so a model missing half its geometry was
+	// reported as a model in which nothing collides. Say so instead: this is
+	// the difference between "checked and clear" and "not checked".
+	missing := withoutGeometry(deps, parts)
+	if len(missing) > 0 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "FAIL", Check: "clearance", Detail: fmt.Sprintf(
+				"no geometry for %s, so nothing was checked against %s. "+
+					"A clear verdict here would be a verdict on the parts that "+
+					"were left, not on the model",
+				strings.Join(missing, ", "), plural(len(missing)))})
+	}
 	clashes := 0
 	for i := 0; i < len(parts); i++ {
 		if err := ctx.Err(); err != nil {
@@ -61,7 +77,10 @@ func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 					a.Name, a.Pos, b.Name, b.Pos, overlap)})
 		}
 	}
-	if clashes == 0 {
+	// Only clear when everything was actually looked at. Saying "no two of the
+	// 9 parts share space" beside "no geometry for 3648b.dat" is two answers to
+	// one question, and the reassuring one is the one that gets read.
+	if clashes == 0 && len(missing) == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
 			Level: "OK", Check: "clearance", Detail: fmt.Sprintf(
 				"no two of the %d parts share space", len(parts))})
@@ -75,6 +94,31 @@ func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 // A part that turns is swept a full revolution rather than tested where it
 // happens to sit: a gear that clears a beam at rest and strikes it a quarter
 // turn later is not a gear that clears a beam.
+// withoutGeometry names the placed parts whose triangles are not available,
+// once each, in the order they first appear.
+func withoutGeometry(deps Deps, parts []ldr.Part) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, p := range parts {
+		if seen[p.Name] {
+			continue
+		}
+		seen[p.Name] = true
+		if _, err := interfere.MeshFor(deps.Lib, p.Name); err != nil {
+			out = append(out, p.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return "it"
+	}
+	return "them"
+}
+
 func sharesSpace(ctx context.Context, deps Deps, a, b ldr.Part,
 	spin turning, ia, ib int) (bool, float64, error) {
 

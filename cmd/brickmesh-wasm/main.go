@@ -27,6 +27,7 @@ func main() {
 	js.Global().Set("brickmeshCheck", js.FuncOf(check))
 	js.Global().Set("brickmeshLoadParts", js.FuncOf(loadParts))
 	js.Global().Set("brickmeshBuild", js.FuncOf(build))
+	js.Global().Set("brickmeshDraw", js.FuncOf(draw))
 	js.Global().Set("brickmeshReady", js.ValueOf(true))
 	// A WebAssembly module whose main returns is torn down, taking the exported
 	// functions with it. Blocking forever is how a Go module stays callable.
@@ -82,4 +83,22 @@ func build(_ js.Value, args []js.Value) any {
 	}
 	animate := len(args) > 1 && args[1].Truthy()
 	return string(parts.BuildJSON(context.Background(), []byte(args[0].String()), animate))
+}
+
+// draw hands back the last built model as triangles.
+//
+// Bytes rather than JSON, and a separate call rather than a field on the
+// answer: it is six megabytes of float for a compound gearbox, which is
+// reasonable as a buffer to upload and absurd as a number in a string.
+func draw(_ js.Value, args []js.Value) any {
+	if parts == nil {
+		return js.Null()
+	}
+	raw := parts.Draw()
+	if len(raw) == 0 {
+		return js.Null()
+	}
+	out := js.Global().Get("Uint8Array").New(len(raw))
+	js.CopyBytesToJS(out, raw)
+	return out
 }

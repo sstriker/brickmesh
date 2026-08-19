@@ -79,7 +79,17 @@ self.onmessage = async (event) => {
     self.postMessage({ id, progress: "fetching the parts" });
     await loadParts();
     self.postMessage({ id, progress: "placing the gears and finding a frame" });
-    self.postMessage({ id, answer: JSON.parse(self.brickmeshBuild(spec, !!animate)) });
+    const answer = JSON.parse(self.brickmeshBuild(spec, !!animate));
+    // The triangles come back as bytes and are handed over rather than copied:
+    // a compound gearbox is six megabytes, and the worker has no use for it
+    // afterwards.
+    const drawn = answer.ldr ? self.brickmeshDraw() : null;
+    if (drawn) {
+      const buffer = drawn.buffer.slice(drawn.byteOffset, drawn.byteOffset + drawn.length);
+      self.postMessage({ id, answer, triangles: buffer }, [buffer]);
+    } else {
+      self.postMessage({ id, answer });
+    }
   } catch (err) {
     self.postMessage({ id, answer: { error: String(err.message || err) } });
   }

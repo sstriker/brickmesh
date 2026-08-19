@@ -29,6 +29,7 @@ import (
 	"brickmesh/internal/assets"
 	"brickmesh/internal/extract"
 	"brickmesh/internal/ldraw"
+	"brickmesh/internal/pipeline"
 	"brickmesh/internal/progress"
 	"brickmesh/internal/shadow"
 )
@@ -80,6 +81,15 @@ func run() error {
 	}
 	if len(records) == 0 {
 		return fmt.Errorf("no parts survived filtering; refusing to write empty files")
+	}
+	// Whatever the tier, the parts the engine actually places have to be in
+	// here. Tier grades how common a part is; it does not know what this engine
+	// puts in a model, and when the two were allowed to disagree the site
+	// shipped tier 1 and got no gears. See pipeline.Placeable.
+	records, added := assets.WithPlaceable(records, pipeline.Placeable())
+	if len(added) > 0 {
+		logf(fmt.Sprintf("added %d parts the engine places that tier %d left out: %s",
+			len(added), *tier, strings.Join(added, " ")))
 	}
 
 	// Sorted once, here, and used for both files. A part's index is what

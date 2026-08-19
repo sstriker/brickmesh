@@ -17,6 +17,8 @@ const EXAMPLES = [
 const specEl = document.getElementById("spec");
 const buildEl = document.getElementById("build");
 const downloadsEl = document.getElementById("downloads");
+const canvasEl = document.getElementById("view");
+const viewer = createViewer(canvasEl);
 const answerEl = document.getElementById("answer");
 const statusEl = document.getElementById("status");
 
@@ -27,7 +29,7 @@ const waiting = new Map();
 let nextID = 1;
 
 worker.onmessage = (event) => {
-  const { id, answer, progress } = event.data;
+  const { id, answer, progress, triangles } = event.data;
   const pending = waiting.get(id);
   if (!pending) return; // an answer to a question already overtaken
   if (progress !== undefined) {
@@ -35,7 +37,7 @@ worker.onmessage = (event) => {
     return;
   }
   waiting.delete(id);
-  pending.resolve(answer);
+  pending.resolve({ answer, triangles });
 };
 
 worker.onerror = (event) => {
@@ -61,7 +63,7 @@ function scheduleCheck() {
 let latest = 0;
 async function check() {
   const mine = ++latest;
-  const result = await ask("check");
+  const { answer: result } = await ask("check");
   // Only the most recent question gets to draw: answers can arrive out of
   // order, and an older one overwriting a newer is a page that lags behind
   // what was typed.
@@ -200,7 +202,7 @@ async function buildModel() {
   downloadsEl.hidden = true;
   buildEl.disabled = true;
   try {
-    const built = await ask("build", { animate: true });
+    const { answer: built, triangles } = await ask("build", { animate: true });
     statusEl.textContent = "";
     if (built.error) {
       render({ error: built.error });
@@ -208,6 +210,10 @@ async function buildModel() {
     }
     render(built);
     if (built.ldr) offerDownloads(built);
+    if (triangles && viewer) {
+      viewer.load(triangles);
+      canvasEl.hidden = false;
+    }
   } finally {
     buildEl.disabled = false;
   }
@@ -241,7 +247,13 @@ function saveAs(filename, text, title) {
 async function start() {
   buildExampleButtons();
   specEl.addEventListener("input", scheduleCheck);
-  specEl.addEventListener("input", () => { downloadsEl.hidden = true; });
+  specEl.addEventListener("input", () => {
+    // What is drawn is the model that was built, not the description as it is
+    // being typed: leaving it up would be showing an answer to a question that
+    // has changed.
+    downloadsEl.hidden = true;
+    canvasEl.hidden = true;
+  });
   buildEl.addEventListener("click", buildModel);
 
   statusEl.textContent = "";

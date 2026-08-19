@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"brickmesh/internal/assets"
+	"brickmesh/internal/ldr"
 	"brickmesh/internal/pipeline"
 	"brickmesh/internal/spec"
 	"brickmesh/internal/voxel"
@@ -22,6 +23,10 @@ import (
 type Parts struct {
 	shapes *assets.Shapes
 	rast   *voxel.Rasterizer
+	// drawn is the last model built, kept so the page can ask for its
+	// triangles without them being encoded into the answer: six megabytes of
+	// float in JSON would be absurd.
+	drawn *ldr.Model
 }
 
 // Load reads the two published files.
@@ -97,12 +102,16 @@ func (p *Parts) Build(ctx context.Context, description []byte, animate bool) Bui
 	if res.Model != nil {
 		out.LDR = res.Model.Encode()
 		out.Parts = len(res.Model.Parts)
+		p.drawn = res.Model
 	}
 	if res.Script != nil {
 		out.Lua = res.Script.Render()
 	}
 	return out
 }
+
+// Draw is the last built model as triangles, ready to upload.
+func (p *Parts) Draw() []byte { return Draw(p.drawn, p.shapes) }
 
 // BuildJSON is Build with the answer encoded, which is the shape a WebAssembly
 // export wants.

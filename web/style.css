@@ -163,3 +163,18 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 }
 .downloads a:hover { border-bottom-color: var(--accent); }
 .downloads .count { color: var(--dim); font-size: 0.82rem; }
+
+/* The model. Sized by aspect rather than by height so it keeps its shape in
+   the column, and painted the panel's colour so the viewer can match it. */
+canvas#view {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  margin-bottom: 0.9rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  touch-action: none;
+  cursor: grab;
+}
+canvas#view:active { cursor: grabbing; }
