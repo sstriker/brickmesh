@@ -82,6 +82,36 @@ if (!answer.triangles) {
     }
   }
   const span = hi.map((v, k) => (v - lo[k]).toFixed(0)).join("x");
+  const marked = countMarked(floats, stride);
   console.log(`  triangles: ${floats.length / stride / 3} spanning ${span} LDU ` +
-    `finite=${finite} whole=${floats.length % (stride * 3) === 0}`);
+    `finite=${finite} whole=${floats.length % (stride * 3) === 0} marked=${marked}`);
+}
+
+// And the redraw path: asking for one check's parts to be picked out must not
+// re-solve the mechanism, and must come back the same shape.
+//
+// Changing what is highlighted used to go through a full build, which for a
+// compound gearbox is seconds of solving to recolour something already on the
+// screen.
+answers.length = 0;
+const redrawStart = Date.now();
+await sandbox.onmessage({ data: { id: 2, kind: "draw", flag: "load path" } });
+const redraw = answers.find((m) => m.triangles !== undefined);
+if (!redraw) {
+  console.log("  redraw: no triangles came back");
+} else {
+  const before = answer.triangles ? new Float32Array(answer.triangles).length : 0;
+  const after = new Float32Array(redraw.triangles).length;
+  const litUp = countMarked(new Float32Array(redraw.triangles), 10);
+  console.log(`  redraw: ${after / 10 / 3 | 0} triangles in ` +
+    `${((Date.now() - redrawStart) / 1000).toFixed(1)}s, ` +
+    `sameShape=${after === before || before === 0} marked=${litUp}`);
+}
+
+function countMarked(floats, stride) {
+  let n = 0;
+  for (let i = 0; i < floats.length; i += stride) {
+    if (floats[i + 9] !== 0) n++;
+  }
+  return n;
 }

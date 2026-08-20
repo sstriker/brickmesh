@@ -325,3 +325,15 @@ part it is.
 
 Only findings that know their parts get the affordance. An interface element
 that looks clickable and does nothing is a worse lie than none.
+
+Highlighting is a redraw and not a rebuild. It went through a full build at
+first, which for a compound gearbox is seconds of solving to recolour something
+already on the screen — the worker takes a `draw` message that calls the export
+again and nothing else, and it comes back in no measurable time.
+
+It is worth doing for a model that passes, too. "Which parts hold this?" is a
+question, not only "what is broken?" — so the load path names the frame parts
+taking the separating force even when it has nothing to complain about, and
+clicking it shows the walls doing the work. That is also what makes the feature
+testable end to end: every example passes, so a highlight that only ever lit
+failures could not be exercised at all.

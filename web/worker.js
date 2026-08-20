@@ -76,6 +76,20 @@ self.onmessage = async (event) => {
       self.postMessage({ id, answer: JSON.parse(self.brickmeshCheck(spec)) });
       return;
     }
+    // Redraw the model already built, with one check's parts picked out.
+    // Separate from a build because changing what is highlighted must not
+    // re-solve the mechanism: a compound gearbox takes seconds, and clicking a
+    // finding to see what it means should not cost that.
+    if (kind === "draw") {
+      const again = self.brickmeshDraw(flag || "");
+      if (!again) {
+        self.postMessage({ id, answer: {} });
+        return;
+      }
+      const buf = again.buffer.slice(again.byteOffset, again.byteOffset + again.length);
+      self.postMessage({ id, answer: {}, triangles: buf }, [buf]);
+      return;
+    }
     self.postMessage({ id, progress: "fetching the parts" });
     await loadParts();
     self.postMessage({ id, progress: "placing the gears and finding a frame" });

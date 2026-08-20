@@ -32,7 +32,10 @@ let lit = "";
 async function highlight(check) {
   if (!viewer || !lastBuilt || !lastBuilt.ldr) return;
   lit = check === lit ? "" : check;
-  const { triangles } = await ask("build", { animate: true, flag: lit });
+  // A redraw, not a rebuild: the mechanism has not changed, only which parts
+  // are picked out. Re-solving a compound gearbox to recolour it would cost
+  // seconds for a click.
+  const { triangles } = await ask("draw", { flag: lit });
   if (triangles) {
     viewer.load(triangles);
     canvasEl.hidden = false;

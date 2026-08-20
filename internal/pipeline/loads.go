@@ -50,9 +50,14 @@ func checkLoadPaths(res *Result, deps Deps, m *mech.Mechanism) {
 		adj[j.B] = append(adj[j.B], j.A)
 	}
 	bears := bearingParts(res, deps, frame)
+	inModel := frameIndexInModel(res, frame)
 
 	worst, unheld := -1, []string{}
 	var loose []int
+	// The frame parts actually taking the load, so the report can point at
+	// them. Worth doing for a passing model too: "which parts hold this?" is a
+	// question, not only "what is broken?".
+	holding := map[int]bool{}
 	direct := 0
 	pairs := 0
 	for _, link := range m.Links {
@@ -76,6 +81,11 @@ func checkLoadPaths(res *Result, deps Deps, m *mech.Mechanism) {
 		if hops == 0 {
 			direct++
 		}
+		for _, i := range append(append([]int{}, a...), b...) {
+			if at, ok := inModel[i]; ok {
+				holding[at] = true
+			}
+		}
 		if hops > worst {
 			worst = hops
 		}
@@ -93,16 +103,22 @@ func checkLoadPaths(res *Result, deps Deps, m *mech.Mechanism) {
 	if pairs == 0 {
 		return
 	}
+	held := make([]int, 0, len(holding))
+	for i := range holding {
+		held = append(held, i)
+	}
+	sort.Ints(held)
+
 	switch {
 	case worst == 0:
 		res.Findings = append(res.Findings, mech.Finding{
-			Level: "OK", Check: "load path", Detail: fmt.Sprintf(
+			Level: "OK", Check: "load path", Parts: held, Detail: fmt.Sprintf(
 				"all %d gear pair(s) are borne by one part, so the force pushing "+
 					"each pair apart is taken inside a beam and no pin carries it",
 				pairs)})
 	default:
 		res.Findings = append(res.Findings, mech.Finding{
-			Level: "OK", Check: "load path", Detail: fmt.Sprintf(
+			Level: "OK", Check: "load path", Parts: held, Detail: fmt.Sprintf(
 				"%d of %d gear pair(s) are borne by one part; the worst crosses "+
 					"%d joint(s), so that much of the separating force is carried "+
 					"by pins in shear rather than by a beam",
@@ -182,6 +198,21 @@ func gearsOnShafts(res *Result, a, b string) []int {
 		shaft, ok := shaftFromLabel(p.Label)
 		if ok && (shaft == a || shaft == b) {
 			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// frameIndexInModel maps a structure part to where it sits in the drawn model,
+// so a finding about the frame can point at something the page can light up.
+func frameIndexInModel(res *Result, frame []part.Placed) map[int]int {
+	out := make(map[int]int, len(frame))
+	for i, f := range frame {
+		for j, p := range res.Model.Parts {
+			if p.Name == f.Part && p.Pos.Sub(f.Origin).Len() < 1e-6 {
+				out[i] = j
+				break
+			}
 		}
 	}
 	return out
