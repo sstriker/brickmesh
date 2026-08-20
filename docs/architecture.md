@@ -299,7 +299,6 @@ findings.md.
 On these numbers a tier 2 cap saves less than it appears to, and the reason to
 fetch meshes by range rather than shipping them holds either way.
 
-
 ## Step 3's diagnostic overlays, built
 
 The document above says what makes this worth building:
@@ -337,7 +336,6 @@ taking the separating force even when it has nothing to complain about, and
 clicking it shows the walls doing the work. That is also what makes the feature
 testable end to end: every example passes, so a highlight that only ever lit
 failures could not be exercised at all.
-
 
 ## The size bound reaches the page
 

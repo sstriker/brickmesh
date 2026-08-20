@@ -361,9 +361,9 @@ Found by building the preview renderer, which is the first thing that made the
 browser's idea of a model visible rather than merely reported.
 
 The site ships tier 1. Tier is graded from a part's title: tier 1 is beams,
-pins, axles, bushes and axle joiners; tier 2 is everything else titled
-`Technic `. A gear is titled `Technic Gear 24 Tooth`, so **every gear graded
-tier 2 and none of them shipped**. Two more never shipped at any tier: 3647 and
+pins, axles, bushes and axle joiners; tier 2 is everything else whose title
+begins with `Technic` and a space. A gear is titled `Technic Gear 24 Tooth`, so
+**every gear graded tier 2 and none of them shipped**. Two more never shipped at any tier: 3647 and
 32270 have no shadow file, so they carry no ports, and the extractor drops
 anything portless.
 
@@ -744,7 +744,7 @@ turn was expressed; the fault was in the model file, one line up.
 
 The diagnostic asked LDCad what a group's placement actually is, and got:
 
-```
+```text
 rest   pos 140.00  0.00 -80.00   ori 1 0 0 | 0 1 0 | 0 0 1
 ```
 
@@ -1455,7 +1455,7 @@ midpoint, on the outer seats, with neutral on the middle one.
 
 The sweep disagrees, and this is the third time it has disagreed the same way:
 
-```
+```text
   29.5  TOO DEEP       0 free window(s)
   30.0  TOO DEEP       0 free window(s)      <- where the models put it
   30.5  DOUBTFUL       4 free window(s)
