@@ -79,9 +79,18 @@ engine does not place one. None of the official models available here uses one
 as a catch; they use 6641 and 35188.
 
 There is a third generation, with a compact 2-module ring and a fork driven by a
-shifter drum. The parts are not anchored: the design IDs quoted for them in the
-literature land on unrelated elements in LDraw's own numbering, and no model
-here has them. Named rather than guessed at.
+shifter drum, and its parts are all in the library: 2473a (the ring, 8 teeth),
+4158 (the drum) and 4159 (the fork). Its groove is 10 LDU wide too, floor at
+r 11.7, flanges at r 17.5.
+
+What is missing is a model, not a part. Nothing available here places a 4159
+beside a 2473a, and OMR's Technic coverage stops well short of the sets that
+use it. So the third generation is measurable but unanchored, and it is not
+placed. One .ldr with the two parts correctly positioned would close it.
+
+Also in the library and not yet used: 51149, which is the same fork as 6641 on a
+different axle hole. It returns the same verdicts at the same distances against
+all three rings.
 
 What the sweep *can* settle is everything around the fit. A joiner is 20 LDU
 across and a beam's hole is 12, so a joiner where a bearing is cannot be built

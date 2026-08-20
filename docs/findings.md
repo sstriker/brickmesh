@@ -1270,7 +1270,43 @@ where it reaches — the nominal-surface problem at its purest. None of the four
 official models here uses one as a catch either; they use 6641 and 35188. So it
 is not placed, on the same standard that got the other two placed.
 
-There is a third generation — a compact two-module ring with a fork driven by a
-shifter drum. Not anchored: the design IDs quoted for those parts in the
-literature land on unrelated elements in LDraw's own numbering, and no model
-here has them. Named rather than guessed at.
+### The third generation is in the library; I looked up the wrong filename
+
+A first pass here said the third generation's parts "land on unrelated elements
+in LDraw's own numbering". That was wrong, and it is the null-reading mistake a
+third time in one sitting — this time made immediately after writing the second
+one up. `2473.dat` is a `~Moved to` redirect stub, and its 60x46x60 box was read
+as evidence of an unrelated part instead of as a redirect. The rest were never
+checked past their bounding boxes at all.
+
+Reading the titles instead of guessing from geometry, the whole family is on
+disk:
+
+| part | title |
+| --- | --- |
+| 2473a | Technic Transmission Driving Ring 2L with 8 Teeth |
+| 4158 | Technic Changeover Cylinder with Groove |
+| 4159 | Technic Changeover Catch Fork |
+| 51149 | Technic Transmission Changeover Catch with Two-toothed Axlehole |
+| 32187 | Technic Transmission Driving Ring Extension |
+| 35186 | Technic Transmission Driving Ring Extension with Eight Clutch Teeth |
+
+**The lesson generalises past sweeps.** It was filed as being about the
+interference sweep, but a filename lookup is an instrument too, and `not found`
+is its null reading. Ask what the instrument was actually asked. Here the answer
+was "is there a file called 2473.dat", not "does LDraw have this part".
+
+2473a measures 35 across and 36 along, which is the compact two-module ring. Its
+groove is 10 LDU wide like the other two, floor at r 11.7 and flanges at r 17.5.
+
+51149 is geometrically the same fork as 6641 on a different axle hole: against
+6539, 18947 and 2473a it returns the same verdicts at the same distances, tip at
+r 17.2 at 60 LDU. A drop-in alternative.
+
+What is still missing for the third generation is not a part but a *model*. No
+official model here places a 4159 beside a 2473a, and OMR's Technic coverage
+stops well short of it — 42159, 42160, 42155, 42130, 42143, 42156, 42171 and
+42177 are all absent. The parts library is current; the model repository is
+volunteer-transcribed and is not. So the third generation stays measurable but
+unanchored, and one .ldr with a fork correctly placed beside a ring would close
+it — the same single fact that closed each of the other two.
