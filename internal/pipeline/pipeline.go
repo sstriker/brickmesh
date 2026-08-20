@@ -287,15 +287,66 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 // a voxel lattice that has to tolerate parts touching, and that tolerance is
 // enough to let two beams share a few LDU. The search proposes; the geometry
 // disposes.
-func firstThatFits(ctx context.Context, solutions []synth.Solution,
-	deps Deps) (*synth.Solution, int) {
+// firstThatHolds takes the first structure that fits together AND stays rigid
+// once braced.
+//
+// Rigidity used to be a post-check: the first candidate that fitted was taken,
+// braced, and then told off in the report if it still hinged. That is advice
+// arriving after the decision. The search returns solutions smallest first and
+// there are usually many, so a frame that folds can simply be passed over for
+// one that does not.
+//
+// It falls back rather than failing. If every candidate hinges, the first that
+// at least fits is taken and the rigidity check says so — a model that hinges is
+// still worth looking at, and refusing to emit one would hide the thing the
+// report is trying to show.
+func firstThatHolds(ctx context.Context, solutions []synth.Solution, deps Deps,
+	searcher *synth.Searcher, res *Result) (*synth.Solution, int, int) {
+
+	var fallback *synth.Solution
+	fallbackAt, hinged := 0, 0
 
 	for i := range solutions {
-		if !overlapping(ctx, solutions[i].Parts, deps) {
-			return &solutions[i], i
+		if err := ctx.Err(); err != nil {
+			break
+		}
+		if overlapping(ctx, solutions[i].Parts, deps) {
+			continue
+		}
+		if fallback == nil {
+			fallback, fallbackAt = &solutions[i], i
+		}
+		braced, err := searcher.StiffenToRigid(solutions[i].Parts)
+		if err != nil {
+			continue
+		}
+		if holdsRigid(deps, braced, res) {
+			return &solutions[i], i, hinged
+		}
+		hinged++
+	}
+	if fallback != nil {
+		return fallback, fallbackAt, hinged - 1
+	}
+	return nil, len(solutions), hinged
+}
+
+// holdsRigid reports whether a braced structure is one piece and does not fold.
+func holdsRigid(deps Deps, parts []synth.Placed, res *Result) bool {
+	placed := make([]part.Placed, 0, len(parts))
+	for _, p := range parts {
+		placed = append(placed, part.Placed(p))
+	}
+	findings, err := rigidity.AnalyzeWith(deps.Shadow, placed, nil, res.Axles)
+	if err != nil {
+		return false
+	}
+	for _, f := range findings {
+		if f.Level == "FAIL" {
+			return false
 		}
 	}
-	return nil, len(solutions)
+	return true
 }
 
 func overlapping(ctx context.Context, parts []synth.Placed, deps Deps) bool {
@@ -349,7 +400,7 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 	// tolerance lets two beams overlap by a little. So the candidates are put
 	// to the exact question before one is taken. The search proposes; the
 	// geometry disposes.
-	chosen, rejected := firstThatFits(ctx, solutions, deps)
+	chosen, rejected, hinged := firstThatHolds(ctx, solutions, deps, searcher, res)
 	if chosen == nil {
 		res.Findings = append(res.Findings, mech.Finding{
 			Level: "WARN", Check: "structure", Detail: fmt.Sprintf(
@@ -360,12 +411,20 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 	if rejected > 0 {
 		res.Findings = append(res.Findings, mech.Finding{
 			Level: "OK", Check: "structure", Detail: fmt.Sprintf(
-				"%d structure(s) rejected for parts overlapping before this one",
-				rejected)})
+				"%d structure(s) rejected before this one for parts inside each "+
+					"other or for hinging", rejected)})
+	}
+	if hinged > 0 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "OK", Check: "structure", Detail: fmt.Sprintf(
+				"%d of those hinged even after bracing, and were passed over "+
+					"rather than reported", hinged)})
 	}
 	// Stiffening happens here rather than inside the search: it is the one
 	// solution that will be used, and doing it to every restart costs minutes
 	// for an answer that is thrown away sixty times over.
+	// Already stiffened by the search that chose it, so this is the same call
+	// reaching the same answer; it stays because the count is worth reporting.
 	stiffened, err := searcher.StiffenToRigid(chosen.Parts)
 	if err != nil {
 		return fmt.Errorf("stiffening the structure: %w", err)

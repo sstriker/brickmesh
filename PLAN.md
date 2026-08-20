@@ -197,7 +197,13 @@ one.
 - [x] the pins are placed, not just counted. One per run of joints on a hole
       line, midway along it, skipping the lines a shaft already fills, and
       long-pin where a run is deeper than two parts.
-- [ ] feed rigidity back in as a hard constraint rather than a post-check
+- [x] feed rigidity back in as a hard constraint rather than a post-check. The
+      search returns solutions smallest first and there are usually many, so one
+      that folds is passed over for one that does not, instead of being taken
+      and then told off in the report. It falls back rather than failing: if
+      every candidate hinges the first that at least fits is taken and the
+      rigidity check says so, since a model that hinges is still worth looking
+      at and refusing to emit one would hide what the report is for.
 
 Acceptance: synthesized structures report `M <= 0` from `rigidity.analyze`.
 Both examples do.

@@ -969,3 +969,39 @@ gear fit inside this part" when the question was "how is a differential built".
 Asking the narrower question well is not the same as asking the right one, and
 the tell was that the answer implied something absurd — that a standard
 mechanism could not be represented in a library that represents everything else.
+
+### All four differentials, and why interpenetration is not the test
+
+The library has four usable differentials: 6573 and 73071 at four studs long,
+62821 and 65414 at three, and only 65414 comes assembled. Every one of them
+reports the same thing when a bevel is placed at the satellite positions — no
+room anywhere.
+
+Including 65414 itself, at the positions its own official shortcut uses.
+
+So LDraw's assembled differential has its five satellites intersecting the
+casing, and ships that way. A triangle-intersection test is simply the wrong
+instrument for parts designed to nest: the same reason a driving ring's splines
+read as a collision rather than a grip, and an axle in a bore, and a pin in a
+hole. Those already have exceptions; a differential's internals are the same
+shape of thing.
+
+Which means the earlier conclusion was wrong twice over. Not only does the
+assembled part exist, but the measurement that seemed to rule out placing gears
+by hand rules out the official assembly too — and that should have been the tell.
+
+## Rigidity was advice arriving after the decision
+
+The structural search returns solutions smallest first, and there are usually
+many of them. The pipeline took the first that fitted together, braced it, and
+then — if it still folded — said so in the report.
+
+That is a check standing where a constraint belongs. Nothing acted on it; the
+reader was handed a frame and told it hinges.
+
+It is now part of choosing: a candidate has to fit together *and* stay rigid
+once braced, and one that folds is passed over for one that does not. The
+fallback matters as much as the constraint — if every candidate hinges, the
+first that at least fits is still emitted and the rigidity check still reports
+it, because a model that hinges is worth looking at and refusing to produce one
+would hide the very thing the report exists to show.
