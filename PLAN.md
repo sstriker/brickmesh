@@ -259,7 +259,19 @@ therefore means the box is buildable and the shift mechanism is not.
 
       The two-speed goes from 17 parts to 14 and the three-speed from 31 to 25.
 - [ ] a selector element, so the shift itself is part of the mechanism rather
-      than an instruction to the builder
+      than an instruction to the builder.
+
+      Measured rather than assumed now, and the answer is that it cannot be
+      found by measuring: 6641 swept against 6539 through all 24 lattice
+      orientations, four directions, eight distances and three positions along
+      the shaft gives no placement that is both clear of the turning ring and
+      reaching its groove. LDraw models nominal surfaces, so a fork that
+      straddles a groove intersects it.
+
+      The ring's own engaged distance was findable because a clutch gear has
+      angular windows a plain gear does not; a catch on a ring has no such
+      signature, and there is no assembled shortcut for the pair the way there
+      is for the differential. It needs a reference build. See docs/findings.md.
 - [ ] a slip element for the other kind of clutch — the old white 24t whose
       inner axle gives way above a force. Different thing entirely from the
       engage/disengage gears, and it shares only the name

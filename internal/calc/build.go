@@ -10,9 +10,11 @@ import (
 	"fmt"
 
 	"brickmesh/internal/assets"
+	"brickmesh/internal/geom"
 	"brickmesh/internal/ldr"
 	"brickmesh/internal/pipeline"
 	"brickmesh/internal/spec"
+	"brickmesh/internal/synth"
 	"brickmesh/internal/voxel"
 )
 
@@ -31,6 +33,8 @@ type Parts struct {
 	// lastFindings is what it may ask about. See Flag.
 	flagged      map[int]bool
 	lastFindings []Finding
+	// envelope is how big a frame may be, in studs per axis, zero for no bound.
+	envelope geom.Vec3
 }
 
 // Load reads the two published files.
@@ -88,6 +92,10 @@ func (p *Parts) Build(ctx context.Context, description []byte, animate bool) Bui
 	}, pipeline.Options{
 		Restarts: 24, Seed: 1,
 		Animate: animate, ScriptName: "model.lua",
+		Budget: synth.Budget{
+			PerStud: 1, PerPart: 0.2, PerCubicStud: 1,
+			MaxStuds: p.envelope,
+		},
 	})
 	if err != nil {
 		out.Error = err.Error()
@@ -120,6 +128,10 @@ func (p *Parts) Build(ctx context.Context, description []byte, animate bool) Bui
 
 // Draw is the last built model as triangles, ready to upload.
 func (p *Parts) Draw() []byte { return DrawFlagging(p.drawn, p.shapes, p.flagged) }
+
+// SetEnvelope bounds how big a frame the next Build may use, in studs, with
+// zero on an axis meaning no bound there.
+func (p *Parts) SetEnvelope(studs geom.Vec3) { p.envelope = studs }
 
 // Flag marks the parts a finding is about, so the next Draw lights them up.
 // An empty check clears the marks.

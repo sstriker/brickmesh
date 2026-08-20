@@ -1096,3 +1096,37 @@ that the page drew nothing when the page was fine. Pixels have to be read in the
 same task that draws them. Its first version also built a second WebGL context
 on the page's own canvas to test the shaders, which would have answered a
 question about the harness rather than about the page.
+
+## The selector cannot be placed by measuring, and now that is known rather than assumed
+
+The report has always said the shift linkage is named rather than placed, and
+given a reason: the catch's hold on a ring is a fit, and in LDraw a spline that
+grips reads as a spline that collides. That was an assertion. It is now a
+measurement.
+
+The rings' grooves are real and findable: 6539 is 20 LDU in radius except a band
+at z ∈ [-4, +4] where it drops to 13, and 18947 has the same 8 LDU band at 12.
+So there is a place for a catch to sit and it can be found from the part.
+
+Where the catch goes cannot. Sweeping 6641 against 6539 through every one of the
+24 lattice orientations, four radial directions, eight distances and three
+positions along the shaft gives **no placement that is both clear and holding** —
+every position that lets the ring turn a full revolution has the catch outside
+the ring altogether, and every position that reaches the groove collides at some
+angle.
+
+That is not a fault in the sweep. It is the same thing as the driving ring's
+dogs in a clutch gear, the axle in a bore, the pin in a hole, and the
+differential's five satellites in their casing: LDraw models nominal surfaces
+with no clearance, so two parts designed to nest intersect.
+
+The difference from those, and the reason this one stays unplaced, is that they
+had another source. The ring's engaged distance was found because the sweep
+could see *windows* — free angular positions that a clutch gear has and a plain
+gear does not — and the differential had an assembled part in the library. A
+catch on a ring offers neither: no angular signature to read, and no shortcut
+that puts the two together.
+
+So it needs a reference build, not a cleverer sweep. The report says what to add
+and why it is not there, which is the same answer as before with evidence under
+it instead of a claim.

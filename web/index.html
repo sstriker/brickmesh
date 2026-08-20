@@ -31,6 +31,16 @@
         <button type="button" id="build">Build the model</button>
       </div>
     </div>
+
+    <!-- How big the frame may get. A bound is not a preference: a frame outside
+         it is not a candidate, and asking for something that cannot be built
+         inside one says so and names the cap. Blank means no bound. -->
+    <fieldset class="envelope">
+      <legend>Frame no bigger than, in studs</legend>
+      <label>width <input type="number" id="max-x" min="0" step="1" placeholder="any"></label>
+      <label>height <input type="number" id="max-y" min="0" step="1" placeholder="any"></label>
+      <label>depth <input type="number" id="max-z" min="0" step="1" placeholder="any"></label>
+    </fieldset>
     <div id="downloads" class="downloads" hidden></div>
     <canvas id="view" hidden aria-label="the model, once it has been built"></canvas>
     <div id="answer" class="answer">

@@ -69,7 +69,7 @@ async function bytes(path) {
 // Each message carries an id, so an answer can be matched to its question: the
 // page may well have edited the description again while this was working.
 self.onmessage = async (event) => {
-  const { id, kind, spec, animate, flag } = event.data;
+  const { id, kind, spec, animate, flag, envelope } = event.data;
   try {
     await start();
     if (kind === "check") {
@@ -93,7 +93,8 @@ self.onmessage = async (event) => {
     self.postMessage({ id, progress: "fetching the parts" });
     await loadParts();
     self.postMessage({ id, progress: "placing the gears and finding a frame" });
-    const answer = JSON.parse(self.brickmeshBuild(spec, !!animate));
+    const answer = JSON.parse(self.brickmeshBuild(spec, !!animate,
+      envelope ? envelope.x : 0, envelope ? envelope.y : 0, envelope ? envelope.z : 0));
     // The triangles come back as bytes and are handed over rather than copied:
     // a compound gearbox is six megabytes, and the worker has no use for it
     // afterwards.

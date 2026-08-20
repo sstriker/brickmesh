@@ -337,3 +337,23 @@ taking the separating force even when it has nothing to complain about, and
 clicking it shows the walls doing the work. That is also what makes the feature
 testable end to end: every example passes, so a highlight that only ever lit
 failures could not be exercised at all.
+
+
+## The size bound reaches the page
+
+The engine grew a budget — what to charge for beam length, for parts, for the
+envelope — and a bound on how big a frame may be. Those arrived on the command
+line, which is not where the mission says people are.
+
+The page has the bound now: three boxes, in studs, blank for no bound on that
+axis. Blank is not zero; zero would be a frame with no width.
+
+It is the one control on the page that can refuse. Everything else takes a
+description and answers it; this can be told to build something that cannot be
+built, and then has to say so and name the cap rather than hand back the best
+violation of it. The browser test asks for a two-speed gearbox inside two studs
+of depth and requires the page to say which bound stopped it.
+
+The cost weights are not exposed. They are a knob for someone tuning what "good"
+means, and the defaults are reasoned about in findings.md; a page full of
+sliders nobody moves is worse than a page without them.

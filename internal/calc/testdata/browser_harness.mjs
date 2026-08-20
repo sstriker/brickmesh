@@ -114,6 +114,17 @@ if (clickable.length > 0) {
     `the highlighted parts are warmer (${before.warm} -> ${after.warm} warm pixels)`);
 }
 
+// The size bound, which is the one control that can refuse: ask for a frame
+// inside two studs of depth and the answer must be that none was found, naming
+// the cap, rather than the best violation of it handed back quietly.
+await page.fill("#max-z", "2");
+await page.click("#build");
+await page.waitForFunction(
+  () => [...document.querySelectorAll("#answer .finding .detail")]
+    .some((n) => n.textContent.includes("envelope was capped")),
+  null, { timeout: 180000 }).then(() => must(true, "a bound too small is refused, and says which"))
+  .catch(() => must(false, "a frame was asked for inside two studs and nothing mentioned the cap"));
+
 must(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 
 await browser.close();

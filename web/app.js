@@ -33,6 +33,17 @@ const statusEl = document.getElementById("status");
 let lastBuilt = null;
 let lit = "";
 
+// envelope reads the size bounds, in studs. A blank box is no bound on that
+// axis, which is not the same as zero — zero would be a frame with no width.
+function envelope() {
+  const read = (id) => {
+    const v = document.getElementById(id).value.trim();
+    const n = Number(v);
+    return v === "" || !Number.isFinite(n) || n <= 0 ? 0 : n;
+  };
+  return { x: read("max-x"), y: read("max-y"), z: read("max-z") };
+}
+
 // highlight redraws with one check's parts picked out. An empty check clears it.
 async function highlight(check) {
   if (!viewer || !lastBuilt || !lastBuilt.ldr) return;
@@ -238,7 +249,8 @@ async function buildModel() {
   downloadsEl.hidden = true;
   buildEl.disabled = true;
   try {
-    const { answer: built, triangles } = await ask("build", { animate: true });
+    const { answer: built, triangles } = await ask("build",
+      { animate: true, envelope: envelope() });
     lastBuilt = built;
     statusEl.textContent = "";
     if (built.error) {

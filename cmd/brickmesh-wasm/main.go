@@ -21,6 +21,7 @@ import (
 	"syscall/js"
 
 	"brickmesh/internal/calc"
+	"brickmesh/internal/geom"
 )
 
 func main() {
@@ -82,6 +83,17 @@ func build(_ js.Value, args []js.Value) any {
 		return `{"error":"the parts have not been loaded yet"}`
 	}
 	animate := len(args) > 1 && args[1].Truthy()
+	// Three more, optional: how big the frame may be in studs, per axis, with
+	// zero meaning no bound on that axis. A bound is not a preference — a frame
+	// outside it is not a candidate — so the page can ask for something that
+	// cannot be built and be told so.
+	var envelope geom.Vec3
+	for i, at := range []*float64{&envelope.X, &envelope.Y, &envelope.Z} {
+		if len(args) > i+2 && args[i+2].Type() == js.TypeNumber {
+			*at = args[i+2].Float()
+		}
+	}
+	parts.SetEnvelope(envelope)
 	return string(parts.BuildJSON(context.Background(), []byte(args[0].String()), animate))
 }
 

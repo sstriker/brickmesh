@@ -184,3 +184,18 @@ canvas#view:active { cursor: grabbing; }
 .finding.points { cursor: pointer; }
 .finding.points:hover { outline: 1px solid var(--line); }
 .finding.points.lit { outline: 2px solid rgb(255 90 25); }
+
+/* The size bounds. Small and out of the way: most people never set one, and a
+   blank box has to read as "no bound" rather than as something forgotten. */
+fieldset.envelope {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.4rem 0.7rem 0.6rem;
+  margin: 0 0 0.9rem;
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+fieldset.envelope legend { font-size: 0.85em; opacity: 0.75; padding: 0 0.3rem; }
+fieldset.envelope label { font-size: 0.9em; display: flex; align-items: center; gap: 0.35rem; }
+fieldset.envelope input { width: 4.5rem; }
