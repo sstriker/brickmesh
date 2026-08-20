@@ -165,7 +165,8 @@ func sharesSpace(ctx context.Context, deps Deps, a, b ldr.Part,
 		got, err := interfere.MeshLock(ctx,
 			other, collide.Transform{Rot: tb.Rot, Pos: tb.Pos},
 			rider, collide.Transform{Rot: ta.Rot, Pos: ta.Pos},
-			16, interfere.Options{Steps: 72, SpinAxis: principal(spinAxis.dir)})
+			16, interfere.Options{Steps: 72, SpinAxis: principal(spinAxis.dir),
+				Fit: interfere.FitTolerance})
 		if err != nil {
 			return false, 0, err
 		}

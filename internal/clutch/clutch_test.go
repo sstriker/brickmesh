@@ -42,7 +42,7 @@ func sweepAt(t *testing.T, lib *ldraw.Library, gearPart string,
 	}
 	got, err := interfere.MeshLock(context.Background(), gear, collide.Identity(),
 		ring, collide.Transform{Rot: collide.Identity().Rot, Pos: geom.Vec3{Z: offset}},
-		16, interfere.Options{Steps: 360})
+		16, interfere.Options{Steps: 360, Fit: First.EngageFit})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,18 +157,15 @@ func TestEachRingEngagesOnlyItsOwnGears(t *testing.T) {
 		// The second against its own 16t and 20t: four windows, and over a band
 		// rather than at a single distance, because its dogs have depth.
 		//
-		// Half an LDU out from the engaged distance, not at it. At exactly 30
-		// the dog faces and the recess faces are in contact, and contact is
-		// what this instrument cannot tell from collision: it reads 0 windows
-		// at 30.0 and 4 at 30.5. The engaged distance itself comes from three
-		// official models, which put a shared ring 40 LDU from each of two
-		// clutch gears 80 apart and 30 from the one it is engaged with. See the
-		// note on clutch.Second.
-		{Second, 16, Second.Engaged*halfStud + 0.5, 4},
-		{Second, 20, Second.Engaged*halfStud + 0.5, 4},
+		// At the engaged distance itself, which the sweep can now be asked
+		// about: with a fit tolerance it reads the dogs resting in the recesses
+		// as contact rather than as burial. Without one it read 0 windows at
+		// 30.0 and 4 at 30.5, and this test had to ask half an LDU out.
+		{Second, 16, Second.Engaged * halfStud, 4},
+		{Second, 20, Second.Engaged * halfStud, 4},
 	} {
 		gear := c.system.Gears[c.teeth]
-		got := sweepRing(t, lib, c.system.Ring, gear, c.at)
+		got := sweepRing(t, lib, c.system.Ring, gear, c.at, c.system.EngageFit)
 		if got.Windows != c.windows {
 			t.Errorf("%s ring against %s at %g LDU: %d windows, want %d",
 				c.system.Name, gear, c.at, got.Windows, c.windows)
@@ -188,7 +185,7 @@ func TestNeitherRingEngagesAPlainGear(t *testing.T) {
 	for _, system := range Systems {
 		for _, plain := range []string{"4019.dat", "32269.dat", "3648b.dat"} {
 			for at := 28.0; at <= 40; at++ {
-				got := sweepRing(t, lib, system.Ring, plain, at)
+				got := sweepRing(t, lib, system.Ring, plain, at, system.EngageFit)
 				if got.Verdict == interfere.Meshes {
 					t.Errorf("%s ring reads as engaging the plain %s at %g LDU",
 						system.Name, plain, at)
@@ -210,7 +207,7 @@ func TestNothingShiftsATwentyFourToothGear(t *testing.T) {
 		for _, socalled := range []string{"76019.dat", "76244.dat"} {
 			engaged := false
 			for at := 24.0; at <= 44; at++ {
-				if got := sweepRing(t, lib, system.Ring, socalled, at); got.Windows > 0 {
+				if got := sweepRing(t, lib, system.Ring, socalled, at, system.EngageFit); got.Windows > 0 {
 					engaged = true
 				}
 			}
@@ -224,7 +221,7 @@ func TestNothingShiftsATwentyFourToothGear(t *testing.T) {
 
 // sweepRing turns a ring a full revolution against a gear at a distance.
 func sweepRing(t *testing.T, lib *ldraw.Library, ring, gear string,
-	at float64) interfere.Result {
+	at, fit float64) interfere.Result {
 
 	t.Helper()
 	rm, err := interfere.MeshFor(lib, ring)
@@ -237,7 +234,7 @@ func sweepRing(t *testing.T, lib *ldraw.Library, ring, gear string,
 	}
 	got, err := interfere.MeshLock(context.Background(), gm, collide.Identity(),
 		rm, collide.Transform{Rot: collide.Identity().Rot, Pos: geom.Vec3{Z: at}},
-		16, interfere.Options{Steps: 360})
+		16, interfere.Options{Steps: 360, Fit: fit})
 	if err != nil {
 		t.Fatal(err)
 	}

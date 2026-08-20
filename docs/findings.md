@@ -1480,9 +1480,36 @@ interpenetrate always have some pair of faces crossing at an angle, and those
 are what the 3D case finds. The 2D routine is kept and still tested, behind
 `coplanarIsContact`, so the difference can be measured rather than assumed.
 
-**Not finished.** Coplanar contact is the clean case; contact that is a fraction
-of an LDU off a shared plane still reads as interpenetration, which is why the
-engagement tests ask their question half an LDU out from the contact plane and
-say so. The real answer is a fit tolerance in the sweep — test the parts a hair
-under nominal, the way clearance already allows an overlap under one LDU. That
-is the outstanding piece.
+### The fit tolerance, and why there is no single number for it
+
+Coplanar contact was the clean case. Contact a fraction of an LDU off a shared
+plane is not coplanar and still read as interpenetration, so the sweep now takes
+a `Fit`: how deep an interference still counts as contact. It is measured as
+depth along the line between the two parts — the direction they would be pulled
+apart along, which for two coaxial parts is their axis and for a catch beside a
+ring is the way out from the shaft. Only the angles that block pay for it, so a
+sweep that clears costs nothing.
+
+Then the calibration said something better than the number asked for.
+
+| | Fit 0 | Fit 0.1 | Fit 0.25 |
+| --- | --- | --- | --- |
+| 6539 on 6542a at 30 | 16 windows, 71% free | **fully free** | fully free |
+| 18947 on 18946 at 30 | **solid** | 4 windows, 72% free | 4 windows, 72% free |
+
+There is no value that works for both. The first system's dogs meet the gear
+face to face, so a tenth of an LDU of slack separates them and the sweep
+reports a ring spinning free of the gear it is locked to. The second's are
+modelled with a quarter of an LDU of overlap and read as solid without it.
+
+That is a fact about how the two sets of parts were drawn, not about the
+mechanism, so it is recorded per system as `EngageFit` — nothing for the first,
+a quarter for the second.
+
+**Engagement and burial turned out to be different questions.** Burial is depth
+*beyond* the touch and wants a tolerance; engagement *is* the touch and measuring
+it with one measures it away. So `interfere.FitTolerance` is a quarter of an LDU
+and is used for "is this part buried in that one" — in the clearance check and
+in the test that asks whether a placed ring is driven into its gear, which no
+longer has to ask its question half an LDU out from where the ring actually is.
+`EngageFit` is used for "do these engage", and for the first system it is zero.

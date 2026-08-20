@@ -86,7 +86,41 @@ type Options struct {
 	Steps    int
 	SpinAxis byte
 	Workers  int
+	// Fit is how deep an interference still counts as contact rather than
+	// collision, in LDU. Zero keeps the old all-or-nothing answer.
+	//
+	// It exists because in LDraw everything is nominal, so every real fit is an
+	// exact one and reads as a collision. A driving ring's dogs REST IN a
+	// clutch gear's recesses; a half-width liftarm fills a 10 LDU groove to the
+	// LDU; a fork's tine sits in a channel cut to take it. Coplanar faces are
+	// already treated as contact by the triangle test, which covers the clean
+	// case, but a fit that is a fraction of an LDU off a shared plane is not
+	// coplanar and was still reading as buried.
+	//
+	// The measure is depth along the line between the two parts, which for two
+	// coaxial parts is their axis and for a catch beside a ring is the way out
+	// from the shaft — in both cases the direction they would be pulled apart
+	// along. A block that clears within Fit of separation is a fit.
+	Fit float64
 }
+
+// FitTolerance is how deep an interference reads as contact rather than
+// collision, in LDU, for the question "is this part buried in that one".
+//
+// A quarter of an LDU. An 18947 at its engaged distance of 30 clears at 0.25,
+// and the same ring pushed half a stud too far in at 29.5 does not — so it
+// admits a fit without admitting a ring in the wrong place.
+//
+// Deliberately not used for "does this engage". Those are different questions
+// and want different tolerances: burial is depth BEYOND the touch, engagement
+// IS the touch. A first-generation ring at its engaged distance blocks 29% of a
+// revolution in sixteen windows at no tolerance at all, and a tenth of an LDU
+// of slack frees it completely — so measuring engagement with a tolerance
+// measures it away. See clutch.System.EngageFit.
+//
+// The clearance check's own touchTolerance is 1.0 and applies to bounding
+// boxes, which is a coarser question about parts that merely graze.
+const FitTolerance = 0.25
 
 // MeshLock turns B a full revolution against a stationary A and reports what it
 // found.
@@ -134,6 +168,15 @@ func sweep(ctx context.Context, a *collide.Mesh, ta collide.Transform,
 	b *collide.Mesh, tb collide.Transform, opts Options) ([]bool, error) {
 
 	free := make([]bool, opts.Steps)
+	// The way the two would come apart: from A towards B. Two coaxial parts
+	// give their shared axis; a catch beside a ring gives the way out from the
+	// shaft. Concentric parts give nothing, and then Fit cannot apply.
+	apart := tb.Pos.Sub(ta.Pos)
+	if l := apart.Len(); l > 1e-9 {
+		apart = apart.Scale(1 / l)
+	} else {
+		apart = geom.Vec3{}
+	}
 	var wg sync.WaitGroup
 	step := make(chan int)
 	go func() {
@@ -157,7 +200,13 @@ func sweep(ctx context.Context, a *collide.Mesh, ta collide.Transform,
 					Rot: tb.Rot.Mul(Rot(opts.SpinAxis, ang)),
 					Pos: tb.Pos,
 				}
-				free[k] = !collide.Intersects(a, ta, b, turned)
+				if !collide.Intersects(a, ta, b, turned) {
+					free[k] = true
+					continue
+				}
+				// Blocked. Shallow enough to be contact? Only asked of the
+				// angles that block, so a sweep that clears costs nothing.
+				free[k] = clearsWithin(a, ta, b, turned, apart, opts.Fit)
 			}
 		}()
 	}
@@ -166,6 +215,28 @@ func sweep(ctx context.Context, a *collide.Mesh, ta collide.Transform,
 		return nil, err
 	}
 	return free, nil
+}
+
+// clearsWithin reports whether pulling B off A by up to fit separates them.
+//
+// A few steps rather than a binary search: fit is under an LDU in practice, the
+// answer only has to be good to a fraction of one, and this runs on the angles
+// that block, which in a real fit is most of them.
+func clearsWithin(a *collide.Mesh, ta collide.Transform, b *collide.Mesh,
+	tb collide.Transform, apart geom.Vec3, fit float64) bool {
+
+	if fit <= 0 || apart == (geom.Vec3{}) {
+		return false
+	}
+	const steps = 4
+	for i := 1; i <= steps; i++ {
+		off := fit * float64(i) / steps
+		moved := collide.Transform{Rot: tb.Rot, Pos: tb.Pos.Add(apart.Scale(off))}
+		if !collide.Intersects(a, ta, b, moved) {
+			return true
+		}
+	}
+	return false
 }
 
 // classify turns the free angles into a verdict.

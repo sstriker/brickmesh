@@ -71,6 +71,18 @@ type System struct {
 	// and CatchSeat how far apart its seats are, in LDU. Both measured off the
 	// part: see the note on Second.
 	CatchPerLDU, CatchSeat float64
+
+	// EngageFit is how much nominal overlap this system's ring and clutch gear
+	// have when engaged, in LDU — how much a sweep must be told to forgive
+	// before it can see the dogs sitting in the recesses rather than a solid
+	// block.
+	//
+	// Per system because the two are modelled differently, which is a fact
+	// about the LDraw parts and not about the mechanism. Measured: at their
+	// engaged distances a 6539 on a 6542a needs none, and a tenth of an LDU
+	// frees it completely; an 18947 on an 18946 needs a quarter, and reads as
+	// solid without it.
+	EngageFit float64
 }
 
 // Travel is how far the ring slides between engaged and disengaged.
@@ -104,6 +116,10 @@ var First = System{
 	// The same model confirms the engaged distance above from a second,
 	// independent direction: its rings sit exactly 30 LDU from the clutch gears
 	// either side of them, which is the 3.0 half studs measured here.
+	// None: its dogs meet the gear face to face and any slack at all separates
+	// them. 16 windows over 29% of a revolution at nothing forgiven.
+	EngageFit: 0,
+
 	Catch: "6641.dat", CatchReach: 60,
 	CatchAlong: 'y', CatchOut: 'z',
 	// A lever. Its through-hole runs across both the shaft and the way out, at
@@ -161,6 +177,10 @@ var Second = System{
 	// 42083 has two catches whose nearest ring is ambiguous and it does not
 	// matter: 35188 measures ±27.60 in both x and y, so it is symmetric across
 	// the axis the ambiguity is about and both readings are the same placement.
+	// A quarter of an LDU, without which the sweep reads a solid block at the
+	// engaged distance the official models put this ring at.
+	EngageFit: 0.25,
+
 	Catch: "35188.dat", CatchReach: 40,
 	CatchAlong: 'z', CatchOut: 'x',
 

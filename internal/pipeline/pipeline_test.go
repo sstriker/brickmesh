@@ -263,24 +263,15 @@ func TestAGearboxGetsItsDrivingRings(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Half an LDU further out than it is placed. An engaged ring has
-			// its dogs resting in the gear's recesses — faces in contact — and
-			// contact is exactly what a triangle test cannot tell from
-			// interpenetration. Asking at the placed distance asks whether the
-			// ring is engaged, and the answer is always "buried".
-			//
-			// So ask the question next door: half an LDU clear of engagement,
-			// is the ring merely beside its gear rather than driven into it?
-			// That catches a ring a whole stud out of place, which is the
-			// mistake worth catching, and does not fail on a fit.
-			away := r.Pos.Sub(g.Pos)
-			if l := away.Len(); l > 1e-9 {
-				away = away.Scale(0.5 / l)
-			}
+			// At the ring's own placement, with the fit tolerance. An engaged
+			// ring rests its dogs in the gear's recesses, and without a
+			// tolerance that reads as burial — so this used to have to ask its
+			// question half an LDU further out. It no longer does, which means
+			// it is now testing the model rather than something beside it.
 			got, err := interfere.MeshLock(context.Background(),
 				gear, collide.Transform{Rot: g.Rot, Pos: g.Pos},
-				ring, collide.Transform{Rot: r.Rot, Pos: r.Pos.Add(away)},
-				16, interfere.Options{Steps: 72})
+				ring, collide.Transform{Rot: r.Rot, Pos: r.Pos},
+				16, interfere.Options{Steps: 72, Fit: interfere.FitTolerance})
 			if err != nil {
 				t.Fatal(err)
 			}
