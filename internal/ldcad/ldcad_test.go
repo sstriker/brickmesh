@@ -187,3 +187,65 @@ func TestASlidingRingIsGivenAPosition(t *testing.T) {
 		t.Error("no position is set anywhere, so no ring can slide")
 	}
 }
+
+// A shift that moves someone else's ring is not this group's business.
+//
+// The old writer held every through-shift group at every shift, which in a
+// compound gearbox stopped the shaft fed through the ring that was not even
+// moving. The table says which shifts cut which drive, one bit per segment.
+func TestOnlyTheShiftsThatCutADriveHoldIt(t *testing.T) {
+	x := geom.Vec3{X: 1}
+	states := []string{"1st", "2nd", "3rd"}
+	turning := func() []Turning {
+		return []Turning{
+			{Group: "shaft_input", Axis: x, Speed: 1},
+			// Fed through a ring that moves only at the second shift.
+			{Group: "shaft_mid", Axis: x, Speed: 1, Holds: []bool{false, true, false}},
+			// Fed through one that moves at both.
+			{Group: "shaft_out", Axis: x, Speed: 1, Holds: []bool{true, true, false}},
+		}
+	}
+	ani := Animation{Name: "shift", Turning: turning()}
+	for _, s := range states {
+		ani.Segments = append(ani.Segments, Segment{State: s, Turning: turning()})
+	}
+	out := Script{Model: "m", Seconds: 10, InputTurns: 4,
+		Animations: []Animation{ani}}.Render()
+
+	for _, want := range []string{
+		"{0, 0, 0}, --shaft_input",
+		"{0, 1, 0}, --shaft_mid",
+		"{1, 1, 0}, --shaft_out",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the holds table has no %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "angleThroughShift") {
+		t.Error("the all-or-nothing hold is still being emitted")
+	}
+	if !strings.Contains(out, "angleHolding(speed[2], holds[2])") {
+		t.Error("a group is not reading its own row of the table")
+	}
+}
+
+// A group with no per-segment answer keeps the old behaviour exactly, so the
+// fixture the Python test runs still means what it meant.
+func TestAGroupWithNoTableFallsBackToTheFlag(t *testing.T) {
+	if got := holdBit(nil, true, 0); got != 1 {
+		t.Errorf("through-shift with no table gave %d, want 1", got)
+	}
+	if got := holdBit(nil, false, 2); got != 0 {
+		t.Errorf("a group nothing shifts gave %d, want 0", got)
+	}
+	if got := holdBit([]bool{false, true}, true, 1); got != 1 {
+		t.Errorf("the table should win over the flag, got %d", got)
+	}
+	if got := holdBit([]bool{false, true}, true, 0); got != 0 {
+		t.Errorf("the table should win over the flag, got %d", got)
+	}
+	// Past the end of a short table is not a hold.
+	if got := holdBit([]bool{true}, true, 5); got != 0 {
+		t.Errorf("off the end of the table gave %d, want 0", got)
+	}
+}

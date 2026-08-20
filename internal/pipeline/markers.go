@@ -6,6 +6,7 @@ package pipeline
 import (
 	"fmt"
 	"math"
+	"sort"
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/ldr"
@@ -73,7 +74,15 @@ func addMarkers(res *Result, model *ldr.Model, m *mech.Mechanism) {
 		model.Add(MarkerPart, color, rot, end,
 			fmt.Sprintf("%s marker on shaft '%s'", what, shaft))
 	}
+	// Sorted, because ranging a map is ranging it in a different order every
+	// time: two inputs would be marked in either order and the same mechanism
+	// would produce two different files.
+	ins := make([]string, 0, len(m.Inputs))
 	for id := range m.Inputs {
+		ins = append(ins, id)
+	}
+	sort.Strings(ins)
+	for _, id := range ins {
 		mark(id, ldr.ColorRed, "input")
 	}
 	for _, id := range m.Outputs {

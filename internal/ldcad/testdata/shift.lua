@@ -416,6 +416,16 @@ function onFrame3()
     {-1.000000, -1.000000, -1.000000}, --shaft_third
   }
 
+  --holds[group][segment]: 1 where the shift at the end of that segment
+  --leaves nothing reaching this group
+  local holds={
+    {0, 0, 0}, --shaft_input
+    {1, 1, 1}, --shaft_output
+    {0, 0, 0}, --shaft_first
+    {0, 0, 0}, --shaft_second
+    {0, 0, 0}, --shaft_third
+  }
+
   --Degrees a group has turned by now: every finished segment in full, plus
   --this segment's share.
   local function angle(sp)
@@ -424,35 +434,39 @@ function onFrame3()
     return a+sp[seg+1]*u*frac[seg+1]*turns*360
   end
 
-  --And for a shaft the inputs reach only through a shift: it turns while a ring
-  --is in a gear, and holds still while the rings are sliding, when nothing
-  --reaches it at all. Whatever the inputs still reach through fixed meshes
-  --keeps going either way.
-  local function angleThroughShift(sp)
+  --And the same for a group whose drive some of the shifts cut. hold[k]=1 says
+  --the shift at the end of segment k leaves nothing reaching this group, so it
+  --stands still for that part of it. A shift that moves some other ring is not
+  --this group's business and it turns straight through.
+  local function angleHolding(sp, hold)
     local a=0
-    for k=1,seg do a=a+sp[k]*(1-shift)*frac[k]*turns*360 end
+    for k=1,seg do
+      local part=1
+      if hold[k]==1 then part=1-shift end
+      a=a+sp[k]*part*frac[k]*turns*360
+    end
     local held=u
-    if held>1-shift then held=1-shift end
+    if hold[seg+1]==1 and held>1-shift then held=1-shift end
     return a+sp[seg+1]*held*frac[seg+1]*turns*360
   end
 
-  local a0=angle(speed[1])
+  local a0=angleHolding(speed[1], holds[1])
   local m0=ori3_0:clone()
   m0:mulRotateAB(a0, 1, 0, 0)
   grp3_0:setOri(m0)
-  local a1=angleThroughShift(speed[2])
+  local a1=angleHolding(speed[2], holds[2])
   local m1=ori3_1:clone()
   m1:mulRotateAB(a1, 1, 0, 0)
   grp3_1:setOri(m1)
-  local a2=angle(speed[3])
+  local a2=angleHolding(speed[3], holds[3])
   local m2=ori3_2:clone()
   m2:mulRotateAB(a2, 1, 0, 0)
   grp3_2:setOri(m2)
-  local a3=angle(speed[4])
+  local a3=angleHolding(speed[4], holds[4])
   local m3=ori3_3:clone()
   m3:mulRotateAB(a3, 1, 0, 0)
   grp3_3:setOri(m3)
-  local a4=angle(speed[5])
+  local a4=angleHolding(speed[5], holds[5])
   local m4=ori3_4:clone()
   m4:mulRotateAB(a4, 1, 0, 0)
   grp3_4:setOri(m4)
@@ -471,6 +485,13 @@ function onFrame3()
     {-0.333333, -0.600000, -1.000000}, --ring_3
   }
 
+  --ringHolds[group][segment]: a ring holds when the shaft it rides does
+  local ringHolds={
+    {0, 0, 0}, --ring_1
+    {0, 0, 0}, --ring_2
+    {0, 0, 0}, --ring_3
+  }
+
   --where[ring][segment]: 0 engaged, 1 clear
   local where={
     {0, 1, 1}, --ring_1
@@ -478,10 +499,17 @@ function onFrame3()
     {1, 1, 0}, --ring_3
   }
 
+  --ringHolds[group][segment]: a ring holds when the shaft it rides does
+  local ringHolds={
+    {0, 0, 0}, --ring_1
+    {0, 0, 0}, --ring_2
+    {0, 0, 0}, --ring_3
+  }
+
   do --ring_1
     local a=where[1][seg+1]
     local at=a+(where[1][nxt+1]-a)*f
-    local ra=angle(ringSpeed[1])
+    local ra=angleHolding(ringSpeed[1], ringHolds[1])
     local rm=rori3_0:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_0:setOri(rm)
@@ -490,7 +518,7 @@ function onFrame3()
   do --ring_2
     local a=where[2][seg+1]
     local at=a+(where[2][nxt+1]-a)*f
-    local ra=angle(ringSpeed[2])
+    local ra=angleHolding(ringSpeed[2], ringHolds[2])
     local rm=rori3_1:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_1:setOri(rm)
@@ -499,7 +527,7 @@ function onFrame3()
   do --ring_3
     local a=where[3][seg+1]
     local at=a+(where[3][nxt+1]-a)*f
-    local ra=angle(ringSpeed[3])
+    local ra=angleHolding(ringSpeed[3], ringHolds[3])
     local rm=rori3_2:clone()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_2:setOri(rm)

@@ -388,8 +388,56 @@ func shiftAnimation(m *mech.Mechanism, res *Result, groupOf map[string]string,
 			Sliding: seg.Sliding, Swinging: seg.Swinging,
 		})
 	}
+	markHolds(m, res, rings, states, &ani)
 	applySchedule(m, &ani)
 	return ani, true
+}
+
+// markHolds works out which shifts cut which group's drive.
+//
+// One per segment and per group, because a compound gearbox shifts one ring at
+// a time. The shaft fed through the ring that is NOT moving keeps its drive all
+// the way through, and stopping it looked exactly like a bug: the middle axle
+// halting while its own ring sat engaged and the input kept turning.
+func markHolds(m *mech.Mechanism, res *Result, rings []ringGroup,
+	states []string, ani *ldcad.Animation) {
+
+	shaftOf := map[string]string{}
+	for id := range res.Layout.Place {
+		shaftOf["shaft_"+id] = id
+	}
+	for _, r := range rings {
+		shaftOf[r.group] = r.shaft
+	}
+
+	// One driven set per transition. The last segment has no shift after it.
+	held := make([]map[string]bool, len(states))
+	for k := 0; k+1 < len(states); k++ {
+		held[k] = drivenBetween(m, states[k], states[k+1])
+	}
+
+	holdsFor := func(group string) []bool {
+		shaft, ok := shaftOf[group]
+		if !ok {
+			return nil
+		}
+		out := make([]bool, len(states))
+		for k, driven := range held {
+			out[k] = driven != nil && !driven[shaft]
+		}
+		return out
+	}
+	for j := range ani.Turning {
+		ani.Turning[j].Holds = holdsFor(ani.Turning[j].Group)
+	}
+	for _, seg := range ani.Segments {
+		for j := range seg.Turning {
+			seg.Turning[j].Holds = holdsFor(seg.Turning[j].Group)
+		}
+		for k := range seg.Sliding {
+			seg.Sliding[k].Holds = holdsFor(seg.Sliding[k].Group)
+		}
+	}
 }
 
 // topGearTail is how far past the last shift point the animation carries on, so
@@ -442,6 +490,37 @@ func applySchedule(m *mech.Mechanism, ani *ldcad.Animation) {
 // free to turn against each other. Driving the case alone leaves both outputs
 // undetermined, which is exactly what a differential is for.
 func alwaysDriven(m *mech.Mechanism) map[string]bool {
+	// No shift is engaged here, so a coupling reaches nothing.
+	return drivenWith(m, func(mech.Coupling) bool { return false })
+}
+
+// drivenBetween is what the inputs still reach midway through one shift.
+//
+// A ring that is not moving between these two states is still in whatever gear
+// it was in, and still passes drive; only the rings that are travelling are in
+// neither gear. A coupling engaged in both states is one whose ring stays put,
+// which makes "engaged in both" exactly the test.
+//
+// Holding every shaft at every shift was the alternative, and it stopped the
+// half of a compound gearbox whose ring was not even moving.
+func drivenBetween(m *mech.Mechanism, a, b string) map[string]bool {
+	return drivenWith(m, func(c mech.Coupling) bool {
+		return hasState(c, a) && hasState(c, b)
+	})
+}
+
+func hasState(c mech.Coupling, state string) bool {
+	for _, s := range c.States {
+		if s == state {
+			return true
+		}
+	}
+	return false
+}
+
+// drivenWith is reachability from the inputs, with engaged deciding which of
+// the shiftable couplings pass drive.
+func drivenWith(m *mech.Mechanism, engaged func(mech.Coupling) bool) map[string]bool {
 	driven := make(map[string]bool, len(m.Inputs))
 	for id := range m.Inputs {
 		driven[id] = true
@@ -449,8 +528,8 @@ func alwaysDriven(m *mech.Mechanism) map[string]bool {
 	for changed := true; changed; {
 		changed = false
 		for _, link := range m.Links {
-			if c, ok := link.(mech.Coupling); ok && len(c.States) > 0 {
-				continue // a shift, and no shift is engaged here
+			if c, ok := link.(mech.Coupling); ok && len(c.States) > 0 && !engaged(c) {
+				continue
 			}
 			shafts := link.Shafts()
 			need := 1

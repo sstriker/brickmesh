@@ -1351,3 +1351,65 @@ Neither was asked whether the gears ended up meshing. A model can satisfy every
 check it has and still be wrong in the way the checks do not cover, and the
 place to look is the finished artefact rather than the reasoning that produced
 it.
+
+## The published site was not the site the tests served
+
+The Pages site was dead: `index.html` loads `view.js`, and the workflow that
+assembles the site copies a named list of files that never included it. So
+`createViewer` was undefined, `app.js` threw at its first statement, and nothing
+after it ran — no examples, no buttons, a permanent "Loading the engine…".
+
+The browser test could not have caught it. It stands up a server over the
+repository's `web/` directory, where every file is present by construction.
+What Pages serves is a *copy* of a subset of that directory, and the two had
+drifted the moment a file was added to the page and not to the list.
+
+The check is now the comparison itself: every local `src`/`href` in index.html
+must exist in `web/` **and** appear in the workflow's copy step. Three
+references today. Removing `web/view.js` from the workflow makes it fail with
+the exact sentence the live site was demonstrating.
+
+The general shape: **a test that builds its own input is not testing what ships.**
+The harness was right about everything it was asked and was asked about the
+wrong directory.
+
+## A shift that stops a shaft it never disconnected
+
+Reported from watching the three-speed: the middle axle stopping while its own
+driving ring sat engaged and the input kept turning.
+
+`angleThroughShift` held every shaft the inputs reach only through a ring, for
+the last quarter of *every* segment. That is right for a single shift and wrong
+for a compound gearbox, which shifts one ring at a time: when only the output's
+ring is travelling, the shaft fed through the other ring never loses its drive.
+
+There is now a bit per group per segment, from re-running reachability for each
+transition with one rule — **a coupling passes drive during a shift if it is
+engaged in both of the states either side of it**, which is exactly "its ring is
+not moving". For the three-speed:
+
+| group | 1st→2nd | 2nd→3rd |
+| --- | --- | --- |
+| input | turns | turns |
+| mid | turns | holds |
+| output | holds | holds |
+| s2low, s2high | turns | holds |
+
+Shared rings need no special case. A ring sliding from low to high has its low
+coupling engaged only in the earlier state and its high coupling only in the
+later one, so neither passes drive on the way across — which is what a ring in
+neutral does.
+
+**Why reachability from the inputs rather than propagating the loss outward from
+the ring that moved.** The outward version needs to know, at every shaft it
+reaches, whether some *other* path still drives it — which is reachability
+again, run backwards and with more ways to get it wrong. A shaft with two live
+paths keeps turning when one opens, and only a global answer says so cheaply.
+
+**And it needs no notion of an input side and an output side of a part.** A gear
+mesh passes drive either way; so does a coupling. Direction is not a property of
+the link, it is a consequence of where the inputs are, so the graph stays
+undirected and the flood starts from the input set. The one link that is not
+simply "one known shaft determines the other" is the differential, which needs
+two of its three before the third follows — an arity rule, not a direction, and
+already what `need = 2` says.

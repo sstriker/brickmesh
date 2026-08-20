@@ -10,6 +10,7 @@ import (
 
 	"brickmesh/internal/geom"
 	"brickmesh/internal/layout"
+	"brickmesh/internal/ldcad"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/spec"
 )
@@ -119,6 +120,49 @@ func TestNoCatchIsAnimatedSliding(t *testing.T) {
 		for _, sl := range ani.Sliding {
 			if strings.HasPrefix(sl.Group, "catch_") {
 				t.Errorf("%s is animated as a slide", sl.Group)
+			}
+		}
+	}
+}
+
+// The middle shaft of a compound gearbox holds only at the shift that moves its
+// own ring, not at the one that moves the output's.
+func TestAShiftOnlyStopsWhatItActuallyDisconnects(t *testing.T) {
+	deps := requireLibraries(t)
+	res := runSpecAnimated(t, deps, filepath.Join("..", "..", "examples",
+		"gearbox-3-speed-compound.json"))
+	if res.Script == nil {
+		t.Fatal("no animation")
+	}
+	var shift *ldcad.Animation
+	for i := range res.Script.Animations {
+		if res.Script.Animations[i].Name == "shift" {
+			shift = &res.Script.Animations[i]
+		}
+	}
+	if shift == nil {
+		t.Fatal("no shift animation")
+	}
+	holds := map[string][]bool{}
+	for _, tn := range shift.Turning {
+		holds[tn.Group] = tn.Holds
+	}
+	// 1st -> 2nd moves the output's ring; 2nd -> 3rd moves the middle one.
+	for group, want := range map[string][]bool{
+		"shaft_input":  {false, false, false},
+		"shaft_mid":    {false, true, false},
+		"shaft_output": {true, true, false},
+	} {
+		got := holds[group]
+		if len(got) != len(want) {
+			t.Errorf("%s: %d hold flags, want %d", group, len(got), len(want))
+			continue
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("%s holds %v, want %v — a shift that moves another "+
+					"ring must not stop it", group, got, want)
+				break
 			}
 		}
 	}

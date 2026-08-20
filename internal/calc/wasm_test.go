@@ -232,6 +232,53 @@ func TestThePageOnlyOffersExamplesThatExist(t *testing.T) {
 	t.Logf("%d example(s) offered, all present", len(paths))
 }
 
+// Everything the page asks for has to be in what gets published.
+//
+// The site is assembled by copying a named list of files, and index.html loads
+// whatever it loads. Those two drifted: view.js was added to the page and never
+// added to the list, so the published site 404'd on it and app.js died at its
+// first line — no examples, no buttons, a permanent "Loading the engine…".
+//
+// The browser test could not see it. It serves the repository's web directory,
+// where every file is present by construction; what Pages serves is the copy.
+// So this compares the page's own references against the workflow that builds
+// the thing a visitor gets.
+func TestThePublishedSiteCarriesEverythingThePageAsksFor(t *testing.T) {
+	page, err := os.ReadFile(filepath.Join("..", "..", "web", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "pages.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	refs := regexp.MustCompile(`(?:src|href)="([^"]+)"`).FindAllStringSubmatch(string(page), -1)
+	if len(refs) == 0 {
+		t.Fatal("index.html references nothing at all, or another way now")
+	}
+	checked := 0
+	for _, m := range refs {
+		ref := m[1]
+		switch {
+		case strings.Contains(ref, "://"), strings.HasPrefix(ref, "#"),
+			strings.HasPrefix(ref, "data/"), strings.HasPrefix(ref, "examples/"):
+			// Off-site, in-page, or generated into the site by an earlier step.
+			continue
+		}
+		checked++
+		if _, err := os.Stat(filepath.Join("..", "..", "web", ref)); err != nil {
+			t.Errorf("index.html asks for %q and web/%s does not exist", ref, ref)
+			continue
+		}
+		if !strings.Contains(string(flow), "web/"+ref) {
+			t.Errorf("index.html asks for %q and the Pages workflow never copies "+
+				"web/%s into the site. It works here and 404s once published",
+				ref, ref)
+		}
+	}
+	t.Logf("%d local reference(s) checked", checked)
+}
+
 // The page, in a browser.
 //
 // Everything else about it is checked without one: the module's answers against

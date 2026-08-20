@@ -71,6 +71,14 @@ type Turning struct {
 	// Speed in turns per turn of the input, signed: the ratio the functional
 	// layer solved for.
 	Speed float64
+	// Holds says, per segment, whether the shift at the END of that segment
+	// cuts this group's drive. Nil means it never does.
+	//
+	// Per segment, because a gearbox with two rings shifts one at a time: when
+	// only the output's ring is moving, the shaft fed through the other ring is
+	// still driven and has to keep turning. Holding everything at every shift
+	// stopped half the box for no reason.
+	Holds []bool
 	// ThroughShift marks a shaft the inputs reach only through a shift.
 	//
 	// It matters during a shift and nowhere else. While a ring is sliding it is
@@ -101,6 +109,8 @@ type Sliding struct {
 	// At is where it sits: 0 engaged, 1 disengaged. A ring that serves two
 	// gears engages one at 0 and the other at 1, with neutral halfway.
 	At float64
+	// Holds is the shaft's, since a ring is splined to it. See Turning.Holds.
+	Holds []bool
 	// ThroughShift is whether the shaft this rides is itself reached only
 	// through a shift, in which case the ring holds along with it.
 	ThroughShift bool
@@ -256,6 +266,70 @@ func slidingOf(ani Animation) []Sliding {
 		return ani.Segments[0].Sliding
 	}
 	return ani.Sliding
+}
+
+// angleHelpers is the arithmetic every walked group uses.
+const angleHelpers = `
+  --Degrees a group has turned by now: every finished segment in full, plus
+  --this segment's share.
+  local function angle(sp)
+    local a=0
+    for k=1,seg do a=a+sp[k]*frac[k]*turns*360 end
+    return a+sp[seg+1]*u*frac[seg+1]*turns*360
+  end
+
+  --And the same for a group whose drive some of the shifts cut. hold[k]=1 says
+  --the shift at the end of segment k leaves nothing reaching this group, so it
+  --stands still for that part of it. A shift that moves some other ring is not
+  --this group's business and it turns straight through.
+  local function angleHolding(sp, hold)
+    local a=0
+    for k=1,seg do
+      local part=1
+      if hold[k]==1 then part=1-shift end
+      a=a+sp[k]*part*frac[k]*turns*360
+    end
+    local held=u
+    if hold[seg+1]==1 and held>1-shift then held=1-shift end
+    return a+sp[seg+1]*held*frac[seg+1]*turns*360
+  end
+
+`
+
+// writeHolds emits one row per group of which shifts cut its drive.
+func writeHolds[T any](b *strings.Builder, name, why string, segs int,
+	items []T, of func(T) ([]bool, bool, string)) {
+
+	fmt.Fprintf(b, "\n  --%s[group][segment]: %s\n", name, why)
+	fmt.Fprintf(b, "  local %s={\n", name)
+	for _, it := range items {
+		holds, flag, group := of(it)
+		b.WriteString("    {")
+		for si := 0; si < segs; si++ {
+			if si > 0 {
+				b.WriteString(", ")
+			}
+			fmt.Fprintf(b, "%d", holdBit(holds, flag, si))
+		}
+		fmt.Fprintf(b, "}, --%s\n", group)
+	}
+	b.WriteString("  }\n")
+}
+
+// holdBit is whether a group's drive is cut by the shift at the end of one
+// segment. Falls back to the old all-or-nothing flag when nothing worked out
+// the per-segment answer.
+func holdBit(holds []bool, throughShift bool, seg int) int {
+	if holds == nil {
+		if throughShift {
+			return 1
+		}
+		return 0
+	}
+	if seg < len(holds) && holds[seg] {
+		return 1
+	}
+	return 0
 }
 
 func swingingOf(ani Animation) []Swinging {
@@ -431,35 +505,16 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 	}
 	b.WriteString("  }\n")
 
-	b.WriteString(`
-  --Degrees a group has turned by now: every finished segment in full, plus
-  --this segment's share.
-  local function angle(sp)
-    local a=0
-    for k=1,seg do a=a+sp[k]*frac[k]*turns*360 end
-    return a+sp[seg+1]*u*frac[seg+1]*turns*360
-  end
+	writeHolds(b, "holds", "1 where the shift at the end of that segment\n"+
+		"  --leaves nothing reaching this group",
+		len(ani.Segments), ani.Turning, func(t Turning) ([]bool, bool, string) {
+			return t.Holds, t.ThroughShift, t.Group
+		})
 
-  --And for a shaft the inputs reach only through a shift: it turns while a ring
-  --is in a gear, and holds still while the rings are sliding, when nothing
-  --reaches it at all. Whatever the inputs still reach through fixed meshes
-  --keeps going either way.
-  local function angleThroughShift(sp)
-    local a=0
-    for k=1,seg do a=a+sp[k]*(1-shift)*frac[k]*turns*360 end
-    local held=u
-    if held>1-shift then held=1-shift end
-    return a+sp[seg+1]*held*frac[seg+1]*turns*360
-  end
-
-`)
+	b.WriteString(angleHelpers)
 	for j, t := range ani.Turning {
 		axis := t.Axis.Unit()
-		fn := "angle"
-		if t.ThroughShift {
-			fn = "angleThroughShift"
-		}
-		fmt.Fprintf(b, "  local a%d=%s(speed[%d])\n", j, fn, j+1)
+		fmt.Fprintf(b, "  local a%d=angleHolding(speed[%d], holds[%d])\n", j, j+1, j+1)
 		fmt.Fprintf(b, "  local m%d=ori%d_%d:clone()\n", j, i, j)
 		fmt.Fprintf(b, "  m%d:mulRotateAB(a%d, %g, %g, %g)\n",
 			j, j, round6(axis.X), round6(axis.Y), round6(axis.Z))
@@ -491,7 +546,13 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		}
 		fmt.Fprintf(b, "}, --%s\n", slidingOf(ani)[k].Group)
 	}
-	b.WriteString("  }\n\n")
+	b.WriteString("  }\n")
+
+	writeHolds(b, "ringHolds", "a ring holds when the shaft it rides does",
+		len(ani.Segments), slidingOf(ani), func(sl Sliding) ([]bool, bool, string) {
+			return sl.Holds, sl.ThroughShift, sl.Group
+		})
+	b.WriteString("\n")
 
 	b.WriteString("  --where[ring][segment]: 0 engaged, 1 clear\n")
 	b.WriteString("  local where={\n")
@@ -505,7 +566,13 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		}
 		fmt.Fprintf(b, "}, --%s\n", slidingOf(ani)[k].Group)
 	}
-	b.WriteString("  }\n\n")
+	b.WriteString("  }\n")
+
+	writeHolds(b, "ringHolds", "a ring holds when the shaft it rides does",
+		len(ani.Segments), slidingOf(ani), func(sl Sliding) ([]bool, bool, string) {
+			return sl.Holds, sl.ThroughShift, sl.Group
+		})
+	b.WriteString("\n")
 
 	for k, sl := range slidingOf(ani) {
 		axis := sl.Axis.Unit()
@@ -516,11 +583,8 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 		// A ring is splined to the shaft it rides, so it holds when that shaft
 		// does — and turns straight through if that shaft is driven whatever
 		// the rings are doing.
-		ringFn := "angle"
-		if sl.ThroughShift {
-			ringFn = "angleThroughShift"
-		}
-		fmt.Fprintf(b, "    local ra=%s(ringSpeed[%d])\n", ringFn, k+1)
+		fmt.Fprintf(b, "    local ra=angleHolding(ringSpeed[%d], ringHolds[%d])\n",
+			k+1, k+1)
 		fmt.Fprintf(b, "    local rm=rori%d_%d:clone()\n", i, k)
 		fmt.Fprintf(b, "    rm:mulRotateAB(ra, %g, %g, %g)\n",
 			round6(axis.X), round6(axis.Y), round6(axis.Z))
