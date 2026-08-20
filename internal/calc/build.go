@@ -27,6 +27,10 @@ type Parts struct {
 	// triangles without them being encoded into the answer: six megabytes of
 	// float in JSON would be absurd.
 	drawn *ldr.Model
+	// flagged are the parts the page has asked to have picked out, and
+	// lastFindings is what it may ask about. See Flag.
+	flagged      map[int]bool
+	lastFindings []Finding
 }
 
 // Load reads the two published files.
@@ -97,13 +101,17 @@ func (p *Parts) Build(ctx context.Context, description []byte, animate bool) Bui
 		if f.Level == "FAIL" {
 			out.OK = false
 		}
-		out.Findings = append(out.Findings, Finding(f))
+		out.Findings = append(out.Findings, findingFrom(f))
 	}
 	if res.Model != nil {
 		out.LDR = res.Model.Encode()
 		out.Parts = len(res.Model.Parts)
 		p.drawn = res.Model
 	}
+	// Kept so the page can ask, after the fact, for the parts a given check is
+	// about — without the answer carrying every index for every finding.
+	p.lastFindings = out.Findings
+	p.flagged = nil
 	if res.Script != nil {
 		out.Lua = res.Script.Render()
 	}
@@ -111,7 +119,25 @@ func (p *Parts) Build(ctx context.Context, description []byte, animate bool) Bui
 }
 
 // Draw is the last built model as triangles, ready to upload.
-func (p *Parts) Draw() []byte { return Draw(p.drawn, p.shapes) }
+func (p *Parts) Draw() []byte { return DrawFlagging(p.drawn, p.shapes, p.flagged) }
+
+// Flag marks the parts a finding is about, so the next Draw lights them up.
+// An empty check clears the marks.
+func (p *Parts) Flag(check string) {
+	p.flagged = nil
+	if check == "" {
+		return
+	}
+	p.flagged = map[int]bool{}
+	for _, f := range p.lastFindings {
+		if f.Check != check {
+			continue
+		}
+		for _, i := range f.Parts {
+			p.flagged[i] = true
+		}
+	}
+}
 
 // BuildJSON is Build with the answer encoded, which is the shape a WebAssembly
 // export wants.

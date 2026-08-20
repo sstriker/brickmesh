@@ -100,3 +100,79 @@ func TestNothingBuiltMeansNothingToDraw(t *testing.T) {
 		t.Errorf("got %d bytes for no model", len(got))
 	}
 }
+
+// A finding that knows which parts it is about has to reach the buffer, or the
+// page can describe the problem and not point at it — which is the whole reason
+// there is a model on the page at all.
+func TestFlaggedPartsAreMarkedInTheBuffer(t *testing.T) {
+	if os.Getenv("BRICKMESH_LIBRARIES") != "1" {
+		t.Skip("set BRICKMESH_LIBRARIES=1 to run against the real libraries")
+	}
+	lib := ldraw.New("")
+	root, err := shadow.Ensure("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := publish(t, lib, extract.NewPorts(shadow.Open(root), lib), "")
+
+	doc, err := os.ReadFile("../../examples/reduction.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if built := parts.Build(context.Background(), doc, false); built.Error != "" {
+		t.Fatal(built.Error)
+	}
+
+	plain := markedVertices(t, parts.Draw())
+	if plain != 0 {
+		t.Errorf("%d vertices are marked before anything is flagged", plain)
+	}
+
+	// Marking directly, since a passing model has no findings that point at
+	// anything: the first part alone, and it must be the first part alone.
+	all := DrawFlagging(parts.drawn, parts.shapes, map[int]bool{0: true})
+	marked := markedVertices(t, all)
+	if marked == 0 {
+		t.Error("flagging the first part marked nothing")
+	}
+	total := len(all) / (drawStride * 4)
+	if marked == total {
+		t.Errorf("flagging one part of %d marked every one of the %d vertices",
+			len(parts.drawn.Parts), total)
+	}
+	// And it is that part's own triangles, which is the count its geometry has.
+	g, err := parts.shapes.Geometry(parts.drawn.Parts[0].Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := len(g.Tris) * 3; marked != want {
+		t.Errorf("%d vertices marked, and %s has %d", marked,
+			parts.drawn.Parts[0].Name, want)
+	}
+
+	// A check nobody reported marks nothing, and must not mark everything.
+	parts.Flag("no such check")
+	if got := markedVertices(t, parts.Draw()); got != 0 {
+		t.Errorf("flagging a check that was never reported marked %d vertices", got)
+	}
+	parts.Flag("")
+	if got := markedVertices(t, parts.Draw()); got != 0 {
+		t.Errorf("clearing the flag left %d vertices marked", got)
+	}
+}
+
+func markedVertices(t *testing.T, raw []byte) int {
+	t.Helper()
+	const stride = drawStride * 4
+	n := 0
+	for v := 0; v*stride < len(raw); v++ {
+		at := v*stride + 9*4 // the tenth float
+		if at+4 > len(raw) {
+			break
+		}
+		if math.Float32frombits(binary.LittleEndian.Uint32(raw[at:])) != 0 {
+			n++
+		}
+	}
+	return n
+}

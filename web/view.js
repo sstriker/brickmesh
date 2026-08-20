@@ -19,13 +19,16 @@ const VERTEX_SHADER = `
   attribute vec3 position;
   attribute vec3 normal;
   attribute vec3 colour;
+  attribute float flagged;
   uniform mat4 modelView;
   uniform mat4 projection;
   varying vec3 vNormal;
   varying vec3 vColour;
+  varying float vFlagged;
   void main() {
     vNormal = mat3(modelView) * normal;
     vColour = colour;
+    vFlagged = flagged;
     gl_Position = projection * modelView * vec4(position, 1.0);
   }
 `;
@@ -34,6 +37,7 @@ const FRAGMENT_SHADER = `
   precision mediump float;
   varying vec3 vNormal;
   varying vec3 vColour;
+  varying float vFlagged;
   void main() {
     // Lit from the camera, and from below at a fraction, so the underside of a
     // gear is dark but not black. abs() is the double-sided part: a face whose
@@ -41,7 +45,11 @@ const FRAGMENT_SHADER = `
     vec3 n = normalize(vNormal);
     float key = abs(n.z);
     float fill = abs(dot(n, normalize(vec3(-0.4, 0.7, 0.5))));
-    gl_FragColor = vec4(vColour * (0.35 + 0.5 * key + 0.25 * fill), 1.0);
+    vec3 base = vColour;
+    // A part a finding is about is pulled towards a warning colour rather than
+    // replaced by one, so it still reads as the part it is.
+    base = mix(base, vec3(1.0, 0.35, 0.1), vFlagged * 0.85);
+    gl_FragColor = vec4(base * (0.35 + 0.5 * key + 0.25 * fill), 1.0);
   }
 `;
 
@@ -55,6 +63,7 @@ function createViewer(canvas) {
     position: gl.getAttribLocation(program, "position"),
     normal: gl.getAttribLocation(program, "normal"),
     colour: gl.getAttribLocation(program, "colour"),
+    flagged: gl.getAttribLocation(program, "flagged"),
   };
   const uniform = {
     modelView: gl.getUniformLocation(program, "modelView"),
@@ -74,11 +83,11 @@ function createViewer(canvas) {
     distance: 400,
   };
 
-  // load takes the buffer the worker sent: nine floats a vertex, position,
-  // normal and colour interleaved.
+  // load takes the buffer the worker sent: ten floats a vertex — position,
+  // normal, colour, and whether a finding is about this part.
   function load(bytes) {
     const data = new Float32Array(bytes);
-    const stride = 9;
+    const stride = 10;
     view.vertices = data.length / stride;
 
     let lo = [Infinity, Infinity, Infinity];
@@ -115,11 +124,13 @@ function createViewer(canvas) {
     if (!view.vertices) return;
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    const size = 9 * 4;
+    const size = 10 * 4;
     for (const [name, offset] of [["position", 0], ["normal", 12], ["colour", 24]]) {
       gl.enableVertexAttribArray(attr[name]);
       gl.vertexAttribPointer(attr[name], 3, gl.FLOAT, false, size, offset);
     }
+    gl.enableVertexAttribArray(attr.flagged);
+    gl.vertexAttribPointer(attr.flagged, 1, gl.FLOAT, false, size, 36);
     gl.uniformMatrix4fv(uniform.projection, false,
       perspective(0.9, width / height, view.radius / 50, view.radius * 20));
     gl.uniformMatrix4fv(uniform.modelView, false, orbit(view));

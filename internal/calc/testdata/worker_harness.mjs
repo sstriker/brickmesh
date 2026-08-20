@@ -71,7 +71,7 @@ if (!answer.triangles) {
   console.log("  triangles: none");
 } else {
   const floats = new Float32Array(answer.triangles);
-  const stride = 9;
+  const stride = 10;
   let finite = true;
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < floats.length; i += stride) {

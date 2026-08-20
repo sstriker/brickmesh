@@ -178,3 +178,9 @@ canvas#view {
   cursor: grab;
 }
 canvas#view:active { cursor: grabbing; }
+
+/* A finding that can point at parts in the model. Only those get a pointer:
+   an affordance on something that does nothing is a worse lie than none. */
+.finding.points { cursor: pointer; }
+.finding.points:hover { outline: 1px solid var(--line); }
+.finding.points.lit { outline: 2px solid rgb(255 90 25); }

@@ -69,7 +69,7 @@ async function bytes(path) {
 // Each message carries an id, so an answer can be matched to its question: the
 // page may well have edited the description again while this was working.
 self.onmessage = async (event) => {
-  const { id, kind, spec, animate } = event.data;
+  const { id, kind, spec, animate, flag } = event.data;
   try {
     await start();
     if (kind === "check") {
@@ -83,7 +83,9 @@ self.onmessage = async (event) => {
     // The triangles come back as bytes and are handed over rather than copied:
     // a compound gearbox is six megabytes, and the worker has no use for it
     // afterwards.
-    const drawn = answer.ldr ? self.brickmeshDraw() : null;
+    // A check name lights up the parts its findings are about; nothing lights
+    // up the model plain.
+    const drawn = answer.ldr ? self.brickmeshDraw(flag || "") : null;
     if (drawn) {
       const buffer = drawn.buffer.slice(drawn.byteOffset, drawn.byteOffset + drawn.length);
       self.postMessage({ id, answer, triangles: buffer }, [buffer]);

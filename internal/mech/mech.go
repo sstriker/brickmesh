@@ -160,6 +160,16 @@ type Finding struct {
 	Level  string // OK / WARN / FAIL
 	Check  string
 	Detail string
+	// Parts are the placed parts the finding is about, by index into the model.
+	//
+	// The point of drawing a model here was never to draw it — Stud.io does
+	// that better, and says so in docs/architecture.md. It was to show WHICH
+	// parts a finding is about: the pair that shares space, the shaft nothing
+	// bears, the gear pair whose force has nowhere to go. A sentence naming
+	// coordinates is a sentence the reader has to go and find.
+	//
+	// Optional. A finding about the whole mechanism leaves it empty.
+	Parts []int
 }
 
 // Mechanism is the graph of shafts and the transmissions between them.
@@ -366,18 +376,18 @@ func (m *Mechanism) checkDOFIn(state string) []Finding {
 	d, k := m.DOF(state), len(m.inOrder)
 	switch {
 	case d == 0:
-		return []Finding{{"FAIL", "dof",
-			"mechanism has 0 degrees of freedom: the train is locked and cannot turn"}}
+		return []Finding{{Level: "FAIL", Check: "dof",
+			Detail: "mechanism has 0 degrees of freedom: the train is locked and cannot turn"}}
 	case k < d:
-		return []Finding{{"WARN", "dof", fmt.Sprintf(
+		return []Finding{{Level: "WARN", Check: "dof", Detail: fmt.Sprintf(
 			"%d degrees of freedom but %d driven shafts — %d motion(s) remain undetermined",
 			d, k, d-k)}}
 	case k > d:
-		return []Finding{{"FAIL", "dof", fmt.Sprintf(
+		return []Finding{{Level: "FAIL", Check: "dof", Detail: fmt.Sprintf(
 			"%d drives on %d degrees of freedom — overdetermined, the motors work against each other",
 			k, d)}}
 	}
-	return []Finding{{"OK", "dof", fmt.Sprintf(
+	return []Finding{{Level: "OK", Check: "dof", Detail: fmt.Sprintf(
 		"%d degrees of freedom, %d drives: determined", d, k)}}
 }
 
@@ -422,7 +432,7 @@ func (m *Mechanism) CheckShiftable() []Finding {
 			if !shifted[side.shaft] || clutch.Shiftable(side.teeth) {
 				continue
 			}
-			out = append(out, Finding{"WARN", "shiftable", fmt.Sprintf(
+			out = append(out, Finding{Level: "WARN", Check: "shiftable", Detail: fmt.Sprintf(
 				"shaft '%s' is shifted but carries a %dt, and no driving ring has a "+
 					"clutch gear that size. %v can be shifted; use one of those, or "+
 					"shift this another way.",
@@ -430,8 +440,8 @@ func (m *Mechanism) CheckShiftable() []Finding {
 		}
 	}
 	if len(out) == 0 {
-		out = append(out, Finding{"OK", "shiftable",
-			"every shifted gear has a driving-ring variant"})
+		out = append(out, Finding{Level: "OK", Check: "shiftable",
+			Detail: "every shifted gear has a driving-ring variant"})
 	}
 	return out
 }
@@ -447,11 +457,11 @@ func (m *Mechanism) CheckStates() []Finding {
 	for _, state := range m.states {
 		sol, ok := m.Solve(state)
 		if !ok {
-			out = append(out, Finding{"WARN", "shift", withState(state,
+			out = append(out, Finding{Level: "WARN", Check: "shift", Detail: withState(state,
 				"the speeds do not resolve; this state selects nothing definite")})
 			continue
 		}
-		out = append(out, Finding{"OK", "shift", withState(state, ratioReport(m, sol))})
+		out = append(out, Finding{Level: "OK", Check: "shift", Detail: withState(state, ratioReport(m, sol))})
 	}
 	return out
 }
@@ -481,13 +491,13 @@ func (m *Mechanism) CheckBearings() []Finding {
 	for _, id := range m.order {
 		s := m.shafts[id]
 		if s.Bearings < 2 {
-			out = append(out, Finding{"FAIL", "bearings", fmt.Sprintf(
+			out = append(out, Finding{Level: "FAIL", Check: "bearings", Detail: fmt.Sprintf(
 				"shaft '%s' has %d bearing point(s). Fewer than two means it whips under load.",
 				s.ID, s.Bearings)})
 		}
 	}
 	if len(out) == 0 {
-		return []Finding{{"OK", "bearings", "every shaft borne at both ends"}}
+		return []Finding{{Level: "OK", Check: "bearings", Detail: "every shaft borne at both ends"}}
 	}
 	return out
 }
@@ -510,14 +520,14 @@ func (m *Mechanism) CheckDomains() []Finding {
 				domains = append(domains, d)
 			}
 			sort.Strings(domains)
-			out = append(out, Finding{"FAIL", "grid", fmt.Sprintf(
+			out = append(out, Finding{Level: "FAIL", Check: "grid", Detail: fmt.Sprintf(
 				"transmission between %v crosses grid domains %v. Technic bricks sit at "+
 					"24 LDU vertically, liftarms at 20 — the holes do not line up.",
 				ids, domains)})
 		}
 	}
 	if len(out) == 0 {
-		return []Finding{{"OK", "grid", "one grid domain, no transitions"}}
+		return []Finding{{Level: "OK", Check: "grid", Detail: "one grid domain, no transitions"}}
 	}
 	return out
 }
@@ -540,7 +550,7 @@ func (m *Mechanism) CheckCenterDistances() []Finding {
 		if math.Abs(d-math.Round(d)) < 1e-9 {
 			continue
 		}
-		out = append(out, Finding{"FAIL", "center dist", fmt.Sprintf(
+		out = append(out, Finding{Level: "FAIL", Check: "center dist", Detail: fmt.Sprintf(
 			"%s/%s: %dt and %dt mesh at %g half studs, which is off the lattice. "+
 				"Tooth counts have to sum to a multiple of 8, and %d+%d = %d does not. "+
 				"Pick another pair or put an idler between them.",
@@ -548,7 +558,7 @@ func (m *Mechanism) CheckCenterDistances() []Finding {
 			mesh.TeethA, mesh.TeethB, mesh.TeethA+mesh.TeethB)})
 	}
 	if len(out) == 0 {
-		return []Finding{{"OK", "center dist", "every spur pair lands on a whole half stud"}}
+		return []Finding{{Level: "OK", Check: "center dist", Detail: "every spur pair lands on a whole half stud"}}
 	}
 	return out
 }
@@ -606,7 +616,7 @@ func (m *Mechanism) CheckClosure() []Finding {
 					continue
 				}
 				if dab+dbc <= dac || dab+dac <= dbc || dbc+dac <= dab {
-					out = append(out, Finding{"FAIL", "loop closure", fmt.Sprintf(
+					out = append(out, Finding{Level: "FAIL", Check: "loop closure", Detail: fmt.Sprintf(
 						"%s-%s-%s: center distances %g/%g/%g half studs do not form a triangle",
 						a, b, c, dab, dbc, dac)})
 					continue
@@ -615,11 +625,11 @@ func (m *Mechanism) CheckClosure() []Finding {
 				x := (dab*dab + dac*dac - dbc*dbc) / (2 * dab)
 				y := math.Sqrt(math.Max(dac*dac-x*x, 0))
 				if math.Abs(x-math.Round(x)) < 1e-9 && math.Abs(y-math.Round(y)) < 1e-9 {
-					out = append(out, Finding{"OK", "loop closure", fmt.Sprintf(
+					out = append(out, Finding{Level: "OK", Check: "loop closure", Detail: fmt.Sprintf(
 						"%s-%s-%s closes on the lattice: third shaft at (%.0f, %.0f) half studs",
 						a, b, c, x, y)})
 				} else {
-					out = append(out, Finding{"FAIL", "loop closure", fmt.Sprintf(
+					out = append(out, Finding{Level: "FAIL", Check: "loop closure", Detail: fmt.Sprintf(
 						"%s-%s-%s does NOT close on the lattice: the third shaft would land at "+
 							"(%.3f, %.3f) half studs. Pick a different tooth count or add an idler.",
 						a, b, c, x, y)})
@@ -628,7 +638,7 @@ func (m *Mechanism) CheckClosure() []Finding {
 		}
 	}
 	if len(out) == 0 {
-		return []Finding{{"OK", "loop closure", "no gear loops present"}}
+		return []Finding{{Level: "OK", Check: "loop closure", Detail: "no gear loops present"}}
 	}
 	return out
 }

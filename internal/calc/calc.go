@@ -28,6 +28,14 @@ type Finding struct {
 	Level  string `json:"level"` // OK, WARN or FAIL
 	Check  string `json:"check"`
 	Detail string `json:"detail"`
+	// Parts are the placed parts it is about, by index into the drawn model,
+	// so the page can point at them rather than describe them.
+	Parts []int `json:"parts,omitempty"`
+}
+
+// findingFrom carries a report line across to the browser's shape.
+func findingFrom(f mech.Finding) Finding {
+	return Finding{Level: f.Level, Check: f.Check, Detail: f.Detail, Parts: f.Parts}
 }
 
 // State is what the mechanism does in one of its states.
@@ -76,7 +84,7 @@ func Check(description []byte) Result {
 		if f.Level == "FAIL" {
 			res.OK = false
 		}
-		res.Findings = append(res.Findings, Finding(f))
+		res.Findings = append(res.Findings, findingFrom(f))
 	}
 	if res.Findings == nil {
 		res.Findings = []Finding{}

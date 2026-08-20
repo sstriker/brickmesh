@@ -52,6 +52,7 @@ func checkLoadPaths(res *Result, deps Deps, m *mech.Mechanism) {
 	bears := bearingParts(res, deps, frame)
 
 	worst, unheld := -1, []string{}
+	var loose []int
 	direct := 0
 	pairs := 0
 	for _, link := range m.Links {
@@ -62,12 +63,14 @@ func checkLoadPaths(res *Result, deps Deps, m *mech.Mechanism) {
 		a, b := bears[mesh.A], bears[mesh.B]
 		if len(a) == 0 || len(b) == 0 {
 			unheld = append(unheld, fmt.Sprintf("%s-%s", mesh.A, mesh.B))
+			loose = append(loose, gearsOnShafts(res, mesh.A, mesh.B)...)
 			continue
 		}
 		pairs++
 		hops := shortestHops(adj, a, b)
 		if hops < 0 {
 			unheld = append(unheld, fmt.Sprintf("%s-%s", mesh.A, mesh.B))
+			loose = append(loose, gearsOnShafts(res, mesh.A, mesh.B)...)
 			continue
 		}
 		if hops == 0 {
@@ -81,7 +84,7 @@ func checkLoadPaths(res *Result, deps Deps, m *mech.Mechanism) {
 	if len(unheld) > 0 {
 		sort.Strings(unheld)
 		res.Findings = append(res.Findings, mech.Finding{
-			Level: "FAIL", Check: "load path", Detail: fmt.Sprintf(
+			Level: "FAIL", Check: "load path", Parts: loose, Detail: fmt.Sprintf(
 				"nothing in the frame ties the shafts of %v together, so the "+
 					"force between their teeth has nowhere to go: under load "+
 					"they spread and the gears skip", unheld)})
@@ -169,4 +172,17 @@ func shortestHops(adj [][]int, from, to []int) int {
 		}
 	}
 	return -1
+}
+
+// gearsOnShafts indexes the placed gears riding either of two shafts, so a
+// finding about a pair can point at them rather than name them.
+func gearsOnShafts(res *Result, a, b string) []int {
+	var out []int
+	for i, p := range res.Model.Parts {
+		shaft, ok := shaftFromLabel(p.Label)
+		if ok && (shaft == a || shaft == b) {
+			out = append(out, i)
+		}
+	}
+	return out
 }

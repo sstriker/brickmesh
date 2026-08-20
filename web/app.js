@@ -19,8 +19,26 @@ const buildEl = document.getElementById("build");
 const downloadsEl = document.getElementById("downloads");
 const canvasEl = document.getElementById("view");
 const viewer = createViewer(canvasEl);
+
 const answerEl = document.getElementById("answer");
 const statusEl = document.getElementById("status");
+
+// The last build, and which check is lit. Showing a model is not the point —
+// Stud.io draws better. Showing which parts a verdict is about is.
+let lastBuilt = null;
+let lit = "";
+
+// highlight redraws with one check's parts picked out. An empty check clears it.
+async function highlight(check) {
+  if (!viewer || !lastBuilt || !lastBuilt.ldr) return;
+  lit = check === lit ? "" : check;
+  const { triangles } = await ask("build", { animate: true, flag: lit });
+  if (triangles) {
+    viewer.load(triangles);
+    canvasEl.hidden = false;
+  }
+  render(lastBuilt);
+}
 
 // The engine lives in a worker. The page's job is to ask and to lay out the
 // answer; nothing here knows about gears, and nothing here blocks.
@@ -145,6 +163,16 @@ function finding(f) {
   box.className = `finding ${f.level}`;
   box.append(el("span", f.level, "level"), el("span", f.check, "check"),
              el("span", f.detail, "detail"));
+
+  // A finding that knows which parts it is about can point at them. Clicking it
+  // lights them in the model, and clicking again puts them back — which is the
+  // whole reason there is a model on this page.
+  if (f.parts && f.parts.length) {
+    box.classList.add("points");
+    if (f.check === lit) box.classList.add("lit");
+    box.title = `show the ${f.parts.length} part(s) this is about`;
+    box.addEventListener("click", () => highlight(f.check));
+  }
   return box;
 }
 
@@ -203,6 +231,7 @@ async function buildModel() {
   buildEl.disabled = true;
   try {
     const { answer: built, triangles } = await ask("build", { animate: true });
+    lastBuilt = built;
     statusEl.textContent = "";
     if (built.error) {
       render({ error: built.error });

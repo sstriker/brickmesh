@@ -85,7 +85,9 @@ func build(_ js.Value, args []js.Value) any {
 	return string(parts.BuildJSON(context.Background(), []byte(args[0].String()), animate))
 }
 
-// draw hands back the last built model as triangles.
+// draw hands back the last built model as triangles, optionally with the parts
+// of one check picked out: brickmeshDraw("clearance") lights up whatever the
+// clearance findings are about, brickmeshDraw() lights up nothing.
 //
 // Bytes rather than JSON, and a separate call rather than a field on the
 // answer: it is six megabytes of float for a compound gearbox, which is
@@ -94,6 +96,11 @@ func draw(_ js.Value, args []js.Value) any {
 	if parts == nil {
 		return js.Null()
 	}
+	check := ""
+	if len(args) > 0 && args[0].Type() == js.TypeString {
+		check = args[0].String()
+	}
+	parts.Flag(check)
 	raw := parts.Draw()
 	if len(raw) == 0 {
 		return js.Null()

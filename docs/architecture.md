@@ -298,3 +298,30 @@ findings.md.
 
 On these numbers a tier 2 cap saves less than it appears to, and the reason to
 fetch meshes by range rather than shipping them holds either way.
+
+
+## Step 3's diagnostic overlays, built
+
+The document above says what makes this worth building:
+
+> It is showing *why the tool rejected something*: the colliding pair in red,
+> the hinging joint marked, the shaft with one bearing called out. That is what
+> nothing else does.
+
+The renderer arrived without it, so for a while the page drew a model that
+Stud.io draws better and said nothing the report had not already said in words.
+
+A finding now carries the parts it is about, by index into the model.
+`mech.Finding.Parts` is optional — a finding about the whole mechanism leaves it
+empty — and the checks that know fill it in: the clearance sweep names the pair
+that shares space, the load path names the gears whose separating force has
+nowhere to go.
+
+The draw buffer gained a tenth float per vertex, 0 or 1, and
+`brickmeshDraw("clearance")` sets it for whatever the clearance findings are
+about. The page makes those findings clickable and the shader pulls a marked
+part towards a warning colour rather than replacing it, so it still reads as the
+part it is.
+
+Only findings that know their parts get the affordance. An interface element
+that looks clickable and does nothing is a worse lie than none.

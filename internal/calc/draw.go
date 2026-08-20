@@ -20,9 +20,10 @@ import (
 // and a buffer the page uploads once is less machinery than an instancing
 // scheme that would draw the same picture.
 //
-// Nine float32 a vertex: position, normal, colour. About six megabytes for a
-// compound gearbox, handed over once per build.
-const drawStride = 9
+// Ten float32 a vertex: position, normal, colour, and whether a finding is
+// about this part. About six megabytes for a compound gearbox, handed over once
+// per build.
+const drawStride = 10
 
 // Draw flattens a model for the page to render.
 //
@@ -31,6 +32,20 @@ const drawStride = 9
 // docs/findings.md — so averaging normals across a vertex produces nonsense at
 // every seam. Flat shading is honest about what the geometry is.
 func Draw(model *ldr.Model, shapes part.Shapes) []byte {
+	return DrawFlagging(model, shapes, nil)
+}
+
+// DrawFlagging is Draw with some parts marked, by index into the model.
+//
+// A tenth float per vertex: 0 for an ordinary part, 1 for one a finding is
+// about. The page decides what that looks like — the engine's job is to say
+// which parts the sentence means, not to choose a colour for them.
+//
+// This is the reason for drawing a model at all. Stud.io renders better and
+// docs/architecture.md says so; what nothing else does is show WHICH parts a
+// verdict is about. "60485.dat at {X:80 Y:0 Z:-40} is inside 32523.dat" is a
+// sentence the reader has to go and find. A part lit up is not.
+func DrawFlagging(model *ldr.Model, shapes part.Shapes, flagged map[int]bool) []byte {
 	if model == nil {
 		return nil
 	}
@@ -41,12 +56,16 @@ func Draw(model *ldr.Model, shapes part.Shapes) []byte {
 		out = append(out, buf...)
 	}
 
-	for _, p := range model.Parts {
+	for i, p := range model.Parts {
 		g, err := shapes.Geometry(p.Name)
 		if err != nil {
 			continue // reported elsewhere; a missing part is not a reason to draw nothing
 		}
 		r, gr, b := colourOf(p.Color)
+		mark := 0.0
+		if flagged[i] {
+			mark = 1
+		}
 		for _, t := range g.Tris {
 			a := p.Rot.Apply(t[0]).Add(p.Pos)
 			c := p.Rot.Apply(t[1]).Add(p.Pos)
@@ -67,6 +86,7 @@ func Draw(model *ldr.Model, shapes part.Shapes) []byte {
 				put(r)
 				put(gr)
 				put(b)
+				put(mark)
 			}
 		}
 	}
