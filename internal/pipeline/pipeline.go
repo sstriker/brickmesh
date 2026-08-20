@@ -288,7 +288,7 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 
 	opts.Progress.Report(progress.Report{Stage: progress.StageModel,
 		Note: "placing the parts"})
-	model, err := buildModel(m, res)
+	model, err := buildModel(m, res, deps)
 	if err != nil {
 		return res, err
 	}
@@ -514,7 +514,7 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 }
 
 // buildModel places the gears along their shafts and adds the structure.
-func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
+func buildModel(m *mech.Mechanism, res *Result, deps Deps) (*ldr.Model, error) {
 	model := ldr.New(m.Name)
 
 	stations := append([]layout.Station(nil), res.Stations...)
@@ -570,6 +570,9 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 			}
 		}
 	}
+	// After the frame, because whether the frame holds them is part of the
+	// answer.
+	placeControlAxles(res, deps, model)
 	return model, nil
 }
 

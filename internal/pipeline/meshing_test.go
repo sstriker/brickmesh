@@ -281,3 +281,66 @@ func TestTheReportNamesWhatItCouldNotCheck(t *testing.T) {
 			"should say so; it said: %s", detail)
 	}
 }
+
+// The axle a catch turns on is placed, and the run says whether anything holds
+// it. Both halves matter: the placement because the catch's own hole fixes it,
+// and the answer because today's frames do not reach it.
+func TestTheCatchGetsAnAxleAndTheRunSaysIfNothingHoldsIt(t *testing.T) {
+	deps := requireLibraries(t)
+	res := runSpec(t, deps, filepath.Join("..", "..", "examples",
+		"gearbox-2-speed.json"))
+
+	var placed int
+	for _, p := range res.Model.Parts {
+		if strings.Contains(p.Label, "control axle") {
+			placed++
+		}
+	}
+	if placed == 0 {
+		t.Fatal("a ring with a catch got no axle for the catch to turn on")
+	}
+
+	// It has to run through the catch's own hole, or it is an axle beside a
+	// catch rather than under one.
+	for _, site := range res.ringSites {
+		if site.catchRot == (geom.Mat3{}) {
+			continue
+		}
+		axes := controlAxles(res)
+		if len(axes) == 0 {
+			t.Fatal("no control axle worked out for a placed catch")
+		}
+		c := axes[0]
+		catch := catchPos(t, res)
+		// The pivot is on the axle's line.
+		d := c.at.Sub(catch)
+		along := c.dir.Scale(d.Dot(c.dir))
+		if d.Sub(along).Len() > 1e-6 {
+			t.Errorf("the control axle misses the catch: %v is not on the line "+
+				"through %v along %v", catch, c.at, c.dir)
+		}
+		break
+	}
+
+	var said bool
+	for _, f := range res.Findings {
+		if f.Check == "bearings" && strings.Contains(f.Detail, "control axle") {
+			said = true
+		}
+	}
+	if !said {
+		t.Error("the run should say whether the frame holds the control axle; " +
+			"an axle nothing holds is worth knowing about before building")
+	}
+}
+
+func catchPos(t *testing.T, res *Result) geom.Vec3 {
+	t.Helper()
+	for _, p := range res.Model.Parts {
+		if strings.HasPrefix(p.Label, "catch for") {
+			return p.Pos
+		}
+	}
+	t.Fatal("no catch in the model")
+	return geom.Vec3{}
+}

@@ -131,9 +131,31 @@ bearing resting against the ring is thrown away; and the triangle test counts
 two coplanar faces as intersecting, so parts whose boxes share less than an LDU
 are touching rather than overlapping and are left alone.
 
-What is still not placed is the linkage from the catches back to a lever. Where
-that runs follows from the housing rather than from the gears, so the run names
-it and says so.
+### The axle the catch turns on
+
+Placed, because it is determinate: the catch's own hole says where it is and
+which way it runs, and the catch's placement is already measured. A cam's axle
+comes out parallel to the shafts, so it runs the length of the gearbox and could
+be borne by the same walls; a lever's crosses them and has nothing to run
+alongside, so it gets a stud past the catch either way.
+
+**Nothing holds it yet, and the run says so.** A frame today is two walls in the
+plane of the shafts, and a catch sits a couple of studs off that plane, so the
+walls do not reach its axle:
+
+```text
+WARN [bearings] 1 control axle(s) placed and 1 of them borne by nothing.
+     The gears are held; the shift is not
+```
+
+That is worth knowing before building, and it is the requirement the structural
+search does not yet take. Feeding it in — a control axle as another line the
+frame has to bear — is what would close it, and would be the first thing to make
+a frame more than two walls.
+
+What is still not placed is the lever a hand turns and whatever joins two
+control axles together. Those follow from the housing rather than from the
+gears, so the run names them and says so.
 
 ## What decides
 
