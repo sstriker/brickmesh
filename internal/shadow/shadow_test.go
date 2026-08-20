@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 func fixtures(t *testing.T) *Library {

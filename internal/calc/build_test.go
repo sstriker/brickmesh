@@ -13,14 +13,14 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/assets"
-	"brickmesh/internal/extract"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/part"
-	"brickmesh/internal/pipeline"
-	"brickmesh/internal/shadow"
-	"brickmesh/internal/spec"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/assets"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/pipeline"
+	"github.com/sstriker/brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // The claim the browser build rests on: a mechanism placed from the published

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // Offline against the fixtures the Python suite uses, so a miss shows up as a

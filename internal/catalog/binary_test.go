@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/assets"
-	"brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/assets"
+	"github.com/sstriker/brickmesh/internal/extract"
 )
 
 // The two loaders read the same catalog from two encodings of it, and the

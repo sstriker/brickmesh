@@ -10,8 +10,8 @@ import (
 	"reflect"
 	"testing"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 func sample() Catalog {

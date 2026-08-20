@@ -9,11 +9,11 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/progress"
-	"brickmesh/internal/shadow"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/progress"
+	"github.com/sstriker/brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 func searcherForCancel(t *testing.T) *Searcher {

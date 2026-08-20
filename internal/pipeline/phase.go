@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/interfere"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/teeth"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/interfere"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/teeth"
 )
 
 // applyPhase turns each gear about its own axis so its teeth interleave with

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/collide"
-	"brickmesh/internal/interfere"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/collide"
+	"github.com/sstriker/brickmesh/internal/interfere"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/spec"
 )
 
 // This test exists because the checks did not catch what a picture did.

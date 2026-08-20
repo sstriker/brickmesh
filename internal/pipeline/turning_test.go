@@ -6,9 +6,9 @@ package pipeline
 import (
 	"testing"
 
-	"brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/ldr"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // Two pins in different places hold a part still, so it is carried round

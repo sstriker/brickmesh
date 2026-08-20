@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
 // Real parts, because the sharing this format depends on is a property of how

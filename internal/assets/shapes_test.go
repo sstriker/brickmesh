@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
 // The point of the whole format: a part read out of the published files is the

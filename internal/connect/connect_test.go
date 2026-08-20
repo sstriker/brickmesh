@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/catalog"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/catalog"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // Two beams whose hole planes are 40 LDU apart, and a slim pin long enough to

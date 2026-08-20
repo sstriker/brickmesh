@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"brickmesh/internal/collide"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/collide"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
 const gear24 = "3648b.dat" // Technic Gear 24 Tooth

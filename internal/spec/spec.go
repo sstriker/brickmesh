@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io"
 
-	"brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/mech"
 )
 
 // Shaft is one axis of rotation.

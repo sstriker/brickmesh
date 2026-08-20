@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
 // Mirrors tests/test_voxel.py, against the same synthetic parts, offline.

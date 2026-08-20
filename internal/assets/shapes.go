@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // Shapes reads triangles out of the published files rather than out of .dat

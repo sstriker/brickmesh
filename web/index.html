@@ -62,6 +62,25 @@
   exporting a model still run on the command line; see
   <a href="https://github.com/sstriker/brickmesh">the repository</a>.</p>
 
+  <p><strong>Claude Code can drive it.</strong> The engine ships as a skill —
+  describe a mechanism in words and it writes the description, runs the checks
+  and builds the model. Two commands:</p>
+
+  <pre class="install"><code>/plugin marketplace add sstriker/brickmesh
+/plugin install brickmesh@brickmesh</code></pre>
+
+  <p>That fetches the skill from the repository and keeps it up to date with
+  <code>/plugin marketplace update</code>. The engine itself is a separate
+  install, because the skill is instructions and the engine is a program:
+  <code>go install github.com/sstriker/brickmesh/cmd/brickmesh@latest</code>.
+  Without it the skill can still design and check a mechanism; it needs the
+  engine to place the gears and write the file.</p>
+
+  <p>To read it before installing anything, or to put it somewhere by hand,
+  <a href="skill/SKILL.md">SKILL.md</a> is published here and
+  <a href="skill/brickmesh-skill.zip">brickmesh-skill.zip</a> unpacks into
+  <code>~/.claude/skills/</code>.</p>
+
   <p><strong>The parts data is published here too</strong>, for anything that
   wants it: <a href="data/catalog.bin">catalog.bin</a> is where every common
   part's holes and pins are, and <a href="data/meshes.bin">meshes.bin</a> is

@@ -11,17 +11,17 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/clutch"
-	"brickmesh/internal/collide"
-	"brickmesh/internal/extract"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/interfere"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/shadow"
-	"brickmesh/internal/spec"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/clutch"
+	"github.com/sstriker/brickmesh/internal/collide"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/interfere"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // The structural search needs beams with shadow data, so the whole pipeline

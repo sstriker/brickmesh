@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // A liftarm-shaped part: three holes on the 20 LDU pitch, axes along Y, plus

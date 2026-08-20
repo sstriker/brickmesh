@@ -17,7 +17,7 @@ import (
 	"io"
 	"math"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 type PortKind uint8

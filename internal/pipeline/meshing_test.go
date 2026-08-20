@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/layout"
-	"brickmesh/internal/ldcad"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/layout"
+	"github.com/sstriker/brickmesh/internal/ldcad"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/spec"
 )
 
 // The check earns its place by failing on the thing that used to pass.

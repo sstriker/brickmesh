@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
 func requireLibraries(t *testing.T) *ldraw.Library {

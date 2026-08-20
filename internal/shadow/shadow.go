@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 const (

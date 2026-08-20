@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 
-	"brickmesh/internal/torque"
+	"github.com/sstriker/brickmesh/internal/torque"
 )
 
 type input struct {

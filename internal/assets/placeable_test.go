@@ -6,7 +6,7 @@ package assets
 import (
 	"testing"
 
-	"brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/extract"
 )
 
 func TestAPlaceablePartOutsideTheTierIsPulledIn(t *testing.T) {

@@ -16,8 +16,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 func main() {

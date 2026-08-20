@@ -17,7 +17,7 @@ package collide
 import (
 	"math"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // Transform places a mesh in the world.

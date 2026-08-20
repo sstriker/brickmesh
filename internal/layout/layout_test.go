@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/mech"
 )
 
 // Mirrors tests/test_layout.py.

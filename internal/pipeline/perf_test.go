@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/shadow"
-	"brickmesh/internal/spec"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // The engine has to stay quick enough to run in a browser while somebody waits.

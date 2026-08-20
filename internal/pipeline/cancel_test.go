@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"brickmesh/internal/progress"
+	"github.com/sstriker/brickmesh/internal/progress"
 )
 
 // A run given a context that is already done stops, and says so, rather than

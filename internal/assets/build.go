@@ -6,8 +6,8 @@ package assets
 import (
 	"math"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // FromRecords turns what the extractor produced into a catalog.

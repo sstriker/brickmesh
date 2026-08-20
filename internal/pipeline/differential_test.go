@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/spec"
 )
 
 // A differential has to be in the model, not only in the arithmetic.

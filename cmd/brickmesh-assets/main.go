@@ -26,12 +26,12 @@ import (
 	"strings"
 	"syscall"
 
-	"brickmesh/internal/assets"
-	"brickmesh/internal/extract"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/pipeline"
-	"brickmesh/internal/progress"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/assets"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/pipeline"
+	"github.com/sstriker/brickmesh/internal/progress"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 func main() {

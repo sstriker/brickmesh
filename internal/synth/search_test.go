@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/layout"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/part"
-	"brickmesh/internal/rigidity"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/layout"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/rigidity"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // A stand-in for the shadow library: the fixture beam's holes run along Y,
@@ -107,7 +107,7 @@ func TestCandidatesPutAHoleOnThePoint(t *testing.T) {
 		if !c.Origin.OnLattice(HalfStud) {
 			t.Errorf("%+v is off the lattice", c)
 		}
-		holes, axis, err := part.WorldHoles(s.Ports, c, 5)
+		holes, axis, err := worldHoles(s.Ports, c)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -255,7 +255,7 @@ func TestConnectorsSpanTwoHolesOnALine(t *testing.T) {
 	// lying alongside within a pin's reach along the hole axis, which is how
 	// two parts are actually joined.
 	for _, p := range got {
-		holes, axis, err := part.WorldHoles(s.Ports, p, 5)
+		holes, axis, err := worldHoles(s.Ports, p)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -314,4 +314,23 @@ func positions(ports []part.Hole) []geom.Vec3 {
 		out[i] = h.Pos
 	}
 	return out
+}
+
+// worldHoles is the positions and the shared axis of a placed part's holes.
+//
+// part.WorldHoles said the same thing and is deprecated: it laid holes out from
+// a count rather than reading them, so it could not describe a part whose holes
+// face more than one way. These fixtures are all single-axis beams, so the
+// question still has one answer, and asking WorldPorts for it keeps the tests
+// on the API the engine uses.
+func worldHoles(src part.Holes, p part.Placed) ([]geom.Vec3, geom.Vec3, error) {
+	ports, err := part.WorldPorts(src, p)
+	if err != nil {
+		return nil, geom.Vec3{}, err
+	}
+	pts := make([]geom.Vec3, 0, len(ports))
+	for _, h := range ports {
+		pts = append(pts, h.Pos)
+	}
+	return pts, ports[0].Axis, nil
 }

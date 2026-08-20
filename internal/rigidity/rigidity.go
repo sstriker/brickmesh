@@ -27,9 +27,9 @@ import (
 	"math"
 	"sort"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 const tol = 1e-6

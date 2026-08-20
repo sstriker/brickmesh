@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"brickmesh/internal/clutch"
+	"github.com/sstriker/brickmesh/internal/clutch"
 )
 
 // One ring between two clutch gears, not one ring per shift.

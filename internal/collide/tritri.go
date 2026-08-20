@@ -6,7 +6,7 @@ package collide
 import (
 	"math"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // eps is the tolerance for calling a signed distance zero. LDraw coordinates

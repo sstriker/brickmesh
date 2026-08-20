@@ -7,9 +7,9 @@ import (
 	"math"
 	"sort"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
-	"brickmesh/internal/rigidity"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/rigidity"
 )
 
 // maxRepairRounds bounds the repair loop. Each round joins at most two pieces,

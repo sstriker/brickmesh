@@ -8,12 +8,12 @@ import (
 	"math"
 	"strings"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 
-	"brickmesh/internal/ldcad"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/ldcad"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/synth"
 )
 
 // animate groups the parts by the shaft they turn with, and writes a script

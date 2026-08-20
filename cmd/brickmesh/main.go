@@ -23,17 +23,17 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/part"
-	"brickmesh/internal/pipeline"
-	"brickmesh/internal/progress"
-	"brickmesh/internal/shadow"
-	"brickmesh/internal/spec"
-	"brickmesh/internal/synth"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/pipeline"
+	"github.com/sstriker/brickmesh/internal/progress"
+	"github.com/sstriker/brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 func main() {

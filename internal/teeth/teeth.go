@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"math"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // TrustThreshold is the sharpness below which a phase should not be relied on.

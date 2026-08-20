@@ -21,7 +21,7 @@ import (
 	"sort"
 	"strings"
 
-	"brickmesh/internal/clutch"
+	"github.com/sstriker/brickmesh/internal/clutch"
 )
 
 // HalfStud in LDU. A center distance lands on a whole half stud when the two

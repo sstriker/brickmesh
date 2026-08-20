@@ -19,8 +19,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"brickmesh/internal/mech"
-	"brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/spec"
 )
 
 // Finding is one thing the checks have to say.

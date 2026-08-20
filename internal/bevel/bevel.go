@@ -38,8 +38,8 @@ import (
 	"sort"
 	"sync"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // Defaults naming the parts this was worked out on: the differential housing

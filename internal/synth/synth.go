@@ -14,7 +14,7 @@
 // candidates per requirement down to a handful.
 package synth
 
-import "brickmesh/internal/part"
+import "github.com/sstriker/brickmesh/internal/part"
 
 // The vocabulary lives in internal/part, which the rigidity check also needs.
 // Aliased here so callers of the search read in one package.
@@ -32,5 +32,4 @@ var (
 	HoleCounts    = part.HoleCounts
 	HoleOffsets   = part.HoleOffsets
 	LocalHoleAxis = part.LocalHoleAxis
-	WorldHoles    = part.WorldHoles
 )

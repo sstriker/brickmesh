@@ -8,10 +8,10 @@ import (
 	"math"
 	"sort"
 
-	"brickmesh/internal/mech"
-	"brickmesh/internal/part"
-	"brickmesh/internal/rigidity"
-	"brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/rigidity"
+	"github.com/sstriker/brickmesh/internal/synth"
 )
 
 // checkLoadPaths asks where the force between two meshed gears goes.

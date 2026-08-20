@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/spec"
-	"brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/synth"
 )
 
 // A frame should be walls, not brackets.

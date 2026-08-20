@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/pipeline"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/pipeline"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 // The site ships tier 1. Every part the engine can place has to have geometry

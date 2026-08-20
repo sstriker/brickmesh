@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"syscall/js"
 
-	"brickmesh/internal/calc"
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/calc"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 func main() {

@@ -6,7 +6,7 @@ package collide
 import (
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 func tri(a, b, c geom.Vec3) Triangle { return Triangle{a, b, c} }

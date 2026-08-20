@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
 func requireLibraries(t *testing.T) *ldraw.Library {

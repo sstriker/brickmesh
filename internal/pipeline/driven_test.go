@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/mech"
-	"brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/spec"
 )
 
 // What turns, and what does not.

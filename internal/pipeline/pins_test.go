@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
-	"brickmesh/internal/rigidity"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/rigidity"
 )
 
 // A joint the frame relies on has to have something in it.

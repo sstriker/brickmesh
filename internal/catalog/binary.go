@@ -6,8 +6,8 @@ package catalog
 import (
 	"fmt"
 
-	"brickmesh/internal/assets"
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/assets"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // LoadBinary reads the catalog from the format a browser downloads.

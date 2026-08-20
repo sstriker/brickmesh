@@ -6,8 +6,8 @@ package synth
 import (
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // Two bearing walls on one shaft line cannot be tied together by any straight

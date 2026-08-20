@@ -8,7 +8,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // boxMesh is a closed axis-aligned box, the simplest thing with an inside.

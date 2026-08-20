@@ -14,7 +14,7 @@ package part
 import (
 	"fmt"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // Stud in LDU. Beam holes sit one stud apart.

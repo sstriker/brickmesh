@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/clutch"
-	"brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/clutch"
+	"github.com/sstriker/brickmesh/internal/spec"
 )
 
 const protectedReduction = `{

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // goldenPath is the script tests/test_animation_lua.py actually runs. Nothing

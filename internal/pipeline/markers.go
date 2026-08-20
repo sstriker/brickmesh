@@ -8,10 +8,10 @@ import (
 	"math"
 	"sort"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/synth"
 )
 
 // MarkerPart is a thin liftarm put on the end of the input and output shafts.

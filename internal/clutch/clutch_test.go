@@ -8,10 +8,10 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/collide"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/interfere"
-	"brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/collide"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/interfere"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
 // HalfStud in LDU, so the constants above can be checked against a measurement

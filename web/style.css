@@ -220,3 +220,17 @@ fieldset.envelope input { width: 4.5rem; }
 .viewbar .hint {
   margin: 0 0 0 0.4rem;
 }
+
+/* The two commands that install the skill. A block to be copied, so it is
+   monospaced and does not wrap mid-command. */
+.install {
+  overflow-x: auto;
+  padding: 0.6rem 0.8rem;
+  margin: 0.4rem 0 0.8rem;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.install code {
+  white-space: pre;
+}

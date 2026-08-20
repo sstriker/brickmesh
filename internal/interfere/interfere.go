@@ -23,9 +23,9 @@ import (
 	"runtime"
 	"sync"
 
-	"brickmesh/internal/collide"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/collide"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // Verdicts.

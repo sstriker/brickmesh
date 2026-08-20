@@ -69,6 +69,30 @@ Not finished:
 
 See [PLAN.md](PLAN.md) for the prioritized work queue and what is already done.
 
+## Installing it
+
+The engine is a Go program:
+
+```console
+go install github.com/sstriker/brickmesh/cmd/brickmesh@latest
+```
+
+Claude Code can drive it, through a skill that knows the description format and
+how to read the findings:
+
+```console
+/plugin marketplace add sstriker/brickmesh
+/plugin install brickmesh@brickmesh
+```
+
+The two are separate on purpose — the skill is instructions and the engine is a
+program. Without the engine the skill can still design and check a mechanism;
+it needs the engine to place the gears and write the file. To install the skill
+by hand instead, unpack
+[brickmesh-skill.zip](https://sstriker.github.io/brickmesh/skill/brickmesh-skill.zip)
+into `~/.claude/skills/`, or read
+[SKILL.md](https://sstriker.github.io/brickmesh/skill/SKILL.md) first.
+
 ## Running it
 
 A mechanism is described functionally — shafts and what connects them, no

@@ -111,6 +111,14 @@ jobs:
           cp web/index.html web/style.css web/app.js web/view.js web/worker.js \
              web/wasm_exec.js web/brickmesh.wasm site/
           cp examples/*.json site/examples/
+
+          # The skill, for reading and for installing by hand. The zip is laid
+          # out so it unpacks straight into ~/.claude/skills/.
+          mkdir -p site/skill
+          cp .claude/skills/brickmesh/SKILL.md site/skill/SKILL.md
+          ( cd .claude/skills && zip -qr "$OLDPWD/site/skill/brickmesh-skill.zip" brickmesh )
+          cp .claude-plugin/marketplace.json site/marketplace.json
+
           touch site/.nojekyll
           ls -l site site/examples site/data
 
@@ -121,6 +129,14 @@ jobs:
       # page talks to carries the answer back. A page that loads and a module
       # that works do not add up to a working page if the message between them
       # is wrong.
+      # The plugin carries a copy of the skill so it can be installed on its
+      # own. A copy that has drifted from the one this repository uses is worse
+      # than no copy: it would be the version people got.
+      - name: The plugin's skill is the repository's skill
+        run: |
+          diff -u .claude/skills/brickmesh/SKILL.md \
+                  plugin/brickmesh/skills/brickmesh/SKILL.md
+
       - name: The module and the worker answer before they are published
         env:
           BRICKMESH_LIBRARIES: '1'

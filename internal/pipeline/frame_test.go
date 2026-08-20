@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/spec"
 )
 
 // The frame has to stay around the mechanism it holds.

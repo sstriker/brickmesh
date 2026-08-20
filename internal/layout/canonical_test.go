@@ -7,7 +7,7 @@ import (
 	"math"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // A line has no origin along itself, and two ways of naming the same line have

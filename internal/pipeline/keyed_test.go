@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/ldr"
 )
 
 // A part in the frame must not turn.

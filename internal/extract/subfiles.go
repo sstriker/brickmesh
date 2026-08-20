@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 // unmoved is the frame a part is read in, before any subfile moves it.

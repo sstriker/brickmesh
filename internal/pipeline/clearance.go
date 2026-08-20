@@ -10,12 +10,12 @@ import (
 	"sort"
 	"strings"
 
-	"brickmesh/internal/collide"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/interfere"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/teeth"
+	"github.com/sstriker/brickmesh/internal/collide"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/interfere"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/teeth"
 )
 
 // checkClearance asks the blunt question: is any part inside any other part.

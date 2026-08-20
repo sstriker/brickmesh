@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/extract"
 )
 
 // WithPlaceable adds any part the engine can place that the tier filter or the

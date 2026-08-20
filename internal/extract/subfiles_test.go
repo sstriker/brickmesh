@@ -8,10 +8,10 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/part"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 func realLibraries(t *testing.T) (*shadow.Library, *ldraw.Library) {

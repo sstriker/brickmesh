@@ -10,9 +10,9 @@ import (
 	"os"
 	"testing"
 
-	"brickmesh/internal/extract"
-	"brickmesh/internal/ldraw"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/extract"
+	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 // The buffer the page uploads. Nothing on the page can tell whether it holds a

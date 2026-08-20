@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/mech"
 )
 
 const subtractor = `{

@@ -8,9 +8,9 @@ import (
 	"math"
 	"testing"
 
-	"brickmesh/internal/clutch"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/clutch"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
 )
 
 // A driving ring cannot grip a plain axle: its bore is ridged, and the shadow

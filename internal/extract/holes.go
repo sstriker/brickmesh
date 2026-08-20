@@ -7,9 +7,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 // Ports answers where a part's holes and pins are, from the shadow library.

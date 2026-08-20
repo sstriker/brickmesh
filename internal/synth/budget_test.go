@@ -7,7 +7,7 @@ import (
 	"math"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // Part count is a poor measure of a frame and this is why: a pin counts the

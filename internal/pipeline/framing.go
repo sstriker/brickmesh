@@ -8,10 +8,10 @@ import (
 	"math"
 	"sort"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/layout"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/layout"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/synth"
 )
 
 // checkFraming reports shafts that no beam can bear together.

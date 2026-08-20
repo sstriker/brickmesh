@@ -6,9 +6,9 @@ package pipeline
 import (
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
-	"brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/synth"
 )
 
 // Rigidity is a condition of choosing a structure now, not a remark about the

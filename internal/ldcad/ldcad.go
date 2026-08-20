@@ -53,7 +53,7 @@ import (
 	"fmt"
 	"strings"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // Turning is a group that rotates, and how fast.

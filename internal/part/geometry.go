@@ -3,7 +3,7 @@
 
 package part
 
-import "brickmesh/internal/geom"
+import "github.com/sstriker/brickmesh/internal/geom"
 
 // Shape is a part's triangles in its own frame.
 //

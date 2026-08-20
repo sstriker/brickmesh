@@ -8,8 +8,8 @@ import (
 
 	"strings"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // A stand-in for the shadow library: every beam's holes run along Y, which is

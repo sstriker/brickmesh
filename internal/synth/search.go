@@ -12,12 +12,12 @@ import (
 	"sort"
 	"sync"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/layout"
-	"brickmesh/internal/part"
-	"brickmesh/internal/progress"
-	"brickmesh/internal/rigidity"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/layout"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/progress"
+	"github.com/sstriker/brickmesh/internal/rigidity"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // HalfStud in LDU.

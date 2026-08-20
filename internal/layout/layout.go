@@ -25,9 +25,9 @@ import (
 	"sort"
 	"strings"
 
-	"brickmesh/internal/clutch"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/clutch"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/mech"
 )
 
 // AxisDirs are the canonical shaft directions.

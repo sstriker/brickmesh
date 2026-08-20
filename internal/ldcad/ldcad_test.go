@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 func sample() Script {

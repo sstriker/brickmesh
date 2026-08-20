@@ -7,9 +7,9 @@ import (
 	"encoding/binary"
 	"math"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // DrawBuffer is a model flattened into something a graphics card can take:

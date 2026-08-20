@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 // The fixtures are shared with the Python suite, so both implementations are

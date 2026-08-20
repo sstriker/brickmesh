@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"brickmesh/internal/assets"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/pipeline"
-	"brickmesh/internal/spec"
-	"brickmesh/internal/synth"
-	"brickmesh/internal/voxel"
+	"github.com/sstriker/brickmesh/internal/assets"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/pipeline"
+	"github.com/sstriker/brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // Parts is a catalogue and a mesh blob, ready to build with.

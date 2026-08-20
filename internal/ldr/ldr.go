@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/geom"
 )
 
 // Colors used by the writer. LDraw's palette is large; these are the few the

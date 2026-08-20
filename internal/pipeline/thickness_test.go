@@ -7,8 +7,8 @@ import (
 	"math"
 	"testing"
 
-	"brickmesh/internal/clutch"
-	"brickmesh/internal/layout"
+	"github.com/sstriker/brickmesh/internal/clutch"
+	"github.com/sstriker/brickmesh/internal/layout"
 )
 
 // The layout reserves room on a shaft from a table keyed by tooth count, and

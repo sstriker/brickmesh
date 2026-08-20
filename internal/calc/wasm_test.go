@@ -104,7 +104,7 @@ func findNode(t *testing.T) string {
 func buildWASM(t *testing.T, dir string) {
 	t.Helper()
 	build := exec.Command("go", "build", "-o",
-		filepath.Join(dir, "brickmesh.wasm"), "brickmesh/cmd/brickmesh-wasm")
+		filepath.Join(dir, "brickmesh.wasm"), "github.com/sstriker/brickmesh/cmd/brickmesh-wasm")
 	build.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("building for the browser: %v\n%s", err, out)
@@ -261,7 +261,8 @@ func TestThePublishedSiteCarriesEverythingThePageAsksFor(t *testing.T) {
 		ref := m[1]
 		switch {
 		case strings.Contains(ref, "://"), strings.HasPrefix(ref, "#"),
-			strings.HasPrefix(ref, "data/"), strings.HasPrefix(ref, "examples/"):
+			strings.HasPrefix(ref, "data/"), strings.HasPrefix(ref, "examples/"),
+			strings.HasPrefix(ref, "skill/"):
 			// Off-site, in-page, or generated into the site by an earlier step.
 			continue
 		}

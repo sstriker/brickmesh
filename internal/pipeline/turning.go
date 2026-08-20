@@ -8,10 +8,10 @@ import (
 	"math"
 	"strings"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/part"
 )
 
 // turning works out what moves when a shaft turns, and about which axis.

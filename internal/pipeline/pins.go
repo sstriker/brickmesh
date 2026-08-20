@@ -8,11 +8,11 @@ import (
 	"math"
 	"sort"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/ldr"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/part"
-	"brickmesh/internal/rigidity"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/rigidity"
 )
 
 // Pins are what the joints are made of.

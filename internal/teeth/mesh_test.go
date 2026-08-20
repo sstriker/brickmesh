@@ -6,9 +6,9 @@ package teeth
 import (
 	"testing"
 
-	"brickmesh/internal/collide"
-	"brickmesh/internal/geom"
-	"brickmesh/internal/interfere"
+	"github.com/sstriker/brickmesh/internal/collide"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/interfere"
 )
 
 // The point of a phase is that the gears can actually be put together. Reading

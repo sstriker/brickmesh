@@ -1,0 +1,21 @@
+{
+  "name": "brickmesh",
+  "owner": {
+    "name": "Sander Striker",
+    "url": "https://github.com/sstriker"
+  },
+  "description": "The brickmesh Technic mechanism engine, as a skill.",
+  "plugins": [
+    {
+      "name": "brickmesh",
+      "source": "./plugin/brickmesh",
+      "description": "Design, validate and build LEGO Technic mechanisms — gear trains, reductions, differentials, gearboxes — producing an .ldr file that Stud.io opens.",
+      "version": "0.1.0",
+      "author": { "name": "Sander Striker" },
+      "homepage": "https://sstriker.github.io/brickmesh/",
+      "license": "Apache-2.0",
+      "category": "engineering",
+      "tags": ["lego", "technic", "gears", "ldraw", "cad"]
+    }
+  ]
+}

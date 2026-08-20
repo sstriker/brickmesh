@@ -18,9 +18,9 @@ import (
 	"strconv"
 	"strings"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/part"
-	"brickmesh/internal/shadow"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
 // Port is one connection point: x, y, z, ax, ay, az, cross.

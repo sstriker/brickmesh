@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"math"
 
-	"brickmesh/internal/geom"
-	"brickmesh/internal/mech"
-	"brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/mech"
+	"github.com/sstriker/brickmesh/internal/synth"
 )
 
 // checkMeshing asks the placed model the question the arithmetic cannot: do the
