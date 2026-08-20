@@ -307,6 +307,7 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	// Where the force between meshed teeth goes, now that there is a frame to
 	// ask about. Before the clearance sweep, since it is cheap and a frame that
 	// cannot take the load is worth knowing about either way.
+	checkMeshing(res, m)
 	checkLoadPaths(res, deps, m)
 
 	opts.Progress.Report(progress.Report{Stage: progress.StageClearance})
@@ -560,6 +561,7 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 		model.Add(a.name, ldr.ColorBlack, a.rot, a.center,
 			a.label)
 	}
+	addMarkers(res, model, m)
 
 	if res.Structure != nil {
 		for _, p := range res.Structure.Parts {
@@ -602,6 +604,10 @@ type ringSite struct {
 	// rings back to back where a builder would use a single part — the report
 	// said as much and the placement did it anyway.
 	//
+	// catchRot is the catch's orientation in the model, kept because the
+	// animation turns it about one of its own axes and needs to know where
+	// that axis points once placed.
+	catchRot geom.Mat3
 	// When this is set, disengaged is not "clear of the gear": it is the
 	// position that engages the mate, and the neutral where neither is engaged
 	// is halfway between the two.
@@ -822,9 +828,10 @@ func gearAt(st layout.Station, sites []ringSite, slip map[string]bool) (string, 
 func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 	// Written back, because where the catch ended up decides where it has to
 	// slide to and the animation asks afterwards.
-	back := func(i int, at geom.Vec3) {
+	back := func(i int, at geom.Vec3, rot geom.Mat3) {
 		if i < len(res.ringSites) {
 			res.ringSites[i].catchAt = at
+			res.ringSites[i].catchRot = rot
 		}
 	}
 	var nominal []string
@@ -845,8 +852,8 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 			label = fmt.Sprintf("driving ring for %v", site.coupling.States)
 		}
 		model.Add(site.system.Ring, ldr.ColorRed, rot, pos, label)
-		if at, ok := placeSelector(res, model, site, place, pos, label); ok {
-			back(i, at)
+		if at, rot, ok := placeSelector(res, model, site, place, pos, label); ok {
+			back(i, at, rot)
 			catches++
 		}
 
@@ -1526,6 +1533,7 @@ func Placeable() []string {
 	add(PinPart)
 	add(AxlePinPart)
 	add(LongPinPart)
+	add(MarkerPart)
 	add(DiffPart)
 	add(SlipPart)
 	for _, sys := range clutch.Systems {
@@ -1680,10 +1688,10 @@ func checkSlipClutches(m *mech.Mechanism, res *Result) {
 // own: whichever direction is clear of the other shafts. A catch pointing into
 // the neighbouring gear train is worse than none.
 func placeSelector(res *Result, model *ldr.Model, site ringSite,
-	place layout.Placement, at geom.Vec3, label string) (geom.Vec3, bool) {
+	place layout.Placement, at geom.Vec3, label string) (geom.Vec3, geom.Mat3, bool) {
 
 	if site.system.Catch == "" {
-		return geom.Vec3{}, false // nothing knows what moves this generation
+		return geom.Vec3{}, geom.Mat3{}, false // nothing knows what moves this generation
 	}
 	d := place.Direction.Unit()
 	out, ok := clearOfOtherShafts(res, place, at, d, site.system.CatchReach)
@@ -1693,13 +1701,13 @@ func placeSelector(res *Result, model *ldr.Model, site ringSite,
 				"no room beside the ring for %s on '%s': every way out of the "+
 					"shaft runs into another one. The shift is named rather than "+
 					"placed for this one", site.system.Catch, site.rides)})
-		return geom.Vec3{}, false
+		return geom.Vec3{}, geom.Mat3{}, false
 	}
 	rot := catchFrame(site.system, d, out)
 	offset := out.Scale(site.system.CatchReach)
 	model.Add(site.system.Catch, ldr.ColorBlack, rot, at.Add(offset),
 		"catch for "+label)
-	return offset, true
+	return offset, rot, true
 }
 
 // catchFrame turns the catch to face the shaft.

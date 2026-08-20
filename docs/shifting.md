@@ -92,6 +92,35 @@ Also in the library and not yet used: 51149, which is the same fork as 6641 on a
 different axle hole. It returns the same verdicts at the same distances against
 all three rings.
 
+### A catch turns; it never travels with its ring
+
+It was animated sliding along beside the ring, which is wrong, and the parts say
+so. Every axle hole in both catches runs *across* the shaft, never along it:
+
+| catch | hole | at | so it is |
+| --- | --- | --- | --- |
+| 6641, 51149 | across the shaft and the way out | its own z = -20, tip at -46 | a lever, arm 26 LDU |
+| 35188 | along the shaft | its own z = -10 | a cam on a shaft-parallel axle |
+
+Neither can be threaded onto a shaft-parallel axle and pushed. 35188's name says
+as much on its own — "Changeover **Rotary** Catch".
+
+The lever's angle follows rather than being chosen: its arm has to carry its tip
+the ring's whole travel along the shaft, so it swings asin(travel/2*arm) either
+side of square. The cam's does not — turning about an axis parallel to the shaft
+cannot swing anything along it, so it must be a face cam, and one placement per
+model fixes where a catch sits and not how far it goes. A quarter turn is a
+guess, and every report that mentions it says "assumed".
+
+The official models do at least bound it: the same catch appears with its ring
+10 LDU either side of centre as well as level with it, which is a cam doing
+20 LDU of work.
+
+A group turns about its own centre, so a catch turning about an axle that is off
+to one side of it needs its position to follow its orientation — the centre
+orbits the pivot. That is the one other thing besides a sliding ring that may be
+given a position at all.
+
 What the sweep *can* settle is everything around the fit. A joiner is 20 LDU
 across and a beam's hole is 12, so a joiner where a bearing is cannot be built
 at all. Every ring and every joiner is turned a full revolution against the

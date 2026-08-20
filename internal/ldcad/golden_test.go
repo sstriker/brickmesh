@@ -63,16 +63,42 @@ func shiftSample() Script {
 		return out
 	}
 
+	// A catch per ring, turning on its axle rather than travelling with it.
+	// In the fixture so the Python test actually runs the orbit arithmetic:
+	// nothing on this side can tell whether that Lua is valid Lua, and a swing
+	// that only ever appears in a real model would never be executed.
+	swingingIn := func(s int) []Swinging {
+		var out []Swinging
+		for i := range states {
+			at := 1.0
+			if i == s {
+				at = 0
+			}
+			out = append(out, Swinging{
+				Group: []string{"catch_1", "catch_2", "catch_3"}[i],
+				// A lever: its axle runs across the shaft, and its centre is
+				// off that axle, so the position has to follow the angle.
+				Axis:    geom.Vec3{Z: 1},
+				Pivot:   geom.Vec3{X: 30 + float64(70*i), Y: 40, Z: -40},
+				Rest:    geom.Vec3{X: 30 + float64(70*i), Y: 66, Z: -40},
+				Engaged: -22.6, Clear: 22.6, At: at,
+			})
+		}
+		return out
+	}
+
 	script := Script{Model: "3-speed gearbox", Seconds: 10, InputTurns: 4}
 	for s, state := range states {
 		script.Animations = append(script.Animations, Animation{
 			Name: state, Turning: turningIn(s), Sliding: slidingIn(s),
+			Swinging: swingingIn(s),
 		})
 	}
 	shift := Animation{Name: "shift", Turning: turningIn(0)}
 	for s, state := range states {
 		shift.Segments = append(shift.Segments, Segment{
 			State: state, Turning: turningIn(s), Sliding: slidingIn(s),
+			Swinging: swingingIn(s),
 		})
 	}
 	script.Animations = append(script.Animations, shift)

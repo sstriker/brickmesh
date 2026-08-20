@@ -84,9 +84,23 @@ type Placement struct {
 	Direction geom.Vec3
 }
 
-// NewPlacement normalizes the direction.
+// NewPlacement normalizes the direction, and the point with it.
+//
+// A shaft is a line, and a line has no origin along itself: the same line can
+// be named by any point on it. So the point is pulled back to the foot of the
+// perpendicular from the world origin, which every point on a given line agrees
+// on and no other line shares.
+//
+// Without that, two lines could name the same axis with points a stud apart,
+// and a station's axial position — which is measured from Point — would mean
+// something different on each. Two gears put in the same plane by
+// propagateSpurPairs would then land a stud apart in the model and mesh with
+// nothing. That is not hypothetical: candidates offers spur placements slid
+// along their own direction, which are all the same line, and the search was
+// free to pick a different one per shaft.
 func NewPlacement(point, direction geom.Vec3) Placement {
-	return Placement{Point: point, Direction: direction.Unit()}
+	d := direction.Unit()
+	return Placement{Point: point.Sub(d.Scale(point.Dot(d))), Direction: d}
 }
 
 // Key identifies a placement for deduplication.

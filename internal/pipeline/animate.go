@@ -5,6 +5,7 @@ package pipeline
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"brickmesh/internal/geom"
@@ -151,7 +152,9 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 	if name == "" {
 		name = m.Name
 	}
-	ani := ldcad.Animation{Name: name, Sliding: slidingIn(rings, speeds, state)}
+	ani := ldcad.Animation{Name: name,
+		Sliding:  slidingIn(rings, speeds, state),
+		Swinging: swingingIn(rings, state)}
 	// Which shafts nothing reaches while every ring is between gears. Those
 	// hold still rather than turning at a ratio no engagement is delivering.
 	always := alwaysDriven(m)
@@ -197,6 +200,12 @@ type ringGroup struct {
 	// catchGroup names its group. Empty when no catch was placed.
 	catchAt    geom.Vec3
 	catchGroup string
+	// How the catch moves: about swingAxis through swingPivot, by swingHalf
+	// degrees either side of square. swingAssumed marks an angle that was
+	// chosen rather than derived.
+	swingAxis, swingPivot geom.Vec3
+	swingHalf             float64
+	swingAssumed          bool
 }
 
 // ringGroups names a group per driving ring and works out its two positions.
@@ -217,8 +226,46 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 		if site.catchAt != (geom.Vec3{}) {
 			catchGroup = fmt.Sprintf("catch_%d", i+1)
 		}
+		// Where the catch's own axle points and sits, once placed: the column
+		// of its orientation for the axis the part's hole runs along, and the
+		// hole's offset down the part's own z.
+		sys := site.system
+		col := func(ax byte) geom.Vec3 {
+			c := int(ax - 'x')
+			return geom.Vec3{X: site.catchRot[0][c], Y: site.catchRot[1][c],
+				Z: site.catchRot[2][c]}
+		}
+		var swingAxis, swingPivot geom.Vec3
+		var swingHalf float64
+		swingAssumed := false
+		if catchGroup != "" {
+			swingAxis = col(sys.CatchTurnAxis)
+			catchWorld := base.
+				Add(place.Direction.Scale(site.engaged * synth.HalfStud)).
+				Add(site.catchAt)
+			swingPivot = catchWorld.Add(col('z').Scale(sys.CatchPivot))
+			travel := math.Abs(site.disengaged-site.engaged) * synth.HalfStud
+			switch {
+			case sys.CatchArm > 0:
+				// A lever: the arm has to carry its tip the ring's whole travel
+				// along the shaft, which fixes the angle rather than leaving it
+				// to be picked. Half either side of square.
+				sin := travel / (2 * sys.CatchArm)
+				if sin > 1 {
+					sin = 1 // a travel longer than the arm can reach; say so by maxing out
+				}
+				swingHalf = math.Asin(sin) * 180 / math.Pi
+			default:
+				swingHalf = sys.CatchSweep / 2
+				swingAssumed = true
+			}
+		}
 		out = append(out, ringGroup{
 			group:        fmt.Sprintf("ring_%d", i+1),
+			swingAxis:    swingAxis,
+			swingPivot:   swingPivot,
+			swingHalf:    swingHalf,
+			swingAssumed: swingAssumed,
 			catchAt:      site.catchAt,
 			catchGroup:   catchGroup,
 			shaft:        site.rides,
@@ -267,41 +314,57 @@ func slidingIn(rings []ringGroup, speeds map[string]float64,
 		// A ring that serves one gear has two positions, engaged and clear. One
 		// that sits between two has three, and the middle is neutral: it drives
 		// nothing there, which is why the shaft it rides holds still.
-		at := 1.0 // clear, or engaging the far gear if there is one
-		if len(r.mateStates) > 0 {
-			at = 0.5 // neutral until a state claims it
-		}
-		for _, s := range r.states {
-			if s == state {
-				at = 0
-				break
-			}
-		}
-		for _, s := range r.mateStates {
-			if s == state {
-				at = 1
-				break
-			}
-		}
+		at := atFor(r, state)
 		out = append(out, ldcad.Sliding{
 			Group: r.group, Axis: r.axis, Speed: speeds[r.shaft],
 			// A ring is splined to its shaft, so it holds when that shaft does.
 			ThroughShift: r.throughShift,
 			Engaged:      r.engaged, Disengaged: r.disengaged, At: at,
 		})
-		if r.catchGroup != "" {
-			// The catch goes where the ring goes and does not turn with it: it
-			// is what pushes the ring along, and it sits still in the frame
-			// while the ring spins inside its fork. Speed zero says that.
-			out = append(out, ldcad.Sliding{
-				Group: r.catchGroup, Axis: r.axis, Speed: 0,
-				Engaged:    r.engaged.Add(r.catchAt),
-				Disengaged: r.disengaged.Add(r.catchAt),
-				At:         at,
-			})
-		}
 	}
 	return out
+}
+
+// swingingIn turns every catch to match where it has pushed its ring.
+//
+// Not a slide. A catch sits on an axle that runs across the shaft, never along
+// it, so it cannot travel with its ring at all — which is what the model
+// showed: a rotary catch gliding sideways down a shaft it is not on.
+func swingingIn(rings []ringGroup, state string) []ldcad.Swinging {
+	var out []ldcad.Swinging
+	for _, r := range rings {
+		if r.catchGroup == "" {
+			continue
+		}
+		out = append(out, ldcad.Swinging{
+			Group: r.catchGroup, Axis: r.swingAxis, Pivot: r.swingPivot,
+			Rest:    r.engaged.Add(r.catchAt),
+			Engaged: -r.swingHalf, Clear: r.swingHalf,
+			At:      atFor(r, state),
+			Assumed: r.swingAssumed,
+		})
+	}
+	return out
+}
+
+// atFor is where one ring sits in a given state: 0 engaged, 1 clear or the far
+// gear, 0.5 neutral for a shared ring no state claims.
+func atFor(r ringGroup, state string) float64 {
+	at := 1.0
+	if len(r.mateStates) > 0 {
+		at = 0.5
+	}
+	for _, s := range r.states {
+		if s == state {
+			return 0
+		}
+	}
+	for _, s := range r.mateStates {
+		if s == state {
+			return 1
+		}
+	}
+	return at
 }
 
 // shiftAnimation walks the states in order so a shift can be watched.
@@ -321,7 +384,8 @@ func shiftAnimation(m *mech.Mechanism, res *Result, groupOf map[string]string,
 			ani.Turning = seg.Turning
 		}
 		ani.Segments = append(ani.Segments, ldcad.Segment{
-			State: state, Turning: seg.Turning, Sliding: seg.Sliding,
+			State: state, Turning: seg.Turning,
+			Sliding: seg.Sliding, Swinging: seg.Swinging,
 		})
 	}
 	applySchedule(m, &ani)

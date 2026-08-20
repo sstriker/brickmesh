@@ -50,6 +50,27 @@ type System struct {
 	// an arm that reaches back along its own z, the second's a collar whose
 	// face is its own z, so one frame cannot serve both.
 	CatchAlong, CatchOut byte
+
+	// A catch does not travel with its ring. Every axle hole in both of them
+	// runs across the shaft, not along it, so neither can be threaded onto a
+	// shaft-parallel axle and pushed: what moves the ring is the catch turning
+	// on a fixed axle. Read from the parts' own axle-hole primitives.
+	//
+	// CatchTurnAxis is which of the catch's own axes the axle runs along.
+	// CatchPivot is where that hole sits along the part's own z, in LDU —
+	// which is where both of them put it, whatever else differs.
+	CatchTurnAxis byte
+	CatchPivot    float64
+	// CatchArm is the distance from that pivot to the end that sits in the
+	// groove, in LDU. Set for a lever, whose swing follows from it: turning by
+	// asin(travel/arm) moves the tip along the shaft by the ring's travel.
+	// Zero for a cam, where the turn is about an axle parallel to the shaft and
+	// no arm length relates the two.
+	CatchArm float64
+	// CatchSweep is how far a cam turns across the ring's full travel, in
+	// degrees. ASSUMED, not measured — one placement per model fixes where a
+	// catch sits and not how far it goes. See docs/shifting.md.
+	CatchSweep float64
 }
 
 // Travel is how far the ring slides between engaged and disengaged.
@@ -85,6 +106,11 @@ var First = System{
 	// either side of them, which is the 3.0 half studs measured here.
 	Catch: "6641.dat", CatchReach: 60,
 	CatchAlong: 'y', CatchOut: 'z',
+	// A lever. Its through-hole runs across both the shaft and the way out, at
+	// 20 LDU in from the origin along its own z, and the end that reaches the
+	// groove is at 46 — so the arm is 26 LDU and the swing follows from the
+	// travel rather than being chosen.
+	CatchTurnAxis: 'x', CatchPivot: -20, CatchArm: 26,
 }
 
 // Second is the later system, with the three-stud ring.
@@ -126,6 +152,16 @@ var Second = System{
 	// the axis the ambiguity is about, and both readings are the same placement.
 	Catch: "35188.dat", CatchReach: 40,
 	CatchAlong: 'z', CatchOut: 'x',
+	// A cam, and the part's name says so: "Changeover Rotary Catch". Its axle
+	// hole runs along its own z, 10 LDU in — which this placement puts parallel
+	// to the shaft, so turning it cannot swing anything along the shaft the way
+	// a lever does. It has to be a face cam, and that is what the official
+	// models show: the same catch appears with its ring 10 LDU either side of
+	// centre as well as level with it.
+	//
+	// How far it turns to do that is not measured. A quarter is a guess that
+	// looks right and is labelled as one wherever it is reported.
+	CatchTurnAxis: 'z', CatchPivot: -10, CatchSweep: 90,
 }
 
 // Systems in the order they are preferred. The first generation is smaller —

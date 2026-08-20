@@ -220,6 +220,10 @@ const (
 	classPin
 	classSelector
 	classStructure
+	// A marker is a liftarm on the end of a shaft, put there to be looked at.
+	// It turns with its shaft, so it is not structure — and the frame checks
+	// mean it when they say a part that turns holds nothing.
+	classMarker
 )
 
 func classOf(p ldr.Part) int {
@@ -234,11 +238,20 @@ func classOf(p ldr.Part) int {
 		return classPin
 	case isSelector(p.Name):
 		return classSelector
+	case isMarker(p):
+		return classMarker
 	}
 	if _, _, ok := gearFromLabel(p.Label); ok {
 		return classGear
 	}
 	return classStructure
+}
+
+// isMarker is the flag on a shaft end. Asked of the label rather than the part,
+// because the same liftarm is perfectly good structure somewhere else — what
+// makes it a marker is that this put it there to be watched.
+func isMarker(p ldr.Part) bool {
+	return p.Name == MarkerPart && strings.Contains(p.Label, "marker on shaft")
 }
 
 // isPin is the fasteners the engine places. Named rather than inferred, the
@@ -260,7 +273,7 @@ func isAxle(name string) bool {
 // than tested where it stands.
 func turns(p ldr.Part) bool {
 	switch classOf(p) {
-	case classGear, classRing, classJoiner:
+	case classGear, classRing, classJoiner, classMarker:
 		return true
 	}
 	return false

@@ -1310,3 +1310,44 @@ stops well short of it — 42159, 42160, 42155, 42130, 42143, 42156, 42171 and
 volunteer-transcribed and is not. So the third generation stays measurable but
 unanchored, and one .ldr with a fork correctly placed beside a ring would close
 it — the same single fact that closed each of the other two.
+
+## A shaft line with two names, and a gearbox that meshed nothing
+
+A three-speed came out with its first stage diagonal: the two gears of each mesh
+a stud apart along their shafts, meshing nothing, while the output turned at its
+solved ratio regardless. Every check passed.
+
+`layout.Placement` is a point and a direction, and a line has no origin along
+itself — the same line can be named by any point on it. `candidates` offered
+spur placements slid along their own direction, all of them the same line, and
+the search was free to pick a different one per shaft. Every line in that model
+had `Point.Dot(direction) = -40` except the input's, which had 0.
+
+Stations are put in one plane by construction, so they were coplanar and the
+station check was happy. The centre-distance check works on tooth counts and
+never sees a placement, so it was happy too. Nothing looked at the finished
+positions, so the model shipped with its input's gears 40 LDU from the gears
+they were meant to turn.
+
+Two fixes, and the second is the one that matters.
+
+**`NewPlacement` now normalises the point as well as the direction**, pulling it
+back to the foot of the perpendicular from the world origin. Every point on a
+line agrees on that one and no other line shares it, so `Key` becomes a true
+line identity and axial zero means the same thing everywhere. A side effect
+worth having: the three-speed's frame went from 35.3 cubic studs to 17.6, since
+the phantom offset had been stretching the span the walls had to reach.
+
+**A check that reads the finished positions.** For every spur mesh, some gear of
+the right size on one shaft must stand at the pitch distance from one on the
+other, in the same plane. "Some" matters: a shaft can carry two gears of the
+same size, one per mesh, and nothing in a Station says which mesh put it there —
+asking about the first two called a working two-speed broken, which is how the
+check found its own first bug.
+
+**The lesson is the one from the catch, at a different level.** The station
+check and the centre-distance check were both right about what they were asked.
+Neither was asked whether the gears ended up meshing. A model can satisfy every
+check it has and still be wrong in the way the checks do not cover, and the
+place to look is the finished artefact rather than the reasoning that produced
+it.

@@ -111,11 +111,42 @@ func (s Sliding) Position(at float64) geom.Vec3 {
 	return s.Engaged.Add(s.Disengaged.Sub(s.Engaged).Scale(at))
 }
 
+// Swinging is a group that shifts a ring by turning on a fixed axle rather than
+// by travelling with it.
+//
+// Both catches are built this way and neither can be pushed along: every axle
+// hole in them runs across the shaft. 6641 is a lever, swinging its arm's tip
+// fore and aft; 35188 is a cam on a shaft-parallel axle. What they have in
+// common is that they turn about an axis that is not their own centre, so the
+// centre orbits the pivot and the position has to follow the orientation.
+type Swinging struct {
+	Group string
+	// Axis it turns about and Pivot a point on that axis, both in the model's
+	// coordinates.
+	Axis, Pivot geom.Vec3
+	// Rest is where the group's center sits at zero degrees.
+	Rest geom.Vec3
+	// Engaged and Clear are the two angles, in degrees.
+	Engaged, Clear float64
+	// At is where it sits between them: 0 engaged, 1 clear. Same convention as
+	// Sliding, and for a shared ring 1 is the far gear rather than neutral.
+	At float64
+	// Assumed marks a swing whose angle was chosen rather than derived, so the
+	// report can say so.
+	Assumed bool
+}
+
+// Angle of a swinging group at a given fraction of its travel.
+func (s Swinging) Angle(at float64) float64 {
+	return s.Engaged + (s.Clear-s.Engaged)*at
+}
+
 // Segment is one state's worth of a walk through the states.
 type Segment struct {
-	State   string
-	Turning []Turning
-	Sliding []Sliding
+	State    string
+	Turning  []Turning
+	Sliding  []Sliding
+	Swinging []Swinging
 	// Fraction of the animation this state is held for. Zero in every segment
 	// means share the time equally, which is all there is to go on for a box
 	// that is shifted by hand.
@@ -125,9 +156,10 @@ type Segment struct {
 // Animation is one thing to watch — a gearbox has one per state, plus one that
 // walks through them.
 type Animation struct {
-	Name    string
-	Turning []Turning
-	Sliding []Sliding
+	Name     string
+	Turning  []Turning
+	Sliding  []Sliding
+	Swinging []Swinging
 	// Segments, when set, make this a walk through the states rather than a
 	// single one held throughout. The groups are the same in every segment;
 	// only the speeds and the ring positions change.
@@ -201,6 +233,10 @@ func writeAnimation(b *strings.Builder, ani Animation, i int, seconds, turns flo
 		fmt.Fprintf(b, "  ring%d_%d=sf:getGroup(%q)\n", i, k, sl.Group)
 		fmt.Fprintf(b, "  rori%d_%d=ring%d_%d:getOri()\n", i, k, i, k)
 	}
+	for k, sw := range swingingOf(ani) {
+		fmt.Fprintf(b, "  swg%d_%d=sf:getGroup(%q)\n", i, k, sw.Group)
+		fmt.Fprintf(b, "  sori%d_%d=swg%d_%d:getOri()\n", i, k, i, k)
+	}
 	b.WriteString("end\n\n")
 
 	fmt.Fprintf(b, "function onFrame%d()\n", i)
@@ -220,6 +256,48 @@ func slidingOf(ani Animation) []Sliding {
 		return ani.Segments[0].Sliding
 	}
 	return ani.Sliding
+}
+
+func swingingOf(ani Animation) []Swinging {
+	if len(ani.Segments) > 0 {
+		return ani.Segments[0].Swinging
+	}
+	return ani.Swinging
+}
+
+// orbitHelper is written into any function that moves a catch.
+//
+// A group turns about its own center, and a catch turns about its axle, which
+// is somewhere else on it. So the center has to be carried round the pivot by
+// hand — Rodrigues, in Lua, because the angle is only known per frame.
+const orbitHelper = `  --A catch turns on a fixed axle rather than travelling with its ring, so
+  --its center orbits the pivot. Turning the group alone would leave the
+  --center where it was and swing the part about the wrong point.
+  local function orbit(px,py,pz, vx,vy,vz, ax,ay,az, deg)
+    local r=math.rad(deg)
+    local c,s=math.cos(r),math.sin(r)
+    local d=vx*ax+vy*ay+vz*az
+    return px+vx*c+(ay*vz-az*vy)*s+ax*d*(1-c),
+           py+vy*c+(az*vx-ax*vz)*s+ay*d*(1-c),
+           pz+vz*c+(ax*vy-ay*vx)*s+az*d*(1-c)
+  end
+`
+
+// writeSwing emits one catch at a known angle expression.
+func writeSwing(b *strings.Builder, sw Swinging, i, k int, indent, angExpr string) {
+	axis := sw.Axis.Unit()
+	v := sw.Rest.Sub(sw.Pivot)
+	fmt.Fprintf(b, "%slocal sa=%s\n", indent, angExpr)
+	fmt.Fprintf(b, "%slocal sm=sori%d_%d:clone()\n", indent, i, k)
+	fmt.Fprintf(b, "%ssm:mulRotateAB(sa, %g, %g, %g)\n", indent,
+		round6(axis.X), round6(axis.Y), round6(axis.Z))
+	fmt.Fprintf(b, "%sswg%d_%d:setOri(sm)\n", indent, i, k)
+	fmt.Fprintf(b, "%slocal sx,sy,sz=orbit(%g,%g,%g, %g,%g,%g, %g,%g,%g, sa)\n",
+		indent,
+		round6(sw.Pivot.X), round6(sw.Pivot.Y), round6(sw.Pivot.Z),
+		round6(v.X), round6(v.Y), round6(v.Z),
+		round6(axis.X), round6(axis.Y), round6(axis.Z))
+	fmt.Fprintf(b, "%sswg%d_%d:setPos(sx,sy,sz)\n", indent, i, k)
 }
 
 // writeHeld turns everything at one state's speeds, with the rings parked where
@@ -260,6 +338,19 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 		// position — where its center goes, which setPos sets outright.
 		fmt.Fprintf(b, "  ring%d_%d:setPos(%g, %g, %g)\n", i, k,
 			round6(pos.X), round6(pos.Y), round6(pos.Z))
+	}
+	if sws := swingingOf(ani); len(sws) > 0 {
+		b.WriteString("\n")
+		b.WriteString(orbitHelper)
+		for k, sw := range sws {
+			how := "turned to"
+			if sw.Assumed {
+				how = "turned to an assumed"
+			}
+			fmt.Fprintf(b, "\n  --%s is %s %g degrees on its axle\n",
+				sw.Group, how, round6(sw.Angle(sw.At)))
+			writeSwing(b, sw, i, k, "  ", fmt.Sprintf("%g", round6(sw.Angle(sw.At))))
+		}
 	}
 }
 
@@ -440,6 +531,43 @@ func writeWalk(b *strings.Builder, ani Animation, i int, turns float64) {
 			round6(e.X), round6(d.X-e.X),
 			round6(e.Y), round6(d.Y-e.Y),
 			round6(e.Z), round6(d.Z-e.Z))
+		b.WriteString("  end\n")
+	}
+
+	writeWalkSwings(b, ani, i)
+}
+
+// writeWalkSwings turns every catch through the walk, alongside its ring.
+func writeWalkSwings(b *strings.Builder, ani Animation, i int) {
+	sws := swingingOf(ani)
+	if len(sws) == 0 {
+		return
+	}
+	b.WriteString("\n")
+	b.WriteString(orbitHelper)
+	// swingAt[catch][segment], the same 0..1 the rings use: a catch is
+	// wherever its ring is, since it is what put it there.
+	b.WriteString("\n  --swingAt[catch][segment]: a catch stands where it " +
+		"has pushed its ring to\n")
+	b.WriteString("  local swingAt={\n")
+	for k := range sws {
+		b.WriteString("    {")
+		for si, seg := range ani.Segments {
+			if si > 0 {
+				b.WriteString(", ")
+			}
+			fmt.Fprintf(b, "%g", seg.Swinging[k].At)
+		}
+		fmt.Fprintf(b, "}, --%s\n", sws[k].Group)
+	}
+	b.WriteString("  }\n\n")
+
+	for k, sw := range sws {
+		fmt.Fprintf(b, "  do --%s\n", sw.Group)
+		fmt.Fprintf(b, "    local a=swingAt[%d][seg+1]\n", k+1)
+		fmt.Fprintf(b, "    local at=a+(swingAt[%d][nxt+1]-a)*f\n", k+1)
+		writeSwing(b, sw, i, k, "    ",
+			fmt.Sprintf("%g+(%g)*at", round6(sw.Engaged), round6(sw.Clear-sw.Engaged)))
 		b.WriteString("  end\n")
 	}
 }

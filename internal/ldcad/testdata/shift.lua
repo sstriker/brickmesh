@@ -25,6 +25,12 @@ function onStart0()
   rori0_1=ring0_1:getOri()
   ring0_2=sf:getGroup("ring_3")
   rori0_2=ring0_2:getOri()
+  swg0_0=sf:getGroup("catch_1")
+  sori0_0=swg0_0:getOri()
+  swg0_1=sf:getGroup("catch_2")
+  sori0_1=swg0_1:getOri()
+  swg0_2=sf:getGroup("catch_3")
+  sori0_2=swg0_2:getOri()
 end
 
 function onFrame0()
@@ -82,6 +88,42 @@ function onFrame0()
   rm2:mulRotateAB(a, 1, 0, 0)
   ring0_2:setOri(rm2)
   ring0_2:setPos(180, 0, -40)
+
+  --A catch turns on a fixed axle rather than travelling with its ring, so
+  --its center orbits the pivot. Turning the group alone would leave the
+  --center where it was and swing the part about the wrong point.
+  local function orbit(px,py,pz, vx,vy,vz, ax,ay,az, deg)
+    local r=math.rad(deg)
+    local c,s=math.cos(r),math.sin(r)
+    local d=vx*ax+vy*ay+vz*az
+    return px+vx*c+(ay*vz-az*vy)*s+ax*d*(1-c),
+           py+vy*c+(az*vx-ax*vz)*s+ay*d*(1-c),
+           pz+vz*c+(ax*vy-ay*vx)*s+az*d*(1-c)
+  end
+
+  --catch_1 is turned to -22.6 degrees on its axle
+  local sa=-22.6
+  local sm=sori0_0:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg0_0:setOri(sm)
+  local sx,sy,sz=orbit(30,40,-40, 0,26,0, 0,0,1, sa)
+  swg0_0:setPos(sx,sy,sz)
+
+  --catch_2 is turned to 22.6 degrees on its axle
+  local sa=22.6
+  local sm=sori0_1:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg0_1:setOri(sm)
+  local sx,sy,sz=orbit(100,40,-40, 0,26,0, 0,0,1, sa)
+  swg0_1:setPos(sx,sy,sz)
+
+  --catch_3 is turned to 22.6 degrees on its axle
+  local sa=22.6
+  local sm=sori0_2:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg0_2:setOri(sm)
+  local sx,sy,sz=orbit(170,40,-40, 0,26,0, 0,0,1, sa)
+  swg0_2:setPos(sx,sy,sz)
 end
 
 function onStart1()
@@ -102,6 +144,12 @@ function onStart1()
   rori1_1=ring1_1:getOri()
   ring1_2=sf:getGroup("ring_3")
   rori1_2=ring1_2:getOri()
+  swg1_0=sf:getGroup("catch_1")
+  sori1_0=swg1_0:getOri()
+  swg1_1=sf:getGroup("catch_2")
+  sori1_1=swg1_1:getOri()
+  swg1_2=sf:getGroup("catch_3")
+  sori1_2=swg1_2:getOri()
 end
 
 function onFrame1()
@@ -159,6 +207,42 @@ function onFrame1()
   rm2:mulRotateAB(a, 1, 0, 0)
   ring1_2:setOri(rm2)
   ring1_2:setPos(180, 0, -40)
+
+  --A catch turns on a fixed axle rather than travelling with its ring, so
+  --its center orbits the pivot. Turning the group alone would leave the
+  --center where it was and swing the part about the wrong point.
+  local function orbit(px,py,pz, vx,vy,vz, ax,ay,az, deg)
+    local r=math.rad(deg)
+    local c,s=math.cos(r),math.sin(r)
+    local d=vx*ax+vy*ay+vz*az
+    return px+vx*c+(ay*vz-az*vy)*s+ax*d*(1-c),
+           py+vy*c+(az*vx-ax*vz)*s+ay*d*(1-c),
+           pz+vz*c+(ax*vy-ay*vx)*s+az*d*(1-c)
+  end
+
+  --catch_1 is turned to 22.6 degrees on its axle
+  local sa=22.6
+  local sm=sori1_0:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg1_0:setOri(sm)
+  local sx,sy,sz=orbit(30,40,-40, 0,26,0, 0,0,1, sa)
+  swg1_0:setPos(sx,sy,sz)
+
+  --catch_2 is turned to -22.6 degrees on its axle
+  local sa=-22.6
+  local sm=sori1_1:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg1_1:setOri(sm)
+  local sx,sy,sz=orbit(100,40,-40, 0,26,0, 0,0,1, sa)
+  swg1_1:setPos(sx,sy,sz)
+
+  --catch_3 is turned to 22.6 degrees on its axle
+  local sa=22.6
+  local sm=sori1_2:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg1_2:setOri(sm)
+  local sx,sy,sz=orbit(170,40,-40, 0,26,0, 0,0,1, sa)
+  swg1_2:setPos(sx,sy,sz)
 end
 
 function onStart2()
@@ -179,6 +263,12 @@ function onStart2()
   rori2_1=ring2_1:getOri()
   ring2_2=sf:getGroup("ring_3")
   rori2_2=ring2_2:getOri()
+  swg2_0=sf:getGroup("catch_1")
+  sori2_0=swg2_0:getOri()
+  swg2_1=sf:getGroup("catch_2")
+  sori2_1=swg2_1:getOri()
+  swg2_2=sf:getGroup("catch_3")
+  sori2_2=swg2_2:getOri()
 end
 
 function onFrame2()
@@ -236,6 +326,42 @@ function onFrame2()
   rm2:mulRotateAB(a, 1, 0, 0)
   ring2_2:setOri(rm2)
   ring2_2:setPos(170, 0, -40)
+
+  --A catch turns on a fixed axle rather than travelling with its ring, so
+  --its center orbits the pivot. Turning the group alone would leave the
+  --center where it was and swing the part about the wrong point.
+  local function orbit(px,py,pz, vx,vy,vz, ax,ay,az, deg)
+    local r=math.rad(deg)
+    local c,s=math.cos(r),math.sin(r)
+    local d=vx*ax+vy*ay+vz*az
+    return px+vx*c+(ay*vz-az*vy)*s+ax*d*(1-c),
+           py+vy*c+(az*vx-ax*vz)*s+ay*d*(1-c),
+           pz+vz*c+(ax*vy-ay*vx)*s+az*d*(1-c)
+  end
+
+  --catch_1 is turned to 22.6 degrees on its axle
+  local sa=22.6
+  local sm=sori2_0:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg2_0:setOri(sm)
+  local sx,sy,sz=orbit(30,40,-40, 0,26,0, 0,0,1, sa)
+  swg2_0:setPos(sx,sy,sz)
+
+  --catch_2 is turned to 22.6 degrees on its axle
+  local sa=22.6
+  local sm=sori2_1:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg2_1:setOri(sm)
+  local sx,sy,sz=orbit(100,40,-40, 0,26,0, 0,0,1, sa)
+  swg2_1:setPos(sx,sy,sz)
+
+  --catch_3 is turned to -22.6 degrees on its axle
+  local sa=-22.6
+  local sm=sori2_2:clone()
+  sm:mulRotateAB(sa, 0, 0, 1)
+  swg2_2:setOri(sm)
+  local sx,sy,sz=orbit(170,40,-40, 0,26,0, 0,0,1, sa)
+  swg2_2:setPos(sx,sy,sz)
 end
 
 function onStart3()
@@ -256,6 +382,12 @@ function onStart3()
   rori3_1=ring3_1:getOri()
   ring3_2=sf:getGroup("ring_3")
   rori3_2=ring3_2:getOri()
+  swg3_0=sf:getGroup("catch_1")
+  sori3_0=swg3_0:getOri()
+  swg3_1=sf:getGroup("catch_2")
+  sori3_1=swg3_1:getOri()
+  swg3_2=sf:getGroup("catch_3")
+  sori3_2=swg3_2:getOri()
 end
 
 function onFrame3()
@@ -372,6 +504,56 @@ function onFrame3()
     rm:mulRotateAB(ra, 1, 0, 0)
     ring3_2:setOri(rm)
     ring3_2:setPos(170+(10)*at, 0+(0)*at, -40+(0)*at)
+  end
+
+  --A catch turns on a fixed axle rather than travelling with its ring, so
+  --its center orbits the pivot. Turning the group alone would leave the
+  --center where it was and swing the part about the wrong point.
+  local function orbit(px,py,pz, vx,vy,vz, ax,ay,az, deg)
+    local r=math.rad(deg)
+    local c,s=math.cos(r),math.sin(r)
+    local d=vx*ax+vy*ay+vz*az
+    return px+vx*c+(ay*vz-az*vy)*s+ax*d*(1-c),
+           py+vy*c+(az*vx-ax*vz)*s+ay*d*(1-c),
+           pz+vz*c+(ax*vy-ay*vx)*s+az*d*(1-c)
+  end
+
+  --swingAt[catch][segment]: a catch stands where it has pushed its ring to
+  local swingAt={
+    {0, 1, 1}, --catch_1
+    {1, 0, 1}, --catch_2
+    {1, 1, 0}, --catch_3
+  }
+
+  do --catch_1
+    local a=swingAt[1][seg+1]
+    local at=a+(swingAt[1][nxt+1]-a)*f
+    local sa=-22.6+(45.2)*at
+    local sm=sori3_0:clone()
+    sm:mulRotateAB(sa, 0, 0, 1)
+    swg3_0:setOri(sm)
+    local sx,sy,sz=orbit(30,40,-40, 0,26,0, 0,0,1, sa)
+    swg3_0:setPos(sx,sy,sz)
+  end
+  do --catch_2
+    local a=swingAt[2][seg+1]
+    local at=a+(swingAt[2][nxt+1]-a)*f
+    local sa=-22.6+(45.2)*at
+    local sm=sori3_1:clone()
+    sm:mulRotateAB(sa, 0, 0, 1)
+    swg3_1:setOri(sm)
+    local sx,sy,sz=orbit(100,40,-40, 0,26,0, 0,0,1, sa)
+    swg3_1:setPos(sx,sy,sz)
+  end
+  do --catch_3
+    local a=swingAt[3][seg+1]
+    local at=a+(swingAt[3][nxt+1]-a)*f
+    local sa=-22.6+(45.2)*at
+    local sm=sori3_2:clone()
+    sm:mulRotateAB(sa, 0, 0, 1)
+    swg3_2:setOri(sm)
+    local sx,sy,sz=orbit(170,40,-40, 0,26,0, 0,0,1, sa)
+    swg3_2:setPos(sx,sy,sz)
   end
 end
 

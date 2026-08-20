@@ -159,19 +159,23 @@ func TestTheAxisIsNormalizedAndNeverNegativeZero(t *testing.T) {
 //
 // This is the shape of the bug that made the first animation LDCad ever ran
 // come out scattered, so it is stated rather than left to the eye.
-func TestOnlyTheSlidingGroupsAreGivenAPosition(t *testing.T) {
+//
+// Two kinds of group may have one, and both because they move about something
+// that is not their own center: a ring slides along its shaft, and a catch
+// turns on an axle that is off to one side of it. A shaft does neither.
+func TestOnlyTheMovingGroupsAreGivenAPosition(t *testing.T) {
 	out := shiftSample().Render()
 	lines := strings.Split(out, "\n")
 	for i, line := range lines {
 		if !strings.Contains(line, ":setPos(") {
 			continue
 		}
-		// A position may only ever be set on a sliding ring. A shaft that got
-		// one would be moved off its own axis, which is the bug this whole
-		// file exists to keep out.
-		if !strings.HasPrefix(strings.TrimSpace(line), "ring") {
-			t.Errorf("line %d sets a position on something that is not a "+
-				"sliding ring: %s", i+1, strings.TrimSpace(line))
+		// A shaft that got one would be moved off its own axis, which is the
+		// bug this whole file exists to keep out.
+		at := strings.TrimSpace(line)
+		if !strings.HasPrefix(at, "ring") && !strings.HasPrefix(at, "swg") {
+			t.Errorf("line %d sets a position on something that neither slides "+
+				"nor turns off its own center: %s", i+1, at)
 		}
 	}
 }
