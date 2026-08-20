@@ -90,8 +90,23 @@ type Spec struct {
 	// ShiftPoints make the box change gear on its own. Leave it out for one
 	// that is shifted by hand.
 	ShiftPoints *ShiftPoints `json:"shift_points,omitempty"`
-	Inputs      []Input      `json:"inputs,omitempty"`
-	Outputs     []string     `json:"outputs,omitempty"`
+	// SlipClutches fit a torque limiter to a shaft: a 24-tooth gear with a
+	// friction centre that gives way above a force, protecting whatever is
+	// downstream. The other kind of clutch entirely from the one a driving ring
+	// engages, sharing only the name.
+	SlipClutches []SlipClutch `json:"slip_clutches,omitempty"`
+	Inputs       []Input      `json:"inputs,omitempty"`
+	Outputs      []string     `json:"outputs,omitempty"`
+}
+
+// SlipClutch is a torque limiter on a shaft.
+//
+// It has to sit on a 24-tooth gear, because that is the only size the part is
+// made in. AtNcm is what it gives way at; leave it out to take the figure
+// internal/torque carries, which is an estimate and marked as one.
+type SlipClutch struct {
+	Shaft string  `json:"shaft"`
+	AtNcm float64 `json:"at_ncm,omitempty"`
 }
 
 // ShiftPoints say when the box changes up.
@@ -156,6 +171,9 @@ func (s *Spec) Build() (*mech.Mechanism, error) {
 		return nil, err
 	}
 	if err := s.addDrive(m, known); err != nil {
+		return nil, err
+	}
+	if err := s.addSlipClutches(m, shafts); err != nil {
 		return nil, err
 	}
 	return m, s.addShiftPoints(m, shafts)
@@ -299,6 +317,24 @@ func (s *Spec) addDrive(m *mech.Mechanism, known knownFunc) error {
 			return err
 		}
 		m.Output(out)
+	}
+	return nil
+}
+
+// addSlipClutches fits the torque limiters, checking each names a shaft.
+func (s *Spec) addSlipClutches(m *mech.Mechanism, shafts map[string]bool) error {
+	for _, c := range s.SlipClutches {
+		if c.Shaft == "" {
+			return fmt.Errorf("a slip clutch needs a shaft to sit on")
+		}
+		if !shafts[c.Shaft] {
+			return fmt.Errorf("slip clutch on unknown shaft %q", c.Shaft)
+		}
+		if c.AtNcm < 0 {
+			return fmt.Errorf("slip clutch on %q gives way at %g Ncm, which is "+
+				"not a torque", c.Shaft, c.AtNcm)
+		}
+		m.Slip(mech.SlipClutch{Shaft: c.Shaft, AtNcm: c.AtNcm})
 	}
 	return nil
 }

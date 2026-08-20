@@ -30,6 +30,7 @@ import (
 	"brickmesh/internal/progress"
 	"brickmesh/internal/rigidity"
 	"brickmesh/internal/synth"
+	"brickmesh/internal/torque"
 	"brickmesh/internal/voxel"
 )
 
@@ -84,6 +85,17 @@ var SelectorParts = []string{
 	"6641 Technic Transmission Changeover Catch",
 	"6631 Technic Plate 2 x 6 with 2 Position Gear Shift",
 }
+
+// SlipPart is the 24-tooth gear with a friction centre.
+//
+// A torque limiter, and the other kind of clutch entirely from the one a
+// driving ring engages: no dogs anywhere on it, a centre that gives way above a
+// force. internal/clutch excludes 24 from the shiftable counts for that reason
+// and says so at length; this is the part that reason is about.
+//
+// 24 teeth is the only size it is made in, so a slip clutch has to sit on a
+// 24-tooth station or nowhere.
+const SlipPart = "76019.dat"
 
 // DiffPart is the differential the engine places.
 //
@@ -173,6 +185,9 @@ type Result struct {
 	// ringSites is where each shift's driving ring sits and slides, kept so
 	// the animation can move it rather than only place it.
 	ringSites []ringSite
+	// slip is the shafts a torque limiter is fitted to, so the gear chosen at a
+	// 24-tooth station on one is the slipping variant.
+	slip map[string]bool
 }
 
 // axlePlacement is a shaft worked out but not yet written.
@@ -240,6 +255,8 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	// Where the rings go decides where the shafts are cut, so it is settled
 	// before the axles rather than when the model is drawn.
 	checkFraming(res)
+	res.slip = slipShafts(m)
+	checkSlipClutches(m, res)
 	res.ringSites = ringSites(m, res)
 	// Worked out before the structural search, because the rigidity check needs
 	// to know the shafts are there: they are what ties the bearings together.
@@ -494,7 +511,7 @@ func buildModel(m *mech.Mechanism, res *Result) (*ldr.Model, error) {
 
 	sites := res.ringSites
 	for _, st := range stations {
-		name, ok := gearAt(st, sites)
+		name, ok := gearAt(st, sites, res.slip)
 		if !ok {
 			res.Findings = append(res.Findings, mech.Finding{
 				Level: "WARN", Check: "parts",
@@ -759,8 +776,11 @@ func betweenSites(res *Result, a, b *shift) (ringSite, bool) {
 }
 
 // gearAt names the part for a station, using the clutch variant where a ring
-// engages it.
-func gearAt(st layout.Station, sites []ringSite) (string, bool) {
+// engages it and the slipping variant where a torque limiter is fitted.
+func gearAt(st layout.Station, sites []ringSite, slip map[string]bool) (string, bool) {
+	if st.Teeth == 24 && slip[st.Shaft] {
+		return SlipPart, true
+	}
 	for _, site := range sites {
 		on := site.station.Shaft == st.Shaft && site.station.Axial == st.Axial
 		if site.mate != nil && site.mate.station.Shaft == st.Shaft &&
@@ -1062,7 +1082,7 @@ func turningCells(res *Result, deps Deps) map[geom.Cell]bool {
 		if !ok {
 			continue
 		}
-		name, ok := gearAt(st, res.ringSites)
+		name, ok := gearAt(st, res.ringSites, res.slip)
 		if !ok {
 			continue
 		}
@@ -1471,6 +1491,7 @@ func Placeable() []string {
 	add(AxlePinPart)
 	add(LongPinPart)
 	add(DiffPart)
+	add(SlipPart)
 	sort.Strings(out)
 	return out
 }
@@ -1558,4 +1579,51 @@ func differentialAxles(res *Result, place layout.Placement, d mech.Differential,
 		})
 	}
 	return out
+}
+
+// slipShafts indexes the shafts a torque limiter is fitted to.
+func slipShafts(m *mech.Mechanism) map[string]bool {
+	out := map[string]bool{}
+	for _, c := range m.SlipClutches() {
+		out[c.Shaft] = true
+	}
+	return out
+}
+
+// checkSlipClutches says what each torque limiter protects, and refuses one
+// that has nowhere to sit.
+//
+// The part is made in 24 teeth and no other size, so a slip clutch on a shaft
+// with no 24-tooth gear is not a thing that can be built. Saying so beats
+// placing a plain gear and leaving the reader to notice that nothing slips.
+func checkSlipClutches(m *mech.Mechanism, res *Result) {
+	for _, c := range m.SlipClutches() {
+		found := false
+		for _, st := range res.Stations {
+			if st.Shaft == c.Shaft && st.Teeth == 24 {
+				found = true
+				break
+			}
+		}
+		if !found {
+			res.Findings = append(res.Findings, mech.Finding{
+				Level: "FAIL", Check: "slip clutch", Detail: fmt.Sprintf(
+					"a slip clutch is fitted to '%s' and there is no 24-tooth gear "+
+						"on it. %s is made in that size and no other, so it has "+
+						"nowhere to sit: put a 24t on that shaft, or move the "+
+						"clutch to a shaft that has one", c.Shaft, SlipPart)})
+			continue
+		}
+		at, source := c.AtNcm, "given"
+		if at == 0 {
+			at, source = torque.SlipLimitNcm()
+		}
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "OK", Check: "slip clutch", Detail: fmt.Sprintf(
+				"%s on '%s' gives way at %.0f Ncm (%s), so nothing downstream of "+
+					"it is loaded harder than that however hard the input is "+
+					"driven. It is the other kind of clutch: a friction centre "+
+					"that slips, not dogs that grip",
+				SlipPart, c.Shaft, at, source)})
+	}
 }

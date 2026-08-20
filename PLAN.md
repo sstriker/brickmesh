@@ -272,9 +272,18 @@ therefore means the box is buildable and the shift mechanism is not.
       angular windows a plain gear does not; a catch on a ring has no such
       signature, and there is no assembled shortcut for the pair the way there
       is for the differential. It needs a reference build. See docs/findings.md.
-- [ ] a slip element for the other kind of clutch — the old white 24t whose
-      inner axle gives way above a force. Different thing entirely from the
-      engage/disengage gears, and it shares only the name
+- [x] a slip element for the other kind of clutch — the 24t whose centre gives
+      way above a force. `"slip_clutches": [{"shaft": "output"}]` fits one; the
+      24-tooth station on that shaft becomes 76019 rather than the plain gear,
+      and the report says what it protects and at what torque.
+
+      It is refused where it has nowhere to sit. 24 teeth is the only size the
+      part is made in, so a slip clutch on a shaft with no 24t is not something
+      that can be built — better said than quietly placing a plain gear and
+      leaving the reader to notice that nothing slips.
+
+      The figure is an estimate and comes with that attached, the way every
+      other number in internal/torque does. Nobody here has measured one.
 - [x] gear thickness comes from a table keyed by tooth count, and anything not
       in it gets two half studs. Measured: every gear this engine can place is
       20 LDU along its axis, the clutch variants included, and only the 24t

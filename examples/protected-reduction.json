@@ -1,0 +1,36 @@
+{
+  "name": "protected reduction",
+  "note": "An 8:24 reduction with a slip clutch on the output. The other kind of clutch entirely from the one a driving ring engages: a 24-tooth gear with a friction centre that gives way above a force, so the 8t cannot be broken by winding the input against a stop. 24 is the only size the part is made in, which is why it sits on the output and not the input.",
+  "shafts": [
+    {
+      "id": "input",
+      "bearings": 2
+    },
+    {
+      "id": "output",
+      "bearings": 2
+    }
+  ],
+  "meshes": [
+    {
+      "a": "input",
+      "b": "output",
+      "teeth_a": 8,
+      "teeth_b": 24
+    }
+  ],
+  "slip_clutches": [
+    {
+      "shaft": "output"
+    }
+  ],
+  "inputs": [
+    {
+      "shaft": "input",
+      "speed": 1.0
+    }
+  ],
+  "outputs": [
+    "output"
+  ]
+}

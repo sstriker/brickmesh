@@ -1130,3 +1130,33 @@ that puts the two together.
 So it needs a reference build, not a cleverer sweep. The report says what to add
 and why it is not there, which is the same answer as before with evidence under
 it instead of a claim.
+
+## The other kind of clutch
+
+Two different parts share the name and nothing else. A driving ring's clutch
+gear has dogs: it either grips or it does not, and which of the two is a
+question about position. The 24-tooth clutch gear has a friction centre that
+gives way above a force, so nothing downstream of it can be loaded harder than
+that however hard the input is driven.
+
+`internal/clutch` has excluded 24 from the shiftable counts since the driving
+rings were measured, with a paragraph explaining why: swept against both rings
+the 24t clutch gears stay solid at every distance and every angle, exactly as a
+plain gear does, because there are no dogs anywhere on them. That paragraph was
+the only thing in the engine that knew this part existed.
+
+Now it is placed. `"slip_clutches": [{"shaft": "output"}]` puts 76019 at the
+24-tooth station on that shaft in place of the plain gear, and the report says
+what it protects and at what torque.
+
+Two details worth keeping.
+
+**It is refused where it cannot go.** 24 teeth is the only size the part is made
+in, so a slip clutch on a shaft carrying an 8t is not a thing that can be built.
+Placing a plain gear there and saying nothing would leave a model that looks
+protected and is not.
+
+**The torque comes with its provenance.** 20 Ncm, community figure, unverified,
+and the report says so in the same sentence as the number —
+`internal/torque` has carried its limits that way from the start on the grounds
+that a limit without provenance is a number someone will eventually believe.

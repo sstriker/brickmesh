@@ -44,6 +44,11 @@ var Limits = map[string]map[string]Limit{
 	"differential_slip_Ncm": {
 		"diff_62821": {25.0, "estimate; measure yours", false},
 	},
+	"clutch_slip_Ncm": {
+		// The white 24t with the friction centre. Community figures put it
+		// around here; nobody here has measured one.
+		"gear_24t_76019": {20.0, "community figure; measure yours", false},
+	},
 }
 
 // Efficiency of each kind of mesh. A worm is lossy, and that loss is the price
@@ -200,4 +205,19 @@ func Notice() []string {
 		}
 	}
 	return out
+}
+
+// SlipLimitNcm is what a 24-tooth slip clutch is taken to give way at, and where
+// that figure comes from.
+//
+// An estimate, like every other limit here, and the caller is told so in the
+// same breath so that no report can quietly imply it was measured.
+func SlipLimitNcm() (float64, string) {
+	if l, ok := Limits["clutch_slip_Ncm"]["gear_24t_76019"]; ok {
+		if l.Verified {
+			return l.Value, l.Source
+		}
+		return l.Value, l.Source + ", unverified"
+	}
+	return 0, "no figure"
 }

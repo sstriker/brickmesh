@@ -188,6 +188,32 @@ type Mechanism struct {
 	// shiftPoints make the box change gear on its own. Nil for one shifted by
 	// hand, which is most of them.
 	shiftPoints *ShiftPoints
+	slip        []SlipClutch
+}
+
+// SlipClutch is a torque limiter on a shaft: it transmits up to a point and
+// gives way above it, so whatever is downstream of it cannot be loaded harder
+// than that however hard the input is driven.
+//
+// The other kind of clutch entirely, and it shares only the name. A driving
+// ring's clutch gear has dogs and either grips or does not; this is a 24-tooth
+// gear with a friction centre that slips, and no dogs anywhere on it. See
+// internal/clutch, which excludes 24 from the shiftable counts for exactly this
+// reason.
+//
+// AtNcm is what it gives way at. Zero takes the figure from internal/torque,
+// which is an estimate and says so.
+type SlipClutch struct {
+	Shaft string
+	AtNcm float64
+}
+
+// Slip fits a torque limiter to a shaft.
+func (m *Mechanism) Slip(c SlipClutch) { m.slip = append(m.slip, c) }
+
+// SlipClutches are the torque limiters fitted, in the order they were added.
+func (m *Mechanism) SlipClutches() []SlipClutch {
+	return append([]SlipClutch(nil), m.slip...)
 }
 
 // Shifts sets when the box changes gear on its own.

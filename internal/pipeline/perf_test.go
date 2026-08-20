@@ -48,6 +48,7 @@ type budget struct {
 // for took walks from 23 to 5064.
 var budgets = map[string]budget{
 	"reduction.json":                {walks: 40, reads: 20000},
+	"protected-reduction.json":      {walks: 40, reads: 20000},
 	"subtractor.json":               {walks: 40, reads: 20000},
 	"gearbox-2-speed.json":          {walks: 60, reads: 24000},
 	"gearbox-2-speed-auto.json":     {walks: 60, reads: 24000},
