@@ -114,6 +114,72 @@ if (clickable.length > 0) {
     `the highlighted parts are warmer (${before.warm} -> ${after.warm} warm pixels)`);
 }
 
+// Zooming, every way it can be done.
+//
+// It used to be a wheel and only a wheel, with nothing on the page saying so
+// and touch-action: none on the canvas — which on a touchscreen meant no zoom
+// at all and no way to find that out. So each route is exercised rather than
+// assumed, and the picture has to actually change.
+must(await page.isVisible("#viewbar"), "the model's controls appear with it");
+
+const view = page.locator("#view");
+const box = await view.boundingBox();
+const frame = async () => {
+  await page.waitForTimeout(600); // SwiftShader is not instant
+  return (await view.screenshot()).toString("base64");
+};
+
+const home = await frame();
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+await page.mouse.wheel(0, -400);
+must(await frame() !== home, "the wheel zooms");
+
+let was = await frame();
+await page.click("#zoom-in");
+must(await frame() !== was, "the zoom-in button works");
+was = await frame();
+await page.click("#zoom-out");
+must(await frame() !== was, "the zoom-out button works");
+
+// Two fingers, dispatched as pointer events because that is what a touchscreen
+// sends and what the viewer listens for.
+was = await frame();
+await page.evaluate(({ cx, cy }) => {
+  const el = document.getElementById("view");
+  const send = (type, pts) => pts.forEach((p) => el.dispatchEvent(new PointerEvent(type, {
+    pointerId: p.id, pointerType: "touch", clientX: p.x, clientY: p.y, bubbles: true,
+  })));
+  send("pointerdown", [{ id: 1, x: cx - 60, y: cy }, { id: 2, x: cx + 60, y: cy }]);
+  send("pointermove", [{ id: 1, x: cx - 150, y: cy }, { id: 2, x: cx + 150, y: cy }]);
+  send("pointerup", [{ id: 1, x: cx - 150, y: cy }, { id: 2, x: cx + 150, y: cy }]);
+}, { cx: box.x + box.width / 2, cy: box.y + box.height / 2 });
+must(await frame() !== was, "a two-finger pinch zooms");
+
+// Keys, for anyone not using a pointer.
+await view.focus();
+was = await frame();
+await page.keyboard.press("+");
+must(await frame() !== was, "the + key zooms");
+
+// And a way back, since it is easy to end up inside a gearbox. Asked as
+// idempotence rather than against some frame captured earlier: what matters is
+// that reset lands in the same place whatever was done to the view, and an
+// earlier frame also carries whatever else has changed on the page since.
+await page.click("#zoom-reset");
+const rested = await frame();
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+await page.mouse.wheel(0, -500);
+await page.mouse.move(box.x + 80, box.y + 80);
+await page.mouse.down();
+await page.mouse.move(box.x + 300, box.y + 220);
+await page.mouse.up();
+must(await frame() !== rested, "turning and zooming moves the view");
+await page.click("#zoom-reset");
+must(await frame() === rested, "reset lands in the same place every time");
+
+must((await page.textContent("body")).toLowerCase().includes("zoom"),
+  "the page says the model can be zoomed");
+
 // The size bound, which is the one control that can refuse: ask for a frame
 // inside two studs of depth and the answer must be that none was found, naming
 // the cap, rather than the best violation of it handed back quietly.

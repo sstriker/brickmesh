@@ -137,32 +137,101 @@ function createViewer(canvas) {
     gl.drawArrays(gl.TRIANGLES, 0, view.vertices);
   }
 
-  // Dragging turns it; the wheel moves in and out. Nothing else: this is for
-  // looking at what came out, not for building in.
-  let dragging = null;
+  // Dragging turns it; the wheel, a pinch, or the keys move in and out.
+  // Nothing else: this is for looking at what came out, not for building in.
+  //
+  // Four ways in and out rather than one, because the first was a wheel and
+  // only a wheel. Nothing on the page said so, and the canvas sets
+  // touch-action: none — so on a touchscreen there was no way to zoom at all,
+  // and the page did not admit it.
+
+  // zoomBy multiplies the distance and redraws, which is what every one of
+  // them ends up doing.
+  function zoomBy(factor) {
+    view.distance = clamp(view.distance * factor,
+      view.radius * 0.35, view.radius * 12);
+    draw();
+  }
+
+  // The pointers currently down, by id. One turns the model; two pinch.
+  const down = new Map();
+  let pinch = 0;
+
+  const spread = () => {
+    const [a, b] = [...down.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+
   canvas.addEventListener("pointerdown", (e) => {
-    dragging = { x: e.clientX, y: e.clientY };
-    canvas.setPointerCapture(e.pointerId);
+    down.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // Capture so a drag that leaves the canvas keeps turning it — but not at
+    // the cost of the whole handler. It throws for a pointer the browser does
+    // not consider active, and then nothing below runs and the view is stuck.
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // No capture, which only costs us drags that wander off the canvas.
+    }
+    if (down.size === 2) pinch = spread();
   });
   canvas.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    view.yaw += (e.clientX - dragging.x) * 0.01;
-    view.pitch = clamp(view.pitch + (e.clientY - dragging.y) * 0.01, -1.5, 1.5);
-    dragging = { x: e.clientX, y: e.clientY };
+    const was = down.get(e.pointerId);
+    if (!was) return;
+    down.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (down.size >= 2) {
+      // Two fingers: the distance between them is the zoom, and neither one
+      // turns the model while that is happening.
+      const now = spread();
+      if (pinch > 0 && now > 0) zoomBy(pinch / now);
+      pinch = now;
+      return;
+    }
+    view.yaw += (e.clientX - was.x) * 0.01;
+    view.pitch = clamp(view.pitch + (e.clientY - was.y) * 0.01, -1.5, 1.5);
     draw();
   });
   for (const end of ["pointerup", "pointercancel", "pointerleave"]) {
-    canvas.addEventListener(end, () => { dragging = null; });
+    canvas.addEventListener(end, (e) => {
+      down.delete(e.pointerId);
+      if (down.size < 2) pinch = 0;
+    });
   }
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
-    view.distance = clamp(view.distance * (1 + Math.sign(e.deltaY) * 0.12),
-      view.radius * 1.2, view.radius * 12);
-    draw();
+    // The raw delta, not its sign: a trackpad sends many small ones and a
+    // mouse a few large, and stepping by a fixed amount makes one crawl and
+    // the other jump.
+    zoomBy(Math.exp(clamp(e.deltaY, -100, 100) * 0.0015));
   }, { passive: false });
+
+  // Keys, for anyone not using a pointer at all. The canvas has to be
+  // focusable to receive them, which is what tabIndex is for here.
+  canvas.tabIndex = 0;
+  canvas.addEventListener("keydown", (e) => {
+    const step = { "+": 1 / 1.2, "=": 1 / 1.2, "-": 1.2, _: 1.2 }[e.key];
+    if (step) {
+      e.preventDefault();
+      zoomBy(step);
+      return;
+    }
+    if (e.key === "0") {
+      e.preventDefault();
+      reset();
+    }
+  });
+
+  // reset puts it back where load left it, since it is easy to zoom into the
+  // middle of a gearbox and lose the thread.
+  function reset() {
+    view.yaw = -0.6;
+    view.pitch = -0.5;
+    view.distance = view.radius * 2.6;
+    draw();
+  }
+
   window.addEventListener("resize", draw);
 
-  return { load, draw };
+  return { load, draw, zoomBy, reset };
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }

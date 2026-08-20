@@ -199,3 +199,24 @@ fieldset.envelope {
 fieldset.envelope legend { font-size: 0.85em; opacity: 0.75; padding: 0 0.3rem; }
 fieldset.envelope label { font-size: 0.9em; display: flex; align-items: center; gap: 0.35rem; }
 fieldset.envelope input { width: 4.5rem; }
+
+/* The model's own controls, under the canvas rather than over it: a gearbox
+   fills the frame and a floating button would sit on top of the thing it is
+   there to help you look at. */
+.viewbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.viewbar button {
+  min-width: 2.2rem;
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.viewbar .hint {
+  margin: 0 0 0 0.4rem;
+}

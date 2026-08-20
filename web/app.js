@@ -23,6 +23,7 @@ const specEl = document.getElementById("spec");
 const buildEl = document.getElementById("build");
 const downloadsEl = document.getElementById("downloads");
 const canvasEl = document.getElementById("view");
+const viewbarEl = document.getElementById("viewbar");
 const viewer = createViewer(canvasEl);
 
 const answerEl = document.getElementById("answer");
@@ -32,6 +33,14 @@ const statusEl = document.getElementById("status");
 // Stud.io draws better. Showing which parts a verdict is about is.
 let lastBuilt = null;
 let lit = "";
+
+// showView reveals the model and the handful of controls that go with it. The
+// controls stay with the canvas: offering a zoom button over nothing would be
+// worse than not offering one.
+function showView() {
+  canvasEl.hidden = false;
+  if (viewbarEl) viewbarEl.hidden = false;
+}
 
 // envelope reads the size bounds, in studs. A blank box is no bound on that
 // axis, which is not the same as zero — zero would be a frame with no width.
@@ -54,7 +63,7 @@ async function highlight(check) {
   const { triangles } = await ask("draw", { flag: lit });
   if (triangles) {
     viewer.load(triangles);
-    canvasEl.hidden = false;
+    showView();
   }
   render(lastBuilt);
 }
@@ -261,7 +270,7 @@ async function buildModel() {
     if (built.ldr) offerDownloads(built);
     if (triangles && viewer) {
       viewer.load(triangles);
-      canvasEl.hidden = false;
+      showView();
     }
   } finally {
     buildEl.disabled = false;
@@ -302,8 +311,18 @@ async function start() {
     // has changed.
     downloadsEl.hidden = true;
     canvasEl.hidden = true;
+    if (viewbarEl) viewbarEl.hidden = true;
   });
   buildEl.addEventListener("click", buildModel);
+  // Zooming is a wheel, a pinch, +/- and 0 on the canvas — none of which a
+  // page can show you. The buttons are the visible copy of it.
+  const on = (id, run) => {
+    const el = document.getElementById(id);
+    if (el && viewer) el.addEventListener("click", run);
+  };
+  on("zoom-in", () => viewer.zoomBy(1 / 1.3));
+  on("zoom-out", () => viewer.zoomBy(1.3));
+  on("zoom-reset", () => viewer.reset());
 
   statusEl.textContent = "";
   document.getElementById("wasm-note").textContent =
