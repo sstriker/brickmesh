@@ -363,9 +363,9 @@ browser's idea of a model visible rather than merely reported.
 The site ships tier 1. Tier is graded from a part's title: tier 1 is beams,
 pins, axles, bushes and axle joiners; tier 2 is everything else whose title
 begins with `Technic` and a space. A gear is titled `Technic Gear 24 Tooth`, so
-**every gear graded tier 2 and none of them shipped**. Two more never shipped at any tier: 3647 and
-32270 have no shadow file, so they carry no ports, and the extractor drops
-anything portless.
+**every gear graded tier 2 and none of them shipped**. Two more never shipped
+at any tier: 3647 and 32270 have no shadow file, so they carry no ports, and
+the extractor drops anything portless.
 
 Twelve parts in all: every gear, both driving rings, both clutch gears.
 
