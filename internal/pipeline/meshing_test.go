@@ -167,3 +167,117 @@ func TestAShiftOnlyStopsWhatItActuallyDisconnects(t *testing.T) {
 		}
 	}
 }
+
+// The kinds nothing in examples/ exercises. Before this they were skipped in
+// silence, and the report still said every pair stood correctly — which is the
+// same mistake as not checking, dressed as cover.
+
+func place(pt geom.Vec3, dir geom.Vec3) layout.Placement {
+	return layout.NewPlacement(pt, dir)
+}
+
+// A bevel pair: square shafts whose axes meet, each gear at the other's
+// effective radius from the meeting point. 12t and 20t, so the radii are 15 and
+// 25 LDU and each sits at the OTHER's.
+func bevelAt(aAxial, bAxial float64) *Result {
+	return &Result{
+		Layout: &layout.Layout{Place: map[string]layout.Placement{
+			"a": place(geom.Vec3{}, geom.Vec3{X: 1}),
+			"b": place(geom.Vec3{}, geom.Vec3{Y: 1}),
+		}},
+		Stations: []layout.Station{
+			{Shaft: "a", Teeth: 12, Axial: aAxial},
+			{Shaft: "b", Teeth: 20, Axial: bAxial},
+		},
+	}
+}
+
+func bevelMech(t *testing.T) *mech.Mechanism {
+	t.Helper()
+	sp := spec.Spec{
+		Name:   "bevel",
+		Shafts: []spec.Shaft{{ID: "a"}, {ID: "b"}},
+		Meshes: []spec.Mesh{{A: "a", B: "b", TeethA: 12, TeethB: 20, Kind: "bevel"}},
+		Inputs: []spec.Input{{Shaft: "a", Speed: 1}},
+	}
+	m, err := sp.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func TestABevelPairStandingByTheRulePasses(t *testing.T) {
+	// 12t sits at the 20t's radius (25 LDU = 2.5 half studs) and vice versa.
+	res := bevelAt(2.5, 1.5)
+	checkMeshing(res, bevelMech(t))
+	if hasFail(res, "meshing") {
+		t.Errorf("a bevel pair placed by the layout's own rule was reported: %v",
+			res.Findings)
+	}
+}
+
+func TestABevelGearAtTheWrongRadiusIsCaught(t *testing.T) {
+	res := bevelAt(2.5, 4.0) // the 20t a stud and a half too far out
+	checkMeshing(res, bevelMech(t))
+	if !hasFail(res, "meshing") {
+		t.Error("a bevel gear off its radius was called correct")
+	}
+}
+
+func TestBevelShaftsThatNeverMeetAreCaught(t *testing.T) {
+	res := bevelAt(2.5, 1.5)
+	// Square, but offset so the axes are skew rather than crossing.
+	res.Layout.Place["b"] = place(geom.Vec3{Z: 4}, geom.Vec3{Y: 1})
+	checkMeshing(res, bevelMech(t))
+	if !hasFail(res, "meshing") {
+		t.Error("bevel shafts whose axes never meet were called a mesh")
+	}
+}
+
+// A differential holds three shafts on one line. Nothing said so before.
+func TestADifferentialOffItsLineIsCaught(t *testing.T) {
+	sp := spec.Spec{
+		Name:   "diff",
+		Shafts: []spec.Shaft{{ID: "case"}, {ID: "l"}, {ID: "r"}},
+		Differentials: []spec.Differential{
+			{Case: "case", OutA: "l", OutB: "r"},
+		},
+		Inputs: []spec.Input{{Shaft: "case", Speed: 1}},
+	}
+	m, err := sp.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := &Result{Layout: &layout.Layout{Place: map[string]layout.Placement{
+		"case": place(geom.Vec3{}, geom.Vec3{X: 1}),
+		"l":    place(geom.Vec3{}, geom.Vec3{X: 1}),
+		"r":    place(geom.Vec3{Z: 2}, geom.Vec3{X: 1}), // a stud off the line
+	}}}
+	checkMeshing(res, m)
+	if !hasFail(res, "meshing") {
+		t.Error("a differential output on its own line was not reported")
+	}
+	res.Findings = nil
+	res.Layout.Place["r"] = place(geom.Vec3{}, geom.Vec3{X: 1})
+	checkMeshing(res, m)
+	if hasFail(res, "meshing") {
+		t.Errorf("three coaxial shafts were reported: %v", res.Findings)
+	}
+}
+
+// And the report has to say what it did NOT look at, or it reads as cover.
+func TestTheReportNamesWhatItCouldNotCheck(t *testing.T) {
+	res := bevelAt(2.5, 1.5)
+	checkMeshing(res, bevelMech(t))
+	var detail string
+	for _, f := range res.Findings {
+		if f.Check == "meshing" {
+			detail = f.Detail
+		}
+	}
+	if !strings.Contains(detail, "Not checked") {
+		t.Errorf("a bevel's engagement rule is not settled and the report "+
+			"should say so; it said: %s", detail)
+	}
+}

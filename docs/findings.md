@@ -1513,3 +1513,40 @@ and is used for "is this part buried in that one" — in the clearance check and
 in the test that asks whether a placed ring is driven into its gear, which no
 longer has to ask its question half an LDU out from where the ring actually is.
 `EngageFit` is used for "do these engage", and for the first system it is zero.
+
+## The check that read the finished model only read a third of it
+
+`checkMeshing` was written to catch the diagonal gearbox, and it did — for spur
+pairs. It skipped everything else in silence: bevel and worm meshes fell through
+a `Kind != Spur` guard, and differentials and couplings are not meshes at all,
+so they were never offered to it. The report still said *"all N gear pairs stand
+at their pitch distance in one plane"*, which reads as cover and was not.
+
+That is the same mistake as not checking, dressed up. Now every kind of link is
+asked the question that is determinate for it:
+
+| link | what the finished positions must show |
+| --- | --- |
+| spur | both gears in one plane, at their pitch distance |
+| bevel | shafts square, axes meeting, each gear at the other's effective radius from the meeting point |
+| worm | shafts square |
+| chain | shafts parallel, sprockets in one plane |
+| differential | case and both outputs on one line |
+| coupling | both shafts on one line |
+
+**And the report now names what it could not check.** A worm's distance from its
+wheel is not measured anywhere here. A bevel's engagement rule is the open
+question in PLAN.md that nine measurements disagreed about — so what runs is a
+check that the model matches *the rule the layout applied*, which catches a
+placement that drifted from it, and the finding says the rule itself is unsettled
+rather than implying it has been confirmed.
+
+The coaxial cases are guaranteed by construction: the layout unions a
+differential's ports and a coupling's halves into one equivalence class, so they
+share a `Placement` outright. They are checked anyway, because the spur bug also
+had a construction guarantee — two gears put in one plane by the station solver —
+and the finished model violated it, because the two lines disagreed about where
+axial zero was. A guarantee about the reasoning is not a fact about the artefact.
+
+No example uses a bevel, a worm or a chain, so those paths are covered by tests
+built from placements directly rather than by anything that ships.
