@@ -24,6 +24,7 @@ import (
 	"syscall"
 
 	"brickmesh/internal/extract"
+	"brickmesh/internal/geom"
 	"brickmesh/internal/ldraw"
 	"brickmesh/internal/mech"
 	"brickmesh/internal/part"
@@ -31,6 +32,7 @@ import (
 	"brickmesh/internal/progress"
 	"brickmesh/internal/shadow"
 	"brickmesh/internal/spec"
+	"brickmesh/internal/synth"
 	"brickmesh/internal/voxel"
 )
 
@@ -50,8 +52,22 @@ func run() error {
 		restarts  = flag.Int("restarts", 60, "restarts for the structural search")
 		seed      = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
 		span      = flag.Int("span", 4, "how far along each shaft to search, in half studs")
-		force     = flag.Bool("force", false, "write a model even when a check failed")
-		animate   = flag.Bool("animate", false,
+
+		// What a good frame is. Ranking by part count treats a pin as it treats
+		// a thirteen-hole beam, and pushes against making the thing compact,
+		// since a smaller frame often takes more parts. These say what to
+		// charge for instead.
+		perStud   = flag.Float64("cost-stud", 1, "cost per stud of beam")
+		perPart   = flag.Float64("cost-part", 0.2, "cost per part, whatever its size")
+		perVolume = flag.Float64("cost-volume", 1, "cost per cubic stud of envelope")
+
+		// And how big it may get. A bound is not a preference: a frame outside
+		// it is not a candidate at all.
+		maxX    = flag.Float64("max-x", 0, "widest the frame may be, in studs; 0 for no bound")
+		maxY    = flag.Float64("max-y", 0, "tallest the frame may be, in studs; 0 for no bound")
+		maxZ    = flag.Float64("max-z", 0, "deepest the frame may be, in studs; 0 for no bound")
+		force   = flag.Bool("force", false, "write a model even when a check failed")
+		animate = flag.Bool("animate", false,
 			"also write an LDCad animation script turning every shaft at its solved ratio")
 		seconds = flag.Float64("seconds", 10, "length of the animation")
 		turns   = flag.Float64("turns", 4, "turns of the input shaft over the animation")
@@ -96,6 +112,14 @@ func run() error {
 
 	res, err := pipeline.Run(ctx, m, deps, pipeline.Options{
 		Restarts: *restarts, Seed: *seed, Span: *span,
+		Budget: synth.Budget{
+			PerStud:      *perStud,
+			PerPart:      *perPart,
+			PerCubicStud: *perVolume,
+			// In studs, which is what Budget.MaxStuds is named for and what
+			// withinEnvelope compares against.
+			MaxStuds: geom.Vec3{X: *maxX, Y: *maxY, Z: *maxZ},
+		},
 		Inventory:     part.Beams,
 		SkipStructure: *checkOnly,
 		Animate:       *animate && !*checkOnly,

@@ -1005,3 +1005,40 @@ fallback matters as much as the constraint — if every candidate hinges, the
 first that at least fits is still emitted and the rigidity check still reports
 it, because a model that hinges is worth looking at and refusing to produce one
 would hide the very thing the report exists to show.
+
+## Brackets, not walls, and the metric that kept them that way
+
+Asked whether the frames distribute load, the answer was no, and the reason was
+one line in the bearing requirements: every shaft was asked for a bearing at
+either end of *its own* free stretch. Those points almost never line up between
+shafts, so nothing could bear two shafts at once, and the search returned the
+least that holds — five parts for a two-speed gearbox, each holding one thing.
+
+Bearing planes are chosen across shafts now: the cross sections where the most
+shafts are simultaneously free, the two furthest apart of those. A shaft that
+cannot reach either falls back to its own extremes.
+
+| | frame parts before | after | cubic studs before | after |
+| --- | --- | --- | --- | --- |
+| gearbox-2-speed | 5 | 2 | 35.6 | 10.4 |
+| gearbox-3-speed-compound | 6 | 2 | 85.7 | 35.3 |
+
+Two walls with every shaft through both, which is what a gearbox is.
+
+### Counting parts was the wrong measure
+
+A pin counted the same as a thirteen-hole beam, though one is a fastener and the
+other is most of the frame. And fewest-parts pushes against compactness — a
+smaller structure often takes more parts, so the two goals were fighting and
+the count was winning.
+
+Cost is now a weighted sum with the terms named: per stud of beam, per part, per
+cubic stud of envelope. The defaults charge a stud of beam and a cubic stud of
+envelope alike and a bare part a fifth as much, so a fastener cannot outvote
+structure. A test pins that those weights stay in the same range, since one term
+an order of magnitude larger than the others decides every ranking on its own.
+
+Separately from the cost there is a bound. `--max-x/-y/-z` cap the envelope in
+studs, and a bound is not a preference: a frame outside it is not a candidate at
+all. Asking for a two-speed gearbox inside two studs of depth reports that none
+was found and names the cap, rather than quietly returning the best violation.

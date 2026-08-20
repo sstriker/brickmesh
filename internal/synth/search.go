@@ -83,23 +83,35 @@ func BearingRequirementsWith(l *layout.Layout, stations []layout.Station,
 	}
 	sort.Strings(shafts)
 
+	// Where each shaft could take a bearing, judged along the line rather than
+	// the named shaft. Two shafts a coupling holds together are the same piece
+	// of axle, so a gear on one blocks the other just as surely — and a bearing
+	// was being asked for exactly where another shaft's gear already sat.
+	free := make(map[string][]geom.Vec3, len(shafts))
+	for _, id := range shafts {
+		pl := l.Place[id]
+		free[id] = latticePointsAlong(pl,
+			layout.FreeIntervalsWith(onLine(l, stations, pl), "", reach, taken[id]))
+	}
+
+	walls := wallPlanes(l, shafts, free)
+
 	var reqs []Requirement
 	for _, id := range shafts {
 		pl := l.Place[id]
-		// Judged along the line rather than the named shaft. Two shafts a
-		// coupling holds together are the same piece of axle, so a gear on one
-		// blocks the other just as surely — and a bearing was being asked for
-		// exactly where another shaft's gear already sat.
-		points := latticePointsAlong(pl,
-			layout.FreeIntervalsWith(onLine(l, stations, pl), "", reach, taken[id]))
+		points := free[id]
 		if len(points) < perShaft {
 			continue
 		}
-		chosen := points
-		if perShaft == 2 {
-			chosen = []geom.Vec3{points[0], points[len(points)-1]}
-		} else if len(points) > perShaft {
-			chosen = points[:perShaft]
+		chosen := atWalls(pl, points, walls)
+		if len(chosen) < perShaft {
+			// Nothing shared reaches it, so fall back to its own extremes.
+			chosen = points
+			if perShaft == 2 {
+				chosen = []geom.Vec3{points[0], points[len(points)-1]}
+			} else if len(points) > perShaft {
+				chosen = points[:perShaft]
+			}
 		}
 		for _, w := range chosen {
 			reqs = append(reqs, Requirement{Shaft: id, Point: w, Direction: pl.Direction})
@@ -107,6 +119,83 @@ func BearingRequirementsWith(l *layout.Layout, stations []layout.Station,
 	}
 	return dedupeRequirements(reqs)
 }
+
+// wallPlanes picks the two cross sections where the most shafts can be borne at
+// once, as far apart as those allow.
+//
+// This is the difference between a housing and a set of brackets. Asking each
+// shaft for a bearing at either end of its own free stretch gives points that
+// almost never line up, so nothing can bear two shafts and the search returns
+// the least that holds — five parts for a two speed gearbox, each holding one
+// thing. A real gearbox is two walls with every shaft through both, which is
+// also how the load gets shared out rather than taken by one liftarm at a time.
+//
+// Only shafts running the same way can share a wall, which for a gearbox is all
+// of them.
+func wallPlanes(l *layout.Layout, shafts []string, free map[string][]geom.Vec3) []float64 {
+	if len(shafts) < 2 {
+		return nil
+	}
+	dir := l.Place[shafts[0]].Direction.Unit()
+	for _, id := range shafts[1:] {
+		if math.Abs(math.Abs(l.Place[id].Direction.Unit().Dot(dir))-1) > 1e-6 {
+			return nil // not all parallel: no plane crosses them all
+		}
+	}
+
+	// How many shafts are free at each cross section, measured along the shared
+	// direction so parallel shafts share a coordinate.
+	count := map[float64]int{}
+	for _, id := range shafts {
+		seen := map[float64]bool{}
+		for _, w := range free[id] {
+			t := round3(w.Dot(dir))
+			if !seen[t] {
+				seen[t] = true
+				count[t]++
+			}
+		}
+	}
+	best := 0
+	for _, n := range count {
+		if n > best {
+			best = n
+		}
+	}
+	if best < 2 {
+		return nil // no cross section bears more than one shaft
+	}
+	var candidates []float64
+	for t, n := range count {
+		if n == best {
+			candidates = append(candidates, t)
+		}
+	}
+	sort.Float64s(candidates)
+	// The two furthest apart: a short bearing base lets the whole thing rock,
+	// the same reason one shaft's own bearings are put at its extremes.
+	return []float64{candidates[0], candidates[len(candidates)-1]}
+}
+
+// atWalls keeps the points of a shaft that lie on one of the wall planes.
+func atWalls(pl layout.Placement, points []geom.Vec3, walls []float64) []geom.Vec3 {
+	if len(walls) < 2 || walls[0] == walls[1] {
+		return nil
+	}
+	dir := pl.Direction.Unit()
+	var out []geom.Vec3
+	for _, want := range walls {
+		for _, w := range points {
+			if math.Abs(w.Dot(dir)-want) < 1e-6 {
+				out = append(out, w)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func round3(v float64) float64 { return math.Round(v*1e3) / 1e3 }
 
 // latticePointsAlong walks the free stretches of a shaft and keeps the whole
 // half-stud positions.
@@ -322,6 +411,71 @@ type Solution struct {
 	Parts     []Placed
 	Count     int
 	BBoxStud3 float64
+	// Cost is what the search ranks by. See Budget.
+	Cost float64
+}
+
+// Budget is what a good structure is, in the caller's terms.
+//
+// Ranking by part count was the first thing here and it is a poor measure. A
+// pin counts the same as a thirteen-hole beam, though one is a fastener and the
+// other is most of the frame; and a compact structure often takes more parts
+// than a sprawling one, so counting parts pushes against making it small.
+//
+// So the cost is a weighted sum with the terms named, and the caller can say
+// which it cares about. The defaults prefer a small envelope, charge for beam
+// length rather than for parts, and treat fasteners as nearly free, which is
+// what they are.
+type Budget struct {
+	// PerStud is charged per stud of beam. Length is what a beam costs, in
+	// money and in the space it takes.
+	PerStud float64
+	// PerPart is charged per part regardless of size, for the handling that
+	// every part costs whatever it is.
+	PerPart float64
+	// PerCubicStud is charged for the bounding box. This is the term that makes
+	// a compact frame win, and it is the one raising the part count buys.
+	PerCubicStud float64
+	// MaxStuds bounds the envelope, in studs, along each axis. Zero on an axis
+	// means no bound there. A structure outside it is not ranked lower, it is
+	// not a candidate at all — which is what a constraint means, as against a
+	// preference.
+	MaxStuds geom.Vec3
+}
+
+// DefaultBudget is what the engine asks for when the caller says nothing.
+//
+// Weighted so a stud of beam and a cubic stud of envelope are comparable, and a
+// part on its own is worth a fifth of a stud — enough to break a tie between
+// two structures of the same size, not enough to make a fastener matter.
+var DefaultBudget = Budget{PerStud: 1, PerPart: 0.2, PerCubicStud: 1}
+
+// cost scores a structure. Lower is better.
+func (b Budget) cost(parts []Placed, holes map[string]int, volume float64) float64 {
+	total := b.PerCubicStud * volume
+	for _, p := range parts {
+		studs := float64(holes[p.Part])
+		if studs > 0 {
+			studs-- // a beam of n holes is n-1 studs long between its ends
+		}
+		total += b.PerStud*studs + b.PerPart
+	}
+	return total
+}
+
+// withinEnvelope reports whether a structure fits the bounds the caller set.
+func (b Budget) withinEnvelope(lo, hi geom.Vec3) bool {
+	size := hi.Sub(lo)
+	for _, a := range [][2]float64{
+		{size.X / geom.Stud, b.MaxStuds.X},
+		{size.Y / geom.Stud, b.MaxStuds.Y},
+		{size.Z / geom.Stud, b.MaxStuds.Z},
+	} {
+		if a[1] > 0 && a[0] > a[1]+1e-6 {
+			return false
+		}
+	}
+	return true
 }
 
 // Options tunes the search.
@@ -330,6 +484,9 @@ type Options struct {
 	Restarts int
 	Seed     int64
 	Workers  int
+	// Budget is what to rank by and what envelope to stay inside. The zero
+	// value means DefaultBudget.
+	Budget Budget
 	// Progress is told after each restart finishes. Optional.
 	//
 	// A restart is the right unit: long enough that reporting one costs
@@ -360,6 +517,9 @@ func (s *Searcher) Synthesize(ctx context.Context, l *layout.Layout,
 	}
 	if opts.Workers <= 0 {
 		opts.Workers = workers()
+	}
+	if opts.Budget == (Budget{}) {
+		opts.Budget = DefaultBudget
 	}
 
 	reqs := BearingRequirementsWith(l, stations, 2, 8, s.Taken)
@@ -497,10 +657,12 @@ func dedupeSolutions(results []Solution) []Solution {
 		out = append(out, r)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Count != out[j].Count {
-			return out[i].Count < out[j].Count
+		if out[i].Cost != out[j].Cost {
+			return out[i].Cost < out[j].Cost
 		}
-		return out[i].BBoxStud3 < out[j].BBoxStud3
+		// A tie on cost is broken by part count, which is still worth something
+		// when two structures cost the same: fewer things to lose.
+		return out[i].Count < out[j].Count
 	})
 	return out
 }
@@ -509,6 +671,10 @@ func dedupeSolutions(results []Solution) []Solution {
 func (s *Searcher) runRestarts(ctx context.Context, pool []*candidate, nReqs int,
 	opts Options) []Solution {
 
+	budget := opts.Budget
+	if budget == (Budget{}) {
+		budget = DefaultBudget
+	}
 	var (
 		mu   sync.Mutex
 		out  []Solution
@@ -563,6 +729,11 @@ func (s *Searcher) runRestarts(ctx context.Context, pool []*candidate, nReqs int
 				sol.Parts = repaired
 				sol.Count = len(repaired)
 				sol.BBoxStud3 = s.boundingVolume(repaired)
+				sol.Cost = budget.cost(repaired, s.counts(), sol.BBoxStud3)
+				if !budget.withinEnvelope(s.extent(repaired)) {
+					report()
+					continue // outside the envelope asked for: not a candidate
+				}
 				mu.Lock()
 				out = append(out, sol)
 				mu.Unlock()
@@ -688,7 +859,7 @@ func (s *Searcher) greedyCover(pool []*candidate, nReqs, maxParts int,
 		return less(parts[i].Origin, parts[j].Origin)
 	})
 	return Solution{Parts: parts, Count: len(parts),
-		BBoxStud3: s.boundingVolume(parts)}, true
+		BBoxStud3: s.boundingVolume(parts)}, true // cost is set by the caller
 }
 
 func less(a, b geom.Vec3) bool {
@@ -732,4 +903,36 @@ func (s *Searcher) boundingVolume(parts []Placed) float64 {
 	}
 	s2 := hi.Sub(lo)
 	return s2.X * s2.Y * s2.Z / 8000.0
+}
+
+// extent is the box a structure occupies, which is what an envelope bounds.
+func (s *Searcher) extent(parts []Placed) (geom.Vec3, geom.Vec3) {
+	first := true
+	var lo, hi geom.Vec3
+	for _, p := range parts {
+		g, err := s.Rast.Lib.Geometry(p.Part)
+		if err != nil {
+			continue
+		}
+		r := geom.Rotations[p.Rot]
+		for _, v := range g.Verts {
+			w := r.Apply(v).Add(p.Origin)
+			if first {
+				lo, hi, first = w, w, false
+				continue
+			}
+			lo = geom.Vec3{X: math.Min(lo.X, w.X), Y: math.Min(lo.Y, w.Y), Z: math.Min(lo.Z, w.Z)}
+			hi = geom.Vec3{X: math.Max(hi.X, w.X), Y: math.Max(hi.Y, w.Y), Z: math.Max(hi.Z, w.Z)}
+		}
+	}
+	return lo, hi
+}
+
+// counts is the inventory's hole counts, which is how long each beam is.
+func (s *Searcher) counts() map[string]int {
+	out := make(map[string]int, len(s.Inventory))
+	for _, b := range s.Inventory {
+		out[b.Part] = b.Holes
+	}
+	return out
 }

@@ -82,9 +82,15 @@ func TestTheFrameStaysAroundTheMechanism(t *testing.T) {
 
 // And the control: the stiffening that produced the appendage still runs, so
 // the test above is not passing because bracing quietly stopped happening.
+//
+// The subtractor, not a gearbox. A gearbox has two shafts through both walls,
+// and two shafts between two bodies leave them nothing to fold about — so once
+// the frame became walls rather than brackets, no gearbox here needs a brace at
+// all. The subtractor has one shaft line, and two walls on one shaft can still
+// counter-rotate about it.
 func TestStiffeningStillAddsBeamsWhereTheyAreNeeded(t *testing.T) {
 	deps := requireLibraries(t)
-	res := runSpec(t, deps, filepath.Join("..", "..", "examples", "gearbox-2-speed.json"))
+	res := runSpec(t, deps, filepath.Join("..", "..", "examples", "subtractor.json"))
 	added := false
 	for _, f := range res.Findings {
 		if f.Check == "structure" && strings.Contains(f.Detail, "to stop it hinging") {
@@ -92,9 +98,9 @@ func TestStiffeningStillAddsBeamsWhereTheyAreNeeded(t *testing.T) {
 		}
 	}
 	if !added {
-		t.Error("no beam was added to a two-speed gearbox; the frame is two " +
-			"bearing walls and a shaft line, and something has to stop them " +
-			"folding")
+		t.Error("no beam was added to a subtractor; its frame is two walls on " +
+			"one shaft line, and something has to stop them turning against " +
+			"each other about it")
 	}
 }
 

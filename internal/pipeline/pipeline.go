@@ -137,9 +137,13 @@ type Deps struct {
 
 // Options tunes the stages.
 type Options struct {
-	MaxLayouts    int
-	Span          int
-	Restarts      int
+	MaxLayouts int
+	Span       int
+	Restarts   int
+	// Budget is what a good structure is: what to charge for beam length, for
+	// parts, for the envelope, and how big the envelope may be. Zero means
+	// synth.DefaultBudget.
+	Budget        synth.Budget
 	Seed          int64
 	Inventory     []part.Beam
 	SkipStructure bool
@@ -381,6 +385,7 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 	searcher.Shafts = res.Axles
 	solutions, err := searcher.Synthesize(ctx, res.Layout, res.Stations, synth.Options{
 		Restarts: opts.Restarts, Seed: opts.Seed, Progress: opts.Progress,
+		Budget: opts.Budget,
 	})
 	if errors.Is(err, context.Canceled) {
 		return err // stopped is not a failure of the search, and says so itself
@@ -389,10 +394,15 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 		return fmt.Errorf("the structural search: %w", err)
 	}
 	if len(solutions) == 0 {
+		why := "no structure found that bears every shaft; the gears are " +
+			"placed but nothing holds them"
+		if b := opts.Budget.MaxStuds; b.X > 0 || b.Y > 0 || b.Z > 0 {
+			why += fmt.Sprintf(". The envelope was capped at %v studs, and a "+
+				"bound is not a preference — a frame outside it is not a "+
+				"candidate. Try widening it", b)
+		}
 		res.Findings = append(res.Findings, mech.Finding{
-			Level: "WARN", Check: "structure",
-			Detail: "no structure found that bears every shaft; the gears are placed but nothing holds them",
-		})
+			Level: "WARN", Check: "structure", Detail: why})
 		return nil
 	}
 	// The search works on a voxel lattice, which has to tolerate parts touching
