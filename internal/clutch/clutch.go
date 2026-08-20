@@ -34,6 +34,17 @@ type System struct {
 	// JoinerReach is how far an axle goes into each end of the joiner. Both
 	// holes stop before the middle, so two axles meet there rather than pass.
 	JoinerReach float64
+
+	// Catch is the part that moves the ring, and CatchReach how far out from
+	// the shaft it sits, in LDU. Empty when nothing here knows one.
+	//
+	// Not measurable from the parts. Every position where a catch reaches a
+	// ring's groove collides at some angle, because LDraw models nominal
+	// surfaces and a fork that straddles a groove touches it — so a sweep can
+	// confirm a placement but cannot find one. These come from an official
+	// model that has both parts in it.
+	Catch      string
+	CatchReach float64
 }
 
 // Travel is how far the ring slides between engaged and disengaged.
@@ -58,6 +69,16 @@ var First = System{
 
 	Engaged: 3.0, Clear: 4.0,
 	RingHalf: 2.0, JoinerHalf: 2.0, JoinerReach: 2.0,
+
+	// From LDraw's official 8448, which has a 6641 and three 6539s in it: the
+	// catch sits 60 LDU out from the shaft on a perpendicular, level with the
+	// ring. Confirmed by sweeping — at 60 the catch reaches the groove and the
+	// ring still turns, at 55 it is buried and at 65 it has let go.
+	//
+	// The same model confirms the engaged distance above from a second,
+	// independent direction: its rings sit exactly 30 LDU from the clutch gears
+	// either side of them, which is the 3.0 half studs measured here.
+	Catch: "6641.dat", CatchReach: 60,
 }
 
 // Second is the later system, with the three-stud ring.
@@ -78,6 +99,13 @@ var Second = System{
 
 	Engaged: 3.25, Clear: 4.0,
 	RingHalf: 2.8, JoinerHalf: 3.0, JoinerReach: 2.0,
+
+	// No catch. 6641 does not fit this ring: at the 60 LDU that holds a 6539 it
+	// reads as clear of an 18947 altogether, so it would sit there holding
+	// nothing, and closer it is buried. The parts that do move these rings —
+	// 4159, 35188 — are in the library, but nothing here has a model with one
+	// beside a ring, and their placement cannot be found by sweeping for the
+	// reason given above. Named in the report instead of guessed at.
 }
 
 // Systems in the order they are preferred. The first generation is smaller —

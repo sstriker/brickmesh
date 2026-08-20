@@ -50,6 +50,11 @@ func animate(m *mech.Mechanism, res *Result, opts Options) {
 		res.Model.Groups = append(res.Model.Groups, ldr.Group{
 			Name: r.group, Center: r.engaged,
 		})
+		if r.catchGroup != "" {
+			res.Model.Groups = append(res.Model.Groups, ldr.Group{
+				Name: r.catchGroup, Center: r.engaged.Add(r.catchAt),
+			})
+		}
 	}
 	tagRings(m, res)
 
@@ -188,6 +193,10 @@ type ringGroup struct {
 	// axis it turns about, which is also the one it slides along.
 	axis                geom.Vec3
 	engaged, disengaged geom.Vec3
+	// catchAt is where the catch that moves this ring sits relative to it, and
+	// catchGroup names its group. Empty when no catch was placed.
+	catchAt    geom.Vec3
+	catchGroup string
 }
 
 // ringGroups names a group per driving ring and works out its two positions.
@@ -204,8 +213,14 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 		if site.mate != nil {
 			mateStates = site.mate.coupling.States
 		}
+		catchGroup := ""
+		if site.catchAt != (geom.Vec3{}) {
+			catchGroup = fmt.Sprintf("catch_%d", i+1)
+		}
 		out = append(out, ringGroup{
 			group:        fmt.Sprintf("ring_%d", i+1),
+			catchAt:      site.catchAt,
+			catchGroup:   catchGroup,
 			shaft:        site.rides,
 			throughShift: !always[site.rides],
 			states:       site.coupling.States,
@@ -222,14 +237,23 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 // be moved on its own.
 func tagRings(m *mech.Mechanism, res *Result) {
 	rings := ringGroups(m, res)
-	k := 0
+	k, c := 0, 0
 	for i := range res.Model.Parts {
 		p := &res.Model.Parts[i]
-		if !isRing(p.Name) || k >= len(rings) {
-			continue
+		switch {
+		case isRing(p.Name) && k < len(rings):
+			p.Group = rings[k].group
+			k++
+		case isSelector(p.Name):
+			// Its own group: it moves with its ring and does not turn with it.
+			for c < len(rings) && rings[c].catchGroup == "" {
+				c++
+			}
+			if c < len(rings) {
+				p.Group = rings[c].catchGroup
+				c++
+			}
 		}
-		p.Group = rings[k].group
-		k++
 	}
 }
 
@@ -265,6 +289,17 @@ func slidingIn(rings []ringGroup, speeds map[string]float64,
 			ThroughShift: r.throughShift,
 			Engaged:      r.engaged, Disengaged: r.disengaged, At: at,
 		})
+		if r.catchGroup != "" {
+			// The catch goes where the ring goes and does not turn with it: it
+			// is what pushes the ring along, and it sits still in the frame
+			// while the ring spins inside its fork. Speed zero says that.
+			out = append(out, ldcad.Sliding{
+				Group: r.catchGroup, Axis: r.axis, Speed: 0,
+				Engaged:    r.engaged.Add(r.catchAt),
+				Disengaged: r.disengaged.Add(r.catchAt),
+				At:         at,
+			})
+		}
 	}
 	return out
 }

@@ -201,6 +201,12 @@ func mayBeInside(a, b ldr.Part) bool {
 		return true // meshing
 	case ka == classRing && kb == classJoiner:
 		return true // the ring is splined to it
+	case ka == classRing && kb == classSelector:
+		// A catch's fork straddles the ring's groove. It is a loose fit — the
+		// ring turns inside it — but LDraw models nominal surfaces, so the two
+		// touch. Measured against the official 8448, which puts them exactly
+		// here.
+		return true
 	}
 	return false
 }
@@ -212,6 +218,7 @@ const (
 	classJoiner
 	classAxle
 	classPin
+	classSelector
 	classStructure
 )
 
@@ -225,6 +232,8 @@ func classOf(p ldr.Part) int {
 		return classAxle
 	case isPin(p.Name):
 		return classPin
+	case isSelector(p.Name):
+		return classSelector
 	}
 	if _, _, ok := gearFromLabel(p.Label); ok {
 		return classGear

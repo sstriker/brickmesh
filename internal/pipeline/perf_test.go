@@ -51,6 +51,7 @@ var budgets = map[string]budget{
 	"protected-reduction.json":      {walks: 40, reads: 20000},
 	"subtractor.json":               {walks: 40, reads: 20000},
 	"gearbox-2-speed.json":          {walks: 60, reads: 24000},
+	"gearbox-first-system.json":     {walks: 50, reads: 22000},
 	"gearbox-2-speed-auto.json":     {walks: 60, reads: 24000},
 	"gearbox-3-speed-compound.json": {walks: 80, reads: 24000},
 }

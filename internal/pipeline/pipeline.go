@@ -86,6 +86,19 @@ var SelectorParts = []string{
 	"6631 Technic Plate 2 x 6 with 2 Position Gear Shift",
 }
 
+// isSelector reports whether a part is a catch that moves a driving ring.
+//
+// Which part that is depends on the generation, so it is asked of the systems
+// rather than named here. See clutch.System.Catch.
+func isSelector(name string) bool {
+	for _, s := range clutch.Systems {
+		if s.Catch != "" && s.Catch == name {
+			return true
+		}
+	}
+	return false
+}
+
 // SlipPart is the 24-tooth gear with a friction centre.
 //
 // A torque limiter, and the other kind of clutch entirely from the one a
@@ -576,6 +589,9 @@ type ringSite struct {
 	engaged, disengaged float64
 	// joiner is where the ridged joiner under the ring is centered.
 	joiner float64
+	// catchAt is where the catch that moves this ring sits, relative to the
+	// ring, once it has been placed. Zero when no catch was placed.
+	catchAt geom.Vec3
 	// mate is the second gear this same ring engages, when it sits between two
 	// of them and reaches either by sliding.
 	//
@@ -802,8 +818,15 @@ func gearAt(st layout.Station, sites []ringSite, slip map[string]bool) (string, 
 // placeDrivingRings puts a ring beside each shifted gear, at the distance the
 // sweep says its dogs sit in the gear's recesses.
 func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
+	// Written back, because where the catch ended up decides where it has to
+	// slide to and the animation asks afterwards.
+	back := func(i int, at geom.Vec3) {
+		if i < len(res.ringSites) {
+			res.ringSites[i].catchAt = at
+		}
+	}
 	var nominal []string
-	for _, site := range sites {
+	for i, site := range sites {
 		place, ok := res.Layout.Place[site.station.Shaft]
 		if !ok {
 			continue
@@ -819,6 +842,9 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 			label = fmt.Sprintf("driving ring for %v", site.coupling.States)
 		}
 		model.Add(site.system.Ring, ldr.ColorRed, rot, pos, label)
+		if at, ok := placeSelector(res, model, site, place, pos, label); ok {
+			back(i, at)
+		}
 
 		if _, ok := site.system.Gears[site.station.Teeth]; !ok {
 			nominal = append(nominal, fmt.Sprintf("%dt on '%s'",
@@ -1492,6 +1518,9 @@ func Placeable() []string {
 	add(LongPinPart)
 	add(DiffPart)
 	add(SlipPart)
+	for _, sys := range clutch.Systems {
+		add(sys.Catch)
+	}
 	sort.Strings(out)
 	return out
 }
@@ -1626,4 +1655,73 @@ func checkSlipClutches(m *mech.Mechanism, res *Result) {
 					"that slips, not dogs that grip",
 				SlipPart, c.Shaft, at, source)})
 	}
+}
+
+// placeSelector puts the catch that moves a ring beside it.
+//
+// The shift stops being an instruction to the builder and becomes part of the
+// model. Where it goes is read from LDraw's official 8448 rather than searched
+// for: 60 LDU out from the shaft on a perpendicular, level with the ring along
+// the shaft, its arm reaching in to the groove.
+//
+// Which perpendicular is a choice, and the only one the engine can make on its
+// own: whichever direction is clear of the other shafts. A catch pointing into
+// the neighbouring gear train is worse than none.
+func placeSelector(res *Result, model *ldr.Model, site ringSite,
+	place layout.Placement, at geom.Vec3, label string) (geom.Vec3, bool) {
+
+	if site.system.Catch == "" {
+		return geom.Vec3{}, false // nothing knows what moves this generation
+	}
+	d := place.Direction.Unit()
+	out, ok := clearOfOtherShafts(res, place, at, d, site.system.CatchReach)
+	if !ok {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+				"no room beside the ring for %s on '%s': every way out of the "+
+					"shaft runs into another one. The shift is named rather than "+
+					"placed for this one", site.system.Catch, site.rides)})
+		return geom.Vec3{}, false
+	}
+	// Local y along the shaft, local z outward, which is how 8448 has it.
+	x := d.Cross(out)
+	rot := geom.Mat3{
+		{x.X, d.X, out.X},
+		{x.Y, d.Y, out.Y},
+		{x.Z, d.Z, out.Z},
+	}
+	offset := out.Scale(site.system.CatchReach)
+	model.Add(site.system.Catch, ldr.ColorBlack, rot, at.Add(offset),
+		"catch for "+label)
+	return offset, true
+}
+
+// clearOfOtherShafts picks a way out of a shaft that no other shaft is in.
+func clearOfOtherShafts(res *Result, place layout.Placement, at, d geom.Vec3,
+	reach float64) (geom.Vec3, bool) {
+	var across []geom.Vec3
+	for _, c := range []geom.Vec3{{X: 1}, {X: -1}, {Y: 1}, {Y: -1}, {Z: 1}, {Z: -1}} {
+		if math.Abs(c.Dot(d)) < 1e-6 {
+			across = append(across, c)
+		}
+	}
+	for _, out := range across {
+		blocked := false
+		for _, other := range res.Layout.Place {
+			if other.Key() == place.Key() {
+				continue
+			}
+			// Is the other shaft's line within reach, that way?
+			v := other.Point.Scale(synth.HalfStud).Sub(at)
+			side := v.Sub(d.Scale(v.Dot(d)))
+			if side.Dot(out) > 0 && side.Len() < reach+geom.Stud {
+				blocked = true
+				break
+			}
+		}
+		if !blocked {
+			return out, true
+		}
+	}
+	return geom.Vec3{}, false
 }

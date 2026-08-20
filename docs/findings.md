@@ -1160,3 +1160,47 @@ protected and is not.
 and the report says so in the same sentence as the number —
 `internal/torque` has carried its limits that way from the start on the grounds
 that a limit without provenance is a number someone will eventually believe.
+
+## The selector, from an official model
+
+The previous entry said the catch could not be placed by measuring and needed a
+reference build. Both halves turned out to be right, and the reference was
+findable.
+
+LDraw's Official Model Repository has 8448 Super Street Sensation, and its file
+contains one 6641 and three 6539s. Walking the model tree and composing the
+transforms puts them, in world coordinates:
+
+| | |
+| --- | --- |
+| shafts | along Z at x = 0, ±40 |
+| clutch gears | z = ±30 on each shaft |
+| driving rings | z = 0, midway between gears 60 LDU apart |
+| changeover catch | 60 LDU out from the shaft, level with the ring |
+
+Three things fall out of that.
+
+**The catch sits 60 LDU out.** My own search had stopped at 40, which is why it
+found nothing. Told where to look, the sweep confirms it: at 60 the catch
+reaches the groove and the ring turns a full revolution; at 55 it is buried and
+at 65 it has let go. So the sweep could confirm a placement it could not find —
+worth knowing about that instrument.
+
+**The engaged distance is confirmed from a second direction.** The rings sit
+exactly 30 LDU from the clutch gears either side of them, and 30 LDU is the 3.0
+half studs measured from interference windows. Two independent methods, same
+number.
+
+**The rings sit midway between two clutch gears 60 LDU apart**, which is the
+shared-ring arrangement — one ring, two gears, engaging either by sliding. That
+was implemented from the shape of the part rather than from a model, and here is
+a set built the same way.
+
+Only the first system is settled. 6641 reads as clear of an 18947 at 60, so it
+would sit there holding nothing, and closer it is buried; the parts that move
+the newer rings are in the library but no model here has one beside a ring.
+`clutch.System.Catch` is empty for that generation and the report names the
+hardware instead of placing it.
+
+The model was read, not redistributed: what is kept is a measurement, and 8448's
+LDraw file is by its OMR authors under CCAL 2.0.

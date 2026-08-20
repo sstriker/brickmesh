@@ -244,7 +244,13 @@ func writeHeld(b *strings.Builder, ani Animation, i int, turns float64) {
 		if sl.At > 0.5 {
 			where = "clear of its gear"
 		}
-		fmt.Fprintf(b, "\n  --%s turns with its shaft and sits %s\n", sl.Group, where)
+		turns := "turns with its shaft and"
+		if sl.Speed == 0 {
+			// A catch does not turn: it sits still in the frame and pushes the
+			// ring along, which spins inside its fork.
+			turns = "does not turn, and"
+		}
+		fmt.Fprintf(b, "\n  --%s %s sits %s\n", sl.Group, turns, where)
 		fmt.Fprintf(b, "  local a=input*%.6f\n", sl.Speed)
 		fmt.Fprintf(b, "  local rm%d=rori%d_%d:clone()\n", k, i, k)
 		fmt.Fprintf(b, "  rm%d:mulRotateAB(a, %g, %g, %g)\n",

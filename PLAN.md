@@ -258,20 +258,29 @@ therefore means the box is buildable and the shift mechanism is not.
       between them now, through clutch.ForBoth.
 
       The two-speed goes from 17 parts to 14 and the three-speed from 31 to 25.
-- [ ] a selector element, so the shift itself is part of the mechanism rather
+- [x] a selector element, so the shift itself is part of the mechanism rather
       than an instruction to the builder.
 
-      Measured rather than assumed now, and the answer is that it cannot be
-      found by measuring: 6641 swept against 6539 through all 24 lattice
-      orientations, four directions, eight distances and three positions along
-      the shaft gives no placement that is both clear of the turning ring and
-      reaching its groove. LDraw models nominal surfaces, so a fork that
-      straddles a groove intersects it.
+      It could not be found by measuring, and that part of the earlier note
+      stands: 6641 swept against 6539 through all 24 lattice orientations, four
+      directions and every distance up to 40 gives nothing both clear and
+      holding, because LDraw models nominal surfaces and a fork that straddles a
+      groove touches it.
 
-      The ring's own engaged distance was findable because a clutch gear has
-      angular windows a plain gear does not; a catch on a ring has no such
-      signature, and there is no assembled shortcut for the pair the way there
-      is for the differential. It needs a reference build. See docs/findings.md.
+      It came from LDraw's official 8448, which has a 6641 and three 6539s in
+      it. The catch sits 60 LDU out from the shaft on a perpendicular, level
+      with the ring — further than the search had gone. Once told where to look
+      the sweep confirms it: at 60 the catch reaches the groove and the ring
+      still turns, at 55 it is buried, at 65 it has let go.
+
+      Only the first system. 6641 reads as clear of an 18947 at 60, so it would
+      sit there holding nothing; the parts that move those rings are in the
+      library but nothing here has a model with one beside a ring. Named in the
+      report rather than guessed at.
+
+      The same model confirms the engaged distance from a second direction: its
+      rings sit exactly 30 LDU from the clutch gears either side of them, which
+      is the 3.0 half studs the interference sweep had measured.
 - [x] a slip element for the other kind of clutch — the 24t whose centre gives
       way above a force. `"slip_clutches": [{"shaft": "output"}]` fits one; the
       24-tooth station on that shaft becomes 76019 rather than the plain gear,
