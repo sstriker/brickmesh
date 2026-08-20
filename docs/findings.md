@@ -1413,3 +1413,76 @@ undirected and the flood starts from the input set. The one link that is not
 simply "one known shaft determines the other" is the differential, which needs
 two of its three before the third follows — an arity rule, not a direction, and
 already what `need = 2` says.
+
+## An exact fit is not a collision, and it was being worked around three times
+
+The rotary catch was landing in the driving ring during the animation. Chasing
+that turned out to expose a wrong constant, an unmeasured cam law, and a fault
+in the instrument underneath both.
+
+### The cam law is in the part
+
+35188's outermost radius, 27.60, comes round four times, and the rim sits at a
+different height along its axle at each:
+
+| azimuth | rim | centre along the axle |
+| --- | --- | --- |
+| 0° | a 3.0 LDU tine | z = 0.00 |
+| 90° | a broad lobe | z = +9.26 |
+| 180° | the same tine | z = 0.00 |
+| 270° | the mirror lobe | z = −9.26 |
+
+So a quarter turn moves the ring 10 LDU, and there are three seats: −90°, 0°
+and +90° for −10, 0 and +10. A three-position shifter, which is exactly what a
+ring between two clutch gears needs. Nothing about it is assumed any more, and
+the guessed quarter-turn sweep is gone.
+
+The tell that something was wrong was that the swing had been running ±45° about
+the rest position, which parks the notch between two seats at the shaft — the
+catch holding nothing, with its odd geometry facing the ring.
+
+### The engaged distance was half a stud out
+
+The seats are 10 LDU apart and gears sit on a 20 LDU lattice, so the two engaged
+positions of a shared ring must be 10 or 20 apart. With `Engaged` at 3.25 half
+studs the travel came out 15, which no seat matches — nothing could line up.
+
+The official models settle it. Across 42110, 42083 and 42056, a shared 18947
+sits **40 LDU from each of two clutch gears 80 apart**, with two more caught
+mid-shift at 30 and 50. So the engaged distance is 30 LDU — `Engaged` 3.0, the
+same as the first system — and the two engaged positions are ±10 about the
+midpoint, on the outer seats, with neutral on the middle one.
+
+The sweep disagrees, and this is the third time it has disagreed the same way:
+
+```
+  29.5  TOO DEEP       0 free window(s)
+  30.0  TOO DEEP       0 free window(s)      <- where the models put it
+  30.5  DOUBTFUL       4 free window(s)
+```
+
+Half an LDU. At full engagement the dogs *rest in* the recesses — faces in
+contact — and 3.25 had been taken from the middle of the band the instrument
+called safe.
+
+### The common cause
+
+Every real fit in LEGO is an exact one, because LDraw models nominal sizes. A
+half-width liftarm fills a 10 LDU groove to the LDU. A fork's tine sits in a
+channel cut to take it. A ring's dogs meet a clutch gear's face. All three read
+as collisions, and all three had been worked around separately — a tolerance in
+the clearance check, a list of permitted nestings, and an engaged distance
+nudged off the truth — before the common cause was named.
+
+`TrianglesOverlap` now says that **faces sharing a plane are in contact, not
+overlapping**. For solids that is simply correct: two bodies that genuinely
+interpenetrate always have some pair of faces crossing at an angle, and those
+are what the 3D case finds. The 2D routine is kept and still tested, behind
+`coplanarIsContact`, so the difference can be measured rather than assumed.
+
+**Not finished.** Coplanar contact is the clean case; contact that is a fraction
+of an LDU off a shared plane still reads as interpenetration, which is why the
+engagement tests ask their question half an LDU out from the contact plane and
+say so. The real answer is a fit tolerance in the sweep — test the parts a hair
+under nominal, the way clearance already allows an overlap under one LDU. That
+is the outstanding piece.

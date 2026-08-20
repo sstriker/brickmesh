@@ -156,8 +156,16 @@ func TestEachRingEngagesOnlyItsOwnGears(t *testing.T) {
 		{First, 16, First.Engaged * halfStud, 16},
 		// The second against its own 16t and 20t: four windows, and over a band
 		// rather than at a single distance, because its dogs have depth.
-		{Second, 16, Second.Engaged * halfStud, 4},
-		{Second, 20, Second.Engaged * halfStud, 4},
+		//
+		// Half an LDU out from the engaged distance, not at it. At exactly 30
+		// the dog faces and the recess faces are in contact, and contact is
+		// what this instrument cannot tell from collision: it reads 0 windows
+		// at 30.0 and 4 at 30.5. The engaged distance itself comes from three
+		// official models, which put a shared ring 40 LDU from each of two
+		// clutch gears 80 apart and 30 from the one it is engaged with. See the
+		// note on clutch.Second.
+		{Second, 16, Second.Engaged*halfStud + 0.5, 4},
+		{Second, 20, Second.Engaged*halfStud + 0.5, 4},
 	} {
 		gear := c.system.Gears[c.teeth]
 		got := sweepRing(t, lib, c.system.Ring, gear, c.at)

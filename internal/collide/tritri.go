@@ -135,7 +135,35 @@ func loneVertex(d [3]float64) (i, j, k int, ok bool) {
 
 // coplanarOverlap is the 2D case: project both triangles onto the plane they
 // share and test edges against edges, then containment either way.
+//
+// Whether this should count as an overlap at all is the question, and the
+// answer for solids is no: two faces sharing a plane are two surfaces in
+// contact, which is what a LEGO part does to the part beside it. Parts that
+// genuinely interpenetrate always have some pair of faces crossing at an angle,
+// and those are found by the 3D case above.
+//
+// It matters because in LDraw everything is nominal, so every real fit is an
+// exact one: a driving ring's dogs meet a clutch gear's face, a half-width
+// liftarm fills a 10 LDU groove to the LDU, a fork's tine sits in a channel cut
+// to take it. Counting contact as collision made all three unbuildable, and
+// each was worked around separately — a tolerance in the clearance check, a
+// list of permitted nestings, an engaged distance nudged half a stud off the
+// truth — before the common cause was named.
+//
+// See coplanarIsContact.
 func coplanarOverlap(n geom.Vec3, t1, t2 Triangle) bool {
+	if coplanarIsContact {
+		return false
+	}
+	return coplanarOverlapIn2D(n, t1, t2)
+}
+
+// coplanarIsContact is whether faces sharing a plane are touching rather than
+// overlapping. Kept as a name rather than a deletion so the old behaviour can
+// be put back for one test and the difference measured.
+const coplanarIsContact = true
+
+func coplanarOverlapIn2D(n geom.Vec3, t1, t2 Triangle) bool {
 	// Drop the axis the normal points most strongly along; the other two carry
 	// the shape without distortion.
 	drop := dominantAxis(n)

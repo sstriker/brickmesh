@@ -255,9 +255,12 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 					sin = 1 // a travel longer than the arm can reach; say so by maxing out
 				}
 				swingHalf = math.Asin(sin) * 180 / math.Pi
-			default:
-				swingHalf = sys.CatchSweep / 2
-				swingAssumed = true
+			case sys.CatchPerLDU > 0:
+				// A cam, whose rim carries the ring a fixed distance per degree.
+				// Half either side of the seat in the middle, which is the
+				// neutral one: a ring between two gears is engaged at one seat,
+				// neutral at the next and engaged again at the third.
+				swingHalf = travel / 2 * sys.CatchPerLDU
 			}
 		}
 		out = append(out, ringGroup{

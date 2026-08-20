@@ -58,10 +58,14 @@ func TestTouchingAtAVertexCounts(t *testing.T) {
 	}
 }
 
-func TestCoplanarOverlappingTrianglesOverlap(t *testing.T) {
+func TestCoplanarOverlappingTrianglesAreContact(t *testing.T) {
 	shifted := tri(v(1, 1, 0), v(5, 1, 0), v(1, 5, 0))
-	if !TrianglesOverlap(flat, shifted) {
-		t.Error("coplanar triangles that share area should overlap")
+	n := geom.Vec3{Z: 1}
+	if !coplanarOverlapIn2D(n, flat, shifted) {
+		t.Error("the 2D test should see coplanar triangles that share area")
+	}
+	if TrianglesOverlap(flat, shifted) {
+		t.Error("but sharing a plane is contact, not interpenetration")
 	}
 }
 
@@ -72,27 +76,54 @@ func TestCoplanarDisjointTrianglesDoNot(t *testing.T) {
 	}
 }
 
-func TestCoplanarContainmentOverlaps(t *testing.T) {
+// Containment in the shared plane is contact too, and the 2D routine still
+// says so — which is the part that has to keep working, since it is what would
+// decide if coplanarIsContact were ever turned off.
+func TestCoplanarContainmentIsSeenBy2DAndTreatedAsContact(t *testing.T) {
 	// Entirely inside, so no edge crosses any edge.
 	inner := tri(v(0.5, 0.5, 0), v(1, 0.5, 0), v(0.5, 1, 0))
-	if !TrianglesOverlap(flat, inner) {
-		t.Error("a triangle inside another should overlap")
+	n := geom.Vec3{Z: 1}
+	if !coplanarOverlapIn2D(n, flat, inner) {
+		t.Error("a triangle inside another should be seen in 2D")
 	}
-	if !TrianglesOverlap(inner, flat) {
+	if !coplanarOverlapIn2D(n, inner, flat) {
 		t.Error("containment should be symmetric")
 	}
-}
-
-func TestCoplanarSharedEdgeOverlaps(t *testing.T) {
-	mirrored := tri(v(0, 0, 0), v(4, 0, 0), v(0, -4, 0))
-	if !TrianglesOverlap(flat, mirrored) {
-		t.Error("a shared edge is contact")
+	if TrianglesOverlap(flat, inner) {
+		t.Error("but coplanar is contact, so it is not an overlap")
 	}
 }
 
-func TestATriangleIsItsOwnOverlap(t *testing.T) {
-	if !TrianglesOverlap(flat, flat) {
-		t.Error("a triangle overlaps itself")
+// Faces sharing a plane are in contact, not overlapping.
+//
+// The predicate is about solids, and two solids that genuinely interpenetrate
+// always have some pair of faces crossing at an angle. Coplanar faces are two
+// surfaces resting against each other, which in LDraw is what every real fit
+// looks like: nominal sizes mean a part that fits its slot fills it exactly.
+//
+// Test both ways round against the 2D routine, so what changed is stated rather
+// than merely absent.
+func TestCoplanarFacesAreContactRatherThanOverlap(t *testing.T) {
+	mirrored := tri(v(0, 0, 0), v(4, 0, 0), v(0, -4, 0))
+	if TrianglesOverlap(flat, mirrored) {
+		t.Error("a shared edge is contact, not an overlap")
+	}
+	if TrianglesOverlap(flat, flat) {
+		t.Error("a face against an identical face is contact, not an overlap")
+	}
+	// The 2D routine still knows the difference; it is simply not what decides.
+	n := geom.Vec3{Z: 1}
+	if !coplanarOverlapIn2D(n, flat, flat) {
+		t.Error("the 2D test should still see a triangle covering itself")
+	}
+}
+
+// What must still be caught: faces that cross at an angle. That is what
+// interpenetration looks like, and no amount of contact tolerance may hide it.
+func TestFacesCrossingAtAnAngleStillOverlap(t *testing.T) {
+	upright := tri(v(1, 1, -4), v(1, 1, 4), v(3, 1, 0))
+	if !TrianglesOverlap(flat, upright) {
+		t.Error("a face passing through another is an overlap")
 	}
 }
 

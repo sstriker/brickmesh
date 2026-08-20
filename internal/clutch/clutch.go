@@ -67,10 +67,10 @@ type System struct {
 	// Zero for a cam, where the turn is about an axle parallel to the shaft and
 	// no arm length relates the two.
 	CatchArm float64
-	// CatchSweep is how far a cam turns across the ring's full travel, in
-	// degrees. ASSUMED, not measured — one placement per model fixes where a
-	// catch sits and not how far it goes. See docs/shifting.md.
-	CatchSweep float64
+	// CatchPerLDU is how far a cam turns to move its ring one LDU, in degrees,
+	// and CatchSeat how far apart its seats are, in LDU. Both measured off the
+	// part: see the note on Second.
+	CatchPerLDU, CatchSeat float64
 }
 
 // Travel is how far the ring slides between engaged and disengaged.
@@ -129,14 +129,25 @@ var Second = System{
 	Joiner: "18948.dat",
 	Gears:  map[int]string{16: "18946.dat", 20: "81346.dat"},
 
-	Engaged: 3.25, Clear: 4.0,
+	// Three LDraw sets put a shared ring exactly 40 LDU from each of two clutch
+	// gears 80 apart, and two more catch one mid-shift at 30 and 50. So the
+	// engaged distance is 30 LDU, and the two engaged positions are 10 either
+	// side of the midpoint.
+	//
+	// The sweep disagrees, and is wrong in the way it is always wrong here: at
+	// 30.0 it reads TOO DEEP and only clears at 30.5. Dogs at full engagement
+	// touch — that is what engagement is — and LDraw models nominal surfaces,
+	// so the instrument reports the fit as a collision. An earlier reading took
+	// 3.25 from the middle of the "safe" band and put every ring half a stud
+	// out, which is why nothing lined up with the catch's seats.
+	Engaged: 3.0, Clear: 4.0,
 	RingHalf: 2.8, JoinerHalf: 3.0, JoinerReach: 2.0,
 
 	// From LDraw's official 42110 and 42083, which have 35188s beside 18947s:
 	// the catch sits 40 LDU out from the shaft on a perpendicular, level with
 	// the ring, its own z along the shaft. Confirmed by sweeping — at 40 it
-	// reaches the groove and the ring still turns, at 38 it is buried and by 50
-	// it no longer reaches.
+	// reaches into the groove and the ring still turns, at 35 it is buried and
+	// by 55 it no longer reaches.
 	//
 	// Not the only catch that fits: 42110, 42083 and 42056 all put a 6641
 	// against an 18947, at the same 60 LDU and in the same frame it uses on a
@@ -147,21 +158,32 @@ var Second = System{
 	// floor. 35188 is preferred because 40 LDU of room is easier to find than
 	// 60, not because it is the only one.
 	//
-	// 42083 has two catches whose nearest ring is ambiguous, and it does not
+	// 42083 has two catches whose nearest ring is ambiguous and it does not
 	// matter: 35188 measures ±27.60 in both x and y, so it is symmetric across
-	// the axis the ambiguity is about, and both readings are the same placement.
+	// the axis the ambiguity is about and both readings are the same placement.
 	Catch: "35188.dat", CatchReach: 40,
 	CatchAlong: 'z', CatchOut: 'x',
+
 	// A cam, and the part's name says so: "Changeover Rotary Catch". Its axle
 	// hole runs along its own z, 10 LDU in — which this placement puts parallel
 	// to the shaft, so turning it cannot swing anything along the shaft the way
-	// a lever does. It has to be a face cam, and that is what the official
-	// models show: the same catch appears with its ring 10 LDU either side of
-	// centre as well as level with it.
+	// a lever does. It is a face cam, and the rim says exactly how it works.
 	//
-	// How far it turns to do that is not measured. A quarter is a guess that
-	// looks right and is labelled as one wherever it is reported.
-	CatchTurnAxis: 'z', CatchPivot: -10, CatchSweep: 90,
+	// Its outermost radius, 27.60, comes round four times, and the rim sits at
+	// a different height along the axle at each:
+	//
+	//	  0 deg   a 3.0 LDU tine centred at z = 0.00
+	//	 90 deg   a broad lobe centred at z = +9.26
+	//	180 deg   the same tine, z = 0.00
+	//	270 deg   the mirror lobe, z = -9.26
+	//
+	// So a quarter turn moves the ring 10 LDU and there are three seats:
+	// -90, 0 and +90 degrees for -10, 0 and +10. That is a three-position
+	// shifter, which is exactly what a ring between two clutch gears needs,
+	// and it matches the -10/0/+10 offsets the official models were caught at.
+	// Nothing here is assumed any more.
+	CatchTurnAxis: 'z', CatchPivot: -10,
+	CatchPerLDU: 9, CatchSeat: 10,
 }
 
 // Systems in the order they are preferred. The first generation is smaller —
