@@ -1042,3 +1042,26 @@ Separately from the cost there is a bound. `--max-x/-y/-z` cap the envelope in
 studs, and a bound is not a preference: a frame outside it is not a candidate at
 all. Asking for a two-speed gearbox inside two studs of depth reports that none
 was found and names the cap, rather than quietly returning the best violation.
+
+## Where the force between two gears goes
+
+Meshing gears push their shafts apart, along the line of centres, in proportion
+to the torque. It is the load that decides whether a gearbox holds its mesh or
+spreads and skips, and nothing here had ever asked about it. A frame can hold
+together and refuse to fold while still letting two shafts drift apart — both of
+the structural checks pass on brackets that do exactly that.
+
+What is checked is the path, not the magnitude. Whether a frame survives a given
+torque needs numbers this engine does not have; `internal/torque` carries
+failure limits and says outright that they are unverified estimates. Whether the
+force has somewhere to go is geometry.
+
+The measure is how many joints it crosses. Both shafts of a pair borne by one
+part is the whole point of a wall: the load is taken inside the beam, between
+two holes, and no pin sees it. Every joint after that is a pin in shear and a
+little more give. A pair whose shafts share no frame at all is a failure, not a
+degree — the force has nowhere to go and the gears will skip.
+
+Every pair in every example is borne by one part, which is the wall change made
+concrete rather than asserted. It is also the regression guard on it: go back to
+a bearing per shaft end and the pairs stop sharing a part, and this says so.

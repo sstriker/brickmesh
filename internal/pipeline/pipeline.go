@@ -272,6 +272,11 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	if err := applyPhase(ctx, m, res, deps); err != nil {
 		return res, err
 	}
+	// Where the force between meshed teeth goes, now that there is a frame to
+	// ask about. Before the clearance sweep, since it is cheap and a frame that
+	// cannot take the load is worth knowing about either way.
+	checkLoadPaths(res, deps, m)
+
 	opts.Progress.Report(progress.Report{Stage: progress.StageClearance})
 	if err := checkClearance(ctx, res, deps); err != nil {
 		return res, err
