@@ -7,11 +7,16 @@
 
 "use strict";
 
+// Every one of these has to exist in the repository's examples directory.
+// TestThePageOnlyOffersExamplesThatExist checks it, because two of them did not
+// and the buttons simply 404'd — the sort of thing that is invisible until
+// somebody clicks, and was invisible until a browser did.
 const EXAMPLES = [
   ["reduction", "examples/reduction.json"],
   ["subtractor", "examples/subtractor.json"],
-  ["3-speed gearbox", "examples/gearbox-3-speed.json"],
-  ["auto-shifting", "examples/gearbox-3-speed-auto.json"],
+  ["2-speed gearbox", "examples/gearbox-2-speed.json"],
+  ["3-speed compound", "examples/gearbox-3-speed-compound.json"],
+  ["auto-shifting", "examples/gearbox-2-speed-auto.json"],
 ];
 
 const specEl = document.getElementById("spec");

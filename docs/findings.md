@@ -1065,3 +1065,34 @@ degree — the force has nowhere to go and the gears will skip.
 Every pair in every example is borne by one part, which is the wall change made
 concrete rather than asserted. It is also the regression guard on it: go back to
 a bearing per shaft end and the pairs stop sharing a part, and this says so.
+
+## The page, in a browser
+
+Everything about the page was checked without one: the module's answers against
+the engine's, the worker's messages, the camera's arithmetic, the triangle
+buffer's shape. None of that can link a shader. A vertex attribute that does not
+exist, a varying spelled two ways, a stride off by one — all of them compile in
+Go, pass every buffer check, and hand a person a blank canvas.
+
+So a real headless browser serves the page over http, builds a model, reads the
+pixels back and clicks a finding to watch them change.
+
+It found two things on its first run, and only one of them was mine to expect.
+
+**The shaders do link**, which was the open question — `vFlagged` is fine.
+
+**Two of the four example buttons pointed at files that do not exist.** The page
+offered "3-speed gearbox" and "auto-shifting" as `gearbox-3-speed.json` and
+`gearbox-3-speed-auto.json`; the repository has `gearbox-3-speed-compound.json`
+and `gearbox-2-speed-auto.json`. Clicking either fetched a 404 and put the
+message in the status line. Nothing here had ever clicked one. That is now two
+tests: the browser catches it, and a cheap one greps the page for the paths it
+offers and checks each exists, so it fails in a second rather than in a minute.
+
+A note on the harness, since it made the same class of mistake it exists to
+catch. The first version read the canvas back after the frame had been
+composited, without `preserveDrawingBuffer`, and got a blank image — reporting
+that the page drew nothing when the page was fine. Pixels have to be read in the
+same task that draws them. Its first version also built a second WebGL context
+on the page's own canvas to test the shaders, which would have answered a
+question about the harness rather than about the page.

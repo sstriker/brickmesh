@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -204,4 +205,83 @@ func TestTheViewerPutsTheModelInFrontOfTheCamera(t *testing.T) {
 		t.Fatalf("the camera maths: %v\n%s", err, out)
 	}
 	t.Logf("%s", out)
+}
+
+// The page's example buttons have to point at examples that exist.
+//
+// Two of the four did not. They fetched, got a 404, and put the message in the
+// status line — which nothing here could see, because nothing here had ever
+// clicked one. It took a browser to find, and this is the cheap version of that
+// browser so it cannot come back.
+func TestThePageOnlyOffersExamplesThatExist(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "..", "web", "app.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := regexp.MustCompile(`"(examples/[^"]+\.json)"`).FindAllStringSubmatch(string(src), -1)
+	if len(paths) == 0 {
+		t.Fatal("the page offers no examples at all, or they are written another way now")
+	}
+	for _, m := range paths {
+		at := filepath.Join("..", "..", m[1])
+		if _, err := os.Stat(at); err != nil {
+			t.Errorf("the page offers %q and there is no such file: clicking "+
+				"that button fetches a 404", m[1])
+		}
+	}
+	t.Logf("%d example(s) offered, all present", len(paths))
+}
+
+// The page, in a browser.
+//
+// Everything else about it is checked without one: the module's answers against
+// the engine's, the worker's messages, the camera's arithmetic. None of that
+// can link a shader. A vertex attribute that does not exist, a varying spelled
+// two ways, a stride off by one — all compile in Go, pass every buffer check,
+// and give a person a blank canvas.
+//
+// So this serves the page over http, builds a model, reads the pixels back, and
+// clicks a finding to see them change. It needs playwright and a chromium, and
+// skips without them; CI has both.
+func TestThePageWorksInABrowser(t *testing.T) {
+	node := findNode(t)
+	if os.Getenv("BRICKMESH_LIBRARIES") != "1" {
+		t.Skip("set BRICKMESH_LIBRARIES=1: the page needs real parts to build one")
+	}
+	if os.Getenv("BRICKMESH_PLAYWRIGHT") == "" {
+		t.Skip("set BRICKMESH_PLAYWRIGHT to a playwright-core install to run the browser")
+	}
+
+	site := t.TempDir()
+	buildWASM(t, site)
+	for _, name := range []string{"index.html", "app.js", "view.js", "style.css", "worker.js"} {
+		src, err := os.ReadFile(filepath.Join("..", "..", "web", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(site, name), src, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(site, "examples"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, spec := range examples(t) {
+		src, err := os.ReadFile(spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(site, "examples", filepath.Base(spec)), src, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	publishInto(t, filepath.Join(site, "data"))
+
+	out, err := exec.Command(node,
+		filepath.Join("testdata", "browser_harness.mjs"), site).CombinedOutput()
+	t.Logf("%s", out)
+	if err != nil {
+		t.Fatalf("the page does not work in a browser: %v", err)
+	}
 }

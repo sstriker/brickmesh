@@ -140,11 +140,21 @@ jobs:
               'internal/shadow/shadow.go') }}
           restore-keys: libraries-v2-
 
+      # A browser, for the one thing nothing else can check: that the page's
+      # shaders link and that the pixels change when a finding is clicked. Two
+      # of the page's example buttons pointed at files that did not exist and
+      # nothing noticed until a browser clicked one.
+      - name: Install a browser
+        run: |
+          npm i --no-save playwright-core
+          npx playwright-core install --with-deps chromium
+
       # Everything that needs real gear teeth: the meshing sweep, the tooth
       # phase, the clutch measurements, the clearance checks over whole models.
       - name: Test against the real libraries
         env:
           BRICKMESH_LIBRARIES: '1'
+          BRICKMESH_PLAYWRIGHT: ${{ github.workspace }}/node_modules/playwright-core
         run: go test ./...
 
       - name: Report cache footprint
