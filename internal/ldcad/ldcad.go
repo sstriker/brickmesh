@@ -271,17 +271,10 @@ func slidingOf(ani Animation) []Sliding {
 // angleHelpers is the arithmetic every walked group uses.
 const angleHelpers = `
   --Degrees a group has turned by now: every finished segment in full, plus
-  --this segment's share.
-  local function angle(sp)
-    local a=0
-    for k=1,seg do a=a+sp[k]*frac[k]*turns*360 end
-    return a+sp[seg+1]*u*frac[seg+1]*turns*360
-  end
-
-  --And the same for a group whose drive some of the shifts cut. hold[k]=1 says
-  --the shift at the end of segment k leaves nothing reaching this group, so it
-  --stands still for that part of it. A shift that moves some other ring is not
-  --this group's business and it turns straight through.
+  --this segment's share -- less any shift that leaves nothing reaching it.
+  --hold[k]=1 says the shift at the end of segment k cuts this group's drive,
+  --so it stands still for that part of it. A shift that moves some other ring
+  --is not this group's business and it turns straight through.
   local function angleHolding(sp, hold)
     local a=0
     for k=1,seg do
