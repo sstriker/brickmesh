@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"brickmesh/internal/clutch"
 	"brickmesh/internal/geom"
@@ -78,12 +79,13 @@ func isJoiner(name string) bool {
 	return false
 }
 
-// SelectorParts are what moves a driving ring. Their position follows from the
-// shift linkage, which the engine does not model, so they are named rather than
-// placed.
+// SelectorParts are the shift linkage: what a builder puts between the catches
+// and their hand. The catches themselves are placed — see clutch.System.Catch —
+// but where the linkage runs follows from the housing rather than from the
+// gears, so these are named rather than placed.
 var SelectorParts = []string{
-	"6641 Technic Transmission Changeover Catch",
 	"6631 Technic Plate 2 x 6 with 2 Position Gear Shift",
+	"32068 Technic Plate 3 x 5 with Hole",
 }
 
 // isSelector reports whether a part is a catch that moves a driving ring.
@@ -826,6 +828,7 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 		}
 	}
 	var nominal []string
+	catches := 0
 	for i, site := range sites {
 		place, ok := res.Layout.Place[site.station.Shaft]
 		if !ok {
@@ -844,6 +847,7 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 		model.Add(site.system.Ring, ldr.ColorRed, rot, pos, label)
 		if at, ok := placeSelector(res, model, site, place, pos, label); ok {
 			back(i, at)
+			catches++
 		}
 
 		if _, ok := site.system.Gears[site.station.Teeth]; !ok {
@@ -863,19 +867,25 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 	}
 	sharing := ""
 	if shared > 0 {
-		sharing = fmt.Sprintf(" %d of them sits between two clutch gears and "+
-			"engages either by sliding, which is one part where a ring per shift "+
-			"would have used two.", shared)
+		sits, engages := "sits", "engages"
+		if shared > 1 {
+			sits, engages = "sit", "engage"
+		}
+		sharing = fmt.Sprintf(" %d of them %s between two clutch gears and "+
+			"%s either by sliding, which is one part where a ring per shift "+
+			"would have used two.", shared, sits, engages)
 	}
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
 			"%d driving ring(s) placed, each at its system's engaged distance "+
-				"from the gear's center so its dogs sit in the recesses.%s What "+
-				"moves them is not placed: %v. The catch's hold on a ring is a fit, "+
-				"and the sweep that settles whether gears mesh cannot settle a fit: "+
-				"in LDraw a spline that grips reads as a spline that collides. See "+
-				"docs/shifting.md.",
-			len(sites), sharing, SelectorParts)})
+				"from the gear's center so its dogs sit in the recesses, and %d "+
+				"catch(es) with them.%s What is still not placed is the linkage "+
+				"back from the catches to a lever (%s): where that runs follows "+
+				"from the housing, not from the gears. The catch's own hold on a "+
+				"ring could not be searched for either — in LDraw a fork that "+
+				"straddles a groove reads as a fork that collides — so it is "+
+				"measured from official models. See docs/shifting.md.",
+			len(sites), catches, sharing, strings.Join(SelectorParts, ", "))})
 
 	if len(nominal) > 0 {
 		res.Findings = append(res.Findings, mech.Finding{
@@ -1660,9 +1670,11 @@ func checkSlipClutches(m *mech.Mechanism, res *Result) {
 // placeSelector puts the catch that moves a ring beside it.
 //
 // The shift stops being an instruction to the builder and becomes part of the
-// model. Where it goes is read from LDraw's official 8448 rather than searched
-// for: 60 LDU out from the shaft on a perpendicular, level with the ring along
-// the shaft, its arm reaching in to the groove.
+// model. How far out and which way round are read from official models rather
+// than searched for — 8448 for the first generation, 42110 and 42083 for the
+// second — because a sweep can confirm a catch's placement but not find one:
+// in LDraw a fork that straddles a groove touches it at some angle whatever
+// you do.
 //
 // Which perpendicular is a choice, and the only one the engine can make on its
 // own: whichever direction is clear of the other shafts. A catch pointing into
@@ -1683,17 +1695,35 @@ func placeSelector(res *Result, model *ldr.Model, site ringSite,
 					"placed for this one", site.system.Catch, site.rides)})
 		return geom.Vec3{}, false
 	}
-	// Local y along the shaft, local z outward, which is how 8448 has it.
-	x := d.Cross(out)
-	rot := geom.Mat3{
-		{x.X, d.X, out.X},
-		{x.Y, d.Y, out.Y},
-		{x.Z, d.Z, out.Z},
-	}
+	rot := catchFrame(site.system, d, out)
 	offset := out.Scale(site.system.CatchReach)
 	model.Add(site.system.Catch, ldr.ColorBlack, rot, at.Add(offset),
 		"catch for "+label)
 	return offset, true
+}
+
+// catchFrame turns the catch to face the shaft.
+//
+// Two of its axes are pinned by the system: one along the shaft, one out from
+// it. The third is whatever makes the result a rotation rather than a
+// reflection — get its sign wrong and the part goes in mirrored, which LDraw
+// will render without complaint and no builder can assemble.
+func catchFrame(s clutch.System, d, out geom.Vec3) geom.Mat3 {
+	along, away := int(s.CatchAlong-'x'), int(s.CatchOut-'x')
+	third := 3 - along - away
+	var col [3]geom.Vec3
+	col[along], col[away] = d, out
+	// col[along] x col[away] is +col[third] when (along, away, third) is an
+	// even permutation and -col[third] when it is odd.
+	col[third] = d.Cross(out)
+	if (along+1)%3 != away {
+		col[third] = col[third].Scale(-1)
+	}
+	return geom.Mat3{
+		{col[0].X, col[1].X, col[2].X},
+		{col[0].Y, col[1].Y, col[2].Y},
+		{col[0].Z, col[1].Z, col[2].Z},
+	}
 }
 
 // clearOfOtherShafts picks a way out of a shaft that no other shaft is in.

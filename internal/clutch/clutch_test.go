@@ -235,3 +235,106 @@ func sweepRing(t *testing.T, lib *ldraw.Library, ring, gear string,
 	}
 	return got
 }
+
+// The catch reach, re-derived.
+//
+// Both numbers come from official models rather than from a search, for the
+// reason in docs/shifting.md: every placement where a fork straddles a groove
+// touches it at some angle, so a sweep can confirm one and never find one.
+// What a sweep can do is confirm, and this is that confirmation — the catch
+// has to reach into the groove band and the ring has to keep turning, and both
+// have to stop being true either side of the recorded distance.
+func TestTheCatchReachesTheGrooveAndLetsTheRingTurn(t *testing.T) {
+	lib := requireLibraries(t)
+	for _, s := range Systems {
+		if s.Catch == "" {
+			t.Errorf("%s: nothing knows what moves this ring", s.Name)
+			continue
+		}
+		ring, err := interfere.MeshFor(lib, s.Ring)
+		if err != nil {
+			t.Fatalf("%s: %v", s.Ring, err)
+		}
+		catch, err := interfere.MeshFor(lib, s.Catch)
+		if err != nil {
+			t.Fatalf("%s: %v", s.Catch, err)
+		}
+		shape, err := lib.Geometry(s.Catch)
+		if err != nil {
+			t.Fatalf("%s: %v", s.Catch, err)
+		}
+
+		// The shaft along z, the catch out along y, which is the frame the
+		// pipeline builds from CatchAlong and CatchOut.
+		rot := frameFor(t, s)
+		at := func(out float64) (interfere.Result, bool) {
+			pos := geom.Vec3{Y: out}
+			got, err := interfere.MeshLock(context.Background(),
+				catch, collide.Transform{Rot: rot, Pos: pos},
+				ring, collide.Transform{Rot: collide.Identity().Rot},
+				12, interfere.Options{Steps: 36, SpinAxis: 'z'})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Does any of it get into the groove: inside the ring's flanges
+			// along the shaft, and inside its outer radius across.
+			reaches := false
+			for _, v := range shape.Verts {
+				w := rot.Apply(v).Add(pos)
+				if w.Z > -5 && w.Z < 5 && w.X*w.X+w.Y*w.Y < 19*19 {
+					reaches = true
+					break
+				}
+			}
+			return got, reaches
+		}
+
+		got, reaches := at(s.CatchReach)
+		if !reaches {
+			t.Errorf("%s: %s at %g LDU does not reach the groove at all",
+				s.Name, s.Catch, s.CatchReach)
+		}
+		// Free to turn, or grazing it — the first generation's arm reads
+		// DOUBTFUL at its measured reach, which is the nominal-surface artefact
+		// docs/shifting.md is about and the whole reason the number came from a
+		// model. What it must not be is buried.
+		if got.Verdict == interfere.TooDeep {
+			t.Errorf("%s: %s at %g LDU is buried in the ring; it has to turn "+
+				"inside the fork", s.Name, s.Catch, s.CatchReach)
+		}
+		// Closer and it is buried in the ring.
+		if in, _ := at(s.CatchReach - 5); in.Verdict != interfere.TooDeep {
+			t.Errorf("%s: %s at %g LDU reads %v; 5 LDU inside the recorded reach "+
+				"it should be buried", s.Name, s.Catch, s.CatchReach-5, in.Verdict)
+		}
+		// Far enough out and it has let go.
+		if _, out := at(s.CatchReach + 15); out {
+			t.Errorf("%s: %s still reaches the groove 15 LDU past the recorded "+
+				"reach, so the reach is not what holds it", s.Name, s.Catch)
+		}
+	}
+}
+
+// frameFor is the pipeline's catch frame for a shaft along z and a way out
+// along y, built here from the same two axes so the two cannot drift apart.
+func frameFor(t *testing.T, s System) geom.Mat3 {
+	t.Helper()
+	d, out := geom.Vec3{Z: 1}, geom.Vec3{Y: 1}
+	along, away := int(s.CatchAlong-'x'), int(s.CatchOut-'x')
+	if along < 0 || along > 2 || away < 0 || away > 2 || along == away {
+		t.Fatalf("%s: CatchAlong %q and CatchOut %q are not two different axes",
+			s.Name, s.CatchAlong, s.CatchOut)
+	}
+	third := 3 - along - away
+	var col [3]geom.Vec3
+	col[along], col[away] = d, out
+	col[third] = d.Cross(out)
+	if (along+1)%3 != away {
+		col[third] = col[third].Scale(-1)
+	}
+	return geom.Mat3{
+		{col[0].X, col[1].X, col[2].X},
+		{col[0].Y, col[1].Y, col[2].Y},
+		{col[0].Z, col[1].Z, col[2].Z},
+	}
+}

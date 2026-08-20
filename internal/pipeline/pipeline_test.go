@@ -309,24 +309,46 @@ func TestAShiftedSixteenBecomesAClutchGear(t *testing.T) {
 	}
 }
 
-func TestTheSelectorPartsAreNamedRatherThanPlaced(t *testing.T) {
+// The catch is placed; the linkage back to a lever is not.
+//
+// Both generations have a measured catch now, so a gearbox with a ring in it
+// should have a catch beside that ring whichever system it settled on. What
+// stays named is the linkage, because where it runs follows from the housing.
+func TestTheCatchIsPlacedAndTheLinkageIsNamed(t *testing.T) {
 	deps := requireLibraries(t)
 	res, err := Run(context.Background(), build(t, gearbox), deps, Options{Restarts: 2, Seed: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
+	rings, catches := 0, 0
+	for _, p := range res.Model.Parts {
+		for _, sys := range clutch.Systems {
+			if strings.HasPrefix(p.Name, strings.TrimSuffix(sys.Ring, ".dat")) {
+				rings++
+			}
+			if sys.Catch != "" && strings.HasPrefix(p.Name, strings.TrimSuffix(sys.Catch, ".dat")) {
+				catches++
+			}
+		}
+	}
+	if rings == 0 {
+		t.Fatal("no driving ring in a gearbox that shifts")
+	}
+	if catches == 0 {
+		t.Errorf("%d ring(s) placed and nothing placed to move them", rings)
+	}
 	var said bool
 	for _, f := range res.Findings {
-		if f.Check == "parts" && strings.Contains(f.Detail, "6641") {
+		if f.Check == "parts" && strings.Contains(f.Detail, "6631") {
 			said = true
 		}
 	}
 	if !said {
-		t.Error("the report should name what moves the rings, since it is not placed")
+		t.Error("the report should still name the linkage, which is not placed")
 	}
 	for _, p := range res.Model.Parts {
-		if strings.HasPrefix(p.Name, "6641") || strings.HasPrefix(p.Name, "6631") {
-			t.Errorf("%s was placed; its position is not determined by the mechanism", p.Name)
+		if strings.HasPrefix(p.Name, "6631") {
+			t.Errorf("%s was placed; where it runs is not determined by the gears", p.Name)
 		}
 	}
 }

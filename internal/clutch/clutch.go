@@ -45,6 +45,11 @@ type System struct {
 	// model that has both parts in it.
 	Catch      string
 	CatchReach float64
+	// CatchAlong and CatchOut name the catch's own axes that point along the
+	// shaft and out from it. The two generations differ: the first's catch is
+	// an arm that reaches back along its own z, the second's a collar whose
+	// face is its own z, so one frame cannot serve both.
+	CatchAlong, CatchOut byte
 }
 
 // Travel is how far the ring slides between engaged and disengaged.
@@ -79,6 +84,7 @@ var First = System{
 	// independent direction: its rings sit exactly 30 LDU from the clutch gears
 	// either side of them, which is the 3.0 half studs measured here.
 	Catch: "6641.dat", CatchReach: 60,
+	CatchAlong: 'y', CatchOut: 'z',
 }
 
 // Second is the later system, with the three-stud ring.
@@ -100,12 +106,26 @@ var Second = System{
 	Engaged: 3.25, Clear: 4.0,
 	RingHalf: 2.8, JoinerHalf: 3.0, JoinerReach: 2.0,
 
-	// No catch. 6641 does not fit this ring: at the 60 LDU that holds a 6539 it
-	// reads as clear of an 18947 altogether, so it would sit there holding
-	// nothing, and closer it is buried. The parts that do move these rings —
-	// 4159, 35188 — are in the library, but nothing here has a model with one
-	// beside a ring, and their placement cannot be found by sweeping for the
-	// reason given above. Named in the report instead of guessed at.
+	// From LDraw's official 42110 and 42083, which have 35188s beside 18947s:
+	// the catch sits 40 LDU out from the shaft on a perpendicular, level with
+	// the ring, its own z along the shaft. Confirmed by sweeping — at 40 it
+	// reaches the groove and the ring still turns, at 38 it is buried and by 50
+	// it no longer reaches.
+	//
+	// Not the only catch that fits: 42110, 42083 and 42056 all put a 6641
+	// against an 18947, at the same 60 LDU and in the same frame it uses on a
+	// 6539. An earlier note here said it did not fit, on the strength of a
+	// sweep reading "clear" at 60 — but clear is what a working fork reads as.
+	// It straddles the channel rather than bottoming in it: its tip comes to
+	// 17.2 from the axis, inside the flanges at 18 and well outside the groove
+	// floor. 35188 is preferred because 40 LDU of room is easier to find than
+	// 60, not because it is the only one.
+	//
+	// 42083 has two catches whose nearest ring is ambiguous, and it does not
+	// matter: 35188 measures ±27.60 in both x and y, so it is symmetric across
+	// the axis the ambiguity is about, and both readings are the same placement.
+	Catch: "35188.dat", CatchReach: 40,
+	CatchAlong: 'z', CatchOut: 'x',
 }
 
 // Systems in the order they are preferred. The first generation is smaller —

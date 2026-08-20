@@ -1196,11 +1196,81 @@ shared-ring arrangement — one ring, two gears, engaging either by sliding. Tha
 was implemented from the shape of the part rather than from a model, and here is
 a set built the same way.
 
-Only the first system is settled. 6641 reads as clear of an 18947 at 60, so it
-would sit there holding nothing, and closer it is buried; the parts that move
-the newer rings are in the library but no model here has one beside a ring.
-`clutch.System.Catch` is empty for that generation and the report names the
-hardware instead of placing it.
+Only the first system was settled at this point. 6641 read as clear of an 18947
+at 60, which was taken to mean it would sit there holding nothing; the parts
+that move the newer rings were in the library but no model here had one beside a
+ring. `clutch.System.Catch` was empty for that generation and the report named
+the hardware instead of placing it. The next section is how that was closed, and
+how the reading above turned out to be backwards.
 
 The model was read, not redistributed: what is kept is a measurement, and 8448's
 LDraw file is by its OMR authors under CCAL 2.0.
+
+## The second generation, and a null reading mistaken for a negative
+
+The same method, on the same repository. 42110, 42083 and 42056 all have 18947
+driving rings; 42110 and 42083 have 35188 rotary catches beside them.
+
+One wrinkle in the walk: OMR embeds some parts as renamed subfiles, so the
+catch appears as `42110 - 35188.dat` and an exact-name match misses it entirely.
+Matching on the suffix finds it.
+
+| | |
+| --- | --- |
+| ring | 18947, axis along the shaft |
+| catch | 35188, 40 LDU out on a perpendicular, level with the ring |
+| frame | the catch's own z along the shaft, its own x pointing out |
+
+Confirmed by sweeping: at 40 the catch reaches into the groove and the ring
+turns a full revolution, at 35 it is buried, and by 55 it no longer reaches.
+42083 has two catches whose nearest ring is ambiguous and it does not matter —
+35188 measures ±27.60 in both x and y, so it is symmetric across the axis the
+ambiguity is about and both readings are the same placement.
+
+The two generations need different frames. 6641 is an arm, z from −46 to +6,
+reaching back along its own z; 35188 is a collar whose face is its own z. So
+each system records which of its own axes points along the shaft and which
+points out, and the third is whatever makes the result a rotation rather than a
+reflection. Getting that sign wrong puts the part in mirrored, which LDraw
+renders without complaint and no builder can assemble.
+
+### The claim that 6641 does not fit an 18947 was wrong
+
+It fits. 42110, 42083 and 42056 all put one against an 18947, at the same 60 LDU
+and in the same frame it uses on a 6539.
+
+The error was reading the instrument backwards. The sweep said "clear" at 60,
+and clear was taken as evidence of nothing being held. But clear is exactly what
+a working fork reads as — it straddles the channel instead of bottoming in it.
+The tip comes to r 17.2, inside the flanges at r 18 and well outside the groove
+floor at r 8.7. A verdict of NO ENGAGEMENT was the right answer to "can the ring
+still turn", and it was read as an answer to "is the catch holding anything",
+which the sweep was never asked.
+
+**A null reading is not a negative result.** This is the differential lesson
+again in a different costume: there the tell was a conclusion that implied
+something absurd, here it is an instrument reporting the absence of the thing it
+was told to look for and that absence being promoted to a finding. Both times
+the measurement was correct and the question behind it was not.
+
+35188 is still what gets placed for the second system, because 40 LDU of room is
+easier to find beside a shaft than 60 — not because it is the only thing that
+fits.
+
+### A thin liftarm is an exact fit, which is why it cannot be placed
+
+The groove measures 10 LDU wide on both rings, floor at r 9.8 on a 6539 and r
+8.7 on an 18947. Ten LDU is exactly the thickness of a thin Technic liftarm, and
+that is not a coincidence: LEGO's own newer shift forks are built to that
+thickness so their tines slot into the groove.
+
+Which makes a thin liftarm a dimensionally perfect fork and an unplaceable one.
+Ten into ten is zero clearance, so the sweep reads TOO DEEP at every distance
+where it reaches — the nominal-surface problem at its purest. None of the four
+official models here uses one as a catch either; they use 6641 and 35188. So it
+is not placed, on the same standard that got the other two placed.
+
+There is a third generation — a compact two-module ring with a fork driven by a
+shifter drum. Not anchored: the design IDs quoted for those parts in the
+literature land on unrelated elements in LDraw's own numbering, and no model
+here has them. Named rather than guessed at.
