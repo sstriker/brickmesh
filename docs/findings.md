@@ -1550,3 +1550,54 @@ axial zero was. A guarantee about the reasoning is not a fact about the artefact
 
 No example uses a bevel, a worm or a chain, so those paths are covered by tests
 built from placements directly rather than by anything that ships.
+
+## Making the frame hold the shift: it works, and it is not on
+
+The control axle is a line the frame ought to bear, and `synth.Requirement` is
+just a point, a direction and a name — so feeding it to the structural search is
+a few lines. It was tried, and the result is worth recording rather than
+repeating.
+
+**It works.** On a two-speed the frame grew from two walls in the plane of the
+shafts to six parts: the walls, a Beam 9 at y 40 running the length of the
+gearbox, and an angle connector tying it back. That bears the control axle, and
+the run said so. It is close to what a real gearbox housing looks like.
+
+**Three bugs on the way, all in the asking.**
+
+- Bearings were asked for at the axle's two *ends*, which for an axle running the
+  length of a gearbox are outside the walls. The search correctly answered that
+  no such structure exists. A control axle is held where everything else is:
+  in the walls.
+- The shaft was matched by name. A gearbox output is coupled to the gears it
+  selects, so they are one piece of axle and the bearings may be recorded under
+  any of their names — asking for the output's own produced *nothing*, and the
+  requirement went silently missing. Matched by line now, which is a lesson this
+  codebase already had written down elsewhere.
+- The span came from the shaft's whole length, giving a compound gearbox a
+  360 LDU control axle. Nothing is that long, so both were dropped without a
+  word.
+
+**Two reasons it is not switched on.**
+
+*The cost.* Where such a frame exists it is found at once — a two-speed finds
+one on the first restart, at three seeds out of three. Where it does not, every
+restart is spent proving a negative over a much larger candidate pool. On the
+compound gearbox the full allowance took **51 seconds against 0.85 without**,
+and produced a frame in two pieces at the end of it. Two hundred restarts did
+no better, so it is not search depth: two control axles on two lines is simply
+a harder cover. A bounded probe of two restarts brought that back to 1.3s.
+
+*The quality.* The two-speed's new frame sits at **four cross sections rather
+than two**, which `TestTheFrameIsWallsRatherThanBrackets` rejects, and rightly.
+The second wall carrying the control axle was put at a different position along
+the shafts from the walls carrying the shafts. A frame with the two at the same
+cross section exists — an L at each wall plane — and the search did not find it
+in the restarts it was given. Loosening the test to accept a sprawling frame
+would be trading the criterion for the feature.
+
+So what is kept is the placement and the answer: the axle is in the model, and
+the run says whether anything holds it. Switching the requirement on wants a
+cost function that prefers a second wall in an existing cross section, or a
+bracing step that reaches an unheld line from the frame that already exists.
+Neither is a tweak.

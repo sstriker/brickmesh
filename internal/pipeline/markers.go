@@ -31,7 +31,7 @@ const markerHalf = 5
 // readable at a glance, and because it turns with its shaft the ratio between
 // two of them can be watched rather than read off the table: one arm going
 // round twice while the other goes round once IS the ratio.
-func addMarkers(res *Result, model *ldr.Model, m *mech.Mechanism) {
+func addMarkers(res *Result, deps Deps, model *ldr.Model, m *mech.Mechanism) {
 	if res.Layout == nil {
 		return
 	}
@@ -59,19 +59,16 @@ func addMarkers(res *Result, model *ldr.Model, m *mech.Mechanism) {
 			skipped = append(skipped, shaft)
 			return
 		}
+		// Somewhere a beam already is. The frame is chosen before this and
+		// reaches wherever it has to; a flag that has to share space with it
+		// loses, and says so rather than being drawn inside it.
+		if occupied(deps, model, MarkerPart, rot(place.Direction.Unit()), end) {
+			skipped = append(skipped, shaft)
+			return
+		}
 		taken[key] = true
 		seen[shaft] = true
-		d := place.Direction.Unit()
-		// A liftarm's holes run through its thickness, so the axle goes along
-		// the part's own y and its length points away from the shaft.
-		out := anyPerpendicular(d)
-		t := d.Cross(out)
-		rot := geom.Mat3{
-			{t.X, d.X, out.X},
-			{t.Y, d.Y, out.Y},
-			{t.Z, d.Z, out.Z},
-		}
-		model.Add(MarkerPart, color, rot, end,
+		model.Add(MarkerPart, color, rot(place.Direction.Unit()), end,
 			fmt.Sprintf("%s marker on shaft '%s'", what, shaft))
 	}
 	// Sorted, because ranging a map is ranging it in a different order every
@@ -94,6 +91,45 @@ func addMarkers(res *Result, model *ldr.Model, m *mech.Mechanism) {
 				"no free shaft end to mark on %v: something else on that line "+
 					"reaches the end first, so those turn unmarked", skipped)})
 	}
+}
+
+// rot turns a marker so the axle runs through its hole and its length points
+// away from the shaft. A liftarm's holes run through its thickness, so the axle
+// goes along the part's own y.
+func rot(d geom.Vec3) geom.Mat3 {
+	out := anyPerpendicular(d)
+	t := d.Cross(out)
+	return geom.Mat3{
+		{t.X, d.X, out.X},
+		{t.Y, d.Y, out.Y},
+		{t.Z, d.Z, out.Z},
+	}
+}
+
+// occupied reports whether a part put here would share space with something
+// already in the model.
+func occupied(deps Deps, model *ldr.Model, name string, r geom.Mat3, at geom.Vec3) bool {
+	want := ldr.Part{Name: name, Rot: r, Pos: at}
+	lo, hi, err := placedBox(deps, want)
+	if err != nil {
+		return false // no geometry to judge with; the clearance check has it
+	}
+	for _, p := range model.Parts {
+		// The axle it is threaded on, which it shares space with by design —
+		// that is what putting a liftarm on an axle means. Everything else it
+		// has to keep out of.
+		if classOf(p) == classAxle {
+			continue
+		}
+		plo, phi, err := placedBox(deps, p)
+		if err != nil {
+			continue
+		}
+		if overlapOf(lo, hi, plo, phi) >= touchTolerance {
+			return true
+		}
+	}
+	return false
 }
 
 // shaftEnd is the free end of a shaft: the outer face of its outermost axle,

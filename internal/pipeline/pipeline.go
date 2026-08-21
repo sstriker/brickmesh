@@ -276,6 +276,9 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	// Worked out before the structural search, because the rigidity check needs
 	// to know the shafts are there: they are what ties the bearings together.
 	res.axles = computeAxles(m, res)
+	// And the catches, for the same reason: the axle each one turns on is a
+	// line the frame has to bear, and the search cannot be told after it runs.
+	settleCatches(res)
 
 	if !opts.SkipStructure {
 		if err := runStructure(ctx, res, deps, opts); err != nil {
@@ -561,8 +564,6 @@ func buildModel(m *mech.Mechanism, res *Result, deps Deps) (*ldr.Model, error) {
 		model.Add(a.name, ldr.ColorBlack, a.rot, a.center,
 			a.label)
 	}
-	addMarkers(res, model, m)
-
 	if res.Structure != nil {
 		for _, p := range res.Structure.Parts {
 			if err := model.AddLattice(p.Part, ldr.ColorBlack, p.Rot, p.Origin, ""); err != nil {
@@ -573,6 +574,10 @@ func buildModel(m *mech.Mechanism, res *Result, deps Deps) (*ldr.Model, error) {
 	// After the frame, because whether the frame holds them is part of the
 	// answer.
 	placeControlAxles(res, deps, model)
+	// And the markers last of all, because they are the one thing here that
+	// may be left out: a flag on a shaft end is worth having and not worth
+	// displacing a beam for, so it has to see what is already placed.
+	addMarkers(res, deps, model, m)
 	return model, nil
 }
 
@@ -1693,24 +1698,46 @@ func checkSlipClutches(m *mech.Mechanism, res *Result) {
 func placeSelector(res *Result, model *ldr.Model, site ringSite,
 	place layout.Placement, at geom.Vec3, label string) (geom.Vec3, geom.Mat3, bool) {
 
-	if site.system.Catch == "" {
-		return geom.Vec3{}, geom.Mat3{}, false // nothing knows what moves this generation
+	if site.catchRot == (geom.Mat3{}) {
+		return geom.Vec3{}, geom.Mat3{}, false // settleCatches found nowhere for it
 	}
-	d := place.Direction.Unit()
-	out, ok := clearOfOtherShafts(res, place, at, d, site.system.CatchReach)
-	if !ok {
-		res.Findings = append(res.Findings, mech.Finding{
-			Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
-				"no room beside the ring for %s on '%s': every way out of the "+
-					"shaft runs into another one. The shift is named rather than "+
-					"placed for this one", site.system.Catch, site.rides)})
-		return geom.Vec3{}, geom.Mat3{}, false
+	model.Add(site.system.Catch, ldr.ColorBlack, site.catchRot,
+		at.Add(site.catchAt), "catch for "+label)
+	return site.catchAt, site.catchRot, true
+}
+
+// settleCatches works out where every catch goes, before anything is drawn.
+//
+// Early because the structural search has to know: the axle a catch turns on is
+// a line the frame must bear, and the search runs long before the model does.
+// Nothing here depends on the structure — a catch's place follows from the ring
+// and from which way out is clear of the other shafts, both of which the layout
+// settles — so there is nothing to wait for.
+func settleCatches(res *Result) {
+	for i := range res.ringSites {
+		site := &res.ringSites[i]
+		if site.system.Catch == "" {
+			continue // nothing knows what moves this generation
+		}
+		place, ok := res.Layout.Place[site.station.Shaft]
+		if !ok {
+			continue
+		}
+		at := place.Point.Scale(synth.HalfStud).
+			Add(place.Direction.Unit().Scale(site.engaged * synth.HalfStud))
+		d := place.Direction.Unit()
+		out, ok := clearOfOtherShafts(res, place, at, d, site.system.CatchReach)
+		if !ok {
+			res.Findings = append(res.Findings, mech.Finding{
+				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+					"no room beside the ring for %s on '%s': every way out of the "+
+						"shaft runs into another one. The shift is named rather than "+
+						"placed for this one", site.system.Catch, site.rides)})
+			continue
+		}
+		site.catchRot = catchFrame(site.system, d, out)
+		site.catchAt = out.Scale(site.system.CatchReach)
 	}
-	rot := catchFrame(site.system, d, out)
-	offset := out.Scale(site.system.CatchReach)
-	model.Add(site.system.Catch, ldr.ColorBlack, rot, at.Add(offset),
-		"catch for "+label)
-	return offset, rot, true
 }
 
 // catchFrame turns the catch to face the shaft.

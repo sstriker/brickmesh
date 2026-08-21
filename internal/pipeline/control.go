@@ -8,6 +8,7 @@ import (
 	"math"
 
 	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/layout"
 	"github.com/sstriker/brickmesh/internal/ldr"
 	"github.com/sstriker/brickmesh/internal/mech"
 	"github.com/sstriker/brickmesh/internal/part"
@@ -60,11 +61,12 @@ func controlAxles(res *Result) []controlAxle {
 		c := controlAxle{ring: site.rides, at: pivot, dir: dir}
 		c.alongShaft = math.Abs(dir.Dot(place.Direction.Unit())) > 0.999
 		if c.alongShaft {
-			// A cam turns on an axle parallel to the shafts, so it runs the
-			// length of the gearbox and can be borne by the same walls.
-			if from, to, ok := spanOfLine(res, place.Point.Scale(synth.HalfStud),
-				place.Direction.Unit(), pivot); ok {
-				c.from, c.to = from, to
+			// As far as its bearings, not as far as the shaft. Taking the
+			// shaft's whole length gave the three-speed a 360 LDU axle, longer
+			// than any that exists, and both of its control axles were dropped
+			// without a word.
+			if lo, hi, ok := bearingSpan(res, c); ok {
+				c.from, c.to = lo-geom.Stud, hi+geom.Stud
 			}
 		}
 		if c.from == 0 && c.to == 0 {
@@ -78,22 +80,22 @@ func controlAxles(res *Result) []controlAxle {
 	return out
 }
 
-// spanOfLine is how far the axles on a shaft's line reach, carried across to a
-// parallel line through at.
-func spanOfLine(res *Result, origin, dir, at geom.Vec3) (float64, float64, bool) {
-	for _, a := range res.Axles {
-		if math.Abs(math.Abs(a.Dir.Unit().Dot(dir))-1) > 1e-6 {
+// bearingSpan is how far apart this control axle's bearings are, measured from
+// its pivot along its own direction.
+func bearingSpan(res *Result, c controlAxle) (float64, float64, bool) {
+	line := layout.LineOf(res.Layout, c.ring)
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, r := range synth.BearingRequirements(res.Layout, res.Stations, 2, 8) {
+		if layout.LineOf(res.Layout, r.Shaft) != line {
 			continue
 		}
-		v := a.Point.Sub(origin)
-		if v.Sub(dir.Scale(v.Dot(dir))).Len() > 1e-6 {
-			continue // a parallel line, but not this one
-		}
-		// Its ends, expressed from the pivot rather than from its own centre.
-		shift := a.Point.Sub(at).Dot(dir)
-		return a.From + shift, a.To + shift, true
+		t := r.Point.Sub(c.at).Dot(c.dir)
+		lo, hi = math.Min(lo, t), math.Max(hi, t)
 	}
-	return 0, 0, false
+	if math.IsInf(lo, 1) {
+		return 0, 0, false
+	}
+	return lo, hi, true
 }
 
 // placeControlAxles puts an axle under each catch and says whether the frame

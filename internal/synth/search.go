@@ -246,6 +246,10 @@ type Searcher struct {
 	// driving ring and the joiner under it — in half studs, keyed by shaft.
 	// Nothing may be pinned through it.
 	Taken map[string][][2]float64
+	// Extra are lines the frame must bear that are not shafts. A control axle
+	// is one: it carries no gears, so the layout does not know about it, but a
+	// shift that falls out of the model is no better than a gear that does.
+	Extra []Requirement
 	// Shafts are the axles running through the structure, which tie the
 	// bearings on one line to each other.
 	//
@@ -523,6 +527,11 @@ func (s *Searcher) Synthesize(ctx context.Context, l *layout.Layout,
 	}
 
 	reqs := BearingRequirementsWith(l, stations, 2, 8, s.Taken)
+	// Lines that are not shafts but still have to be held: the axle a gearbox's
+	// catch turns on is the first of them. Appended rather than folded into
+	// BearingRequirements, which works from the layout and knows only shafts.
+	reqs = append(reqs, s.Extra...)
+	reqs = dedupeRequirements(reqs)
 	if len(reqs) == 0 {
 		return nil, nil
 	}
