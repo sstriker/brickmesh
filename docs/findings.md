@@ -1677,6 +1677,26 @@ The three double bevels agree to a hundredth of an LDU. That is a designed
 addendum, not three shapes coinciding — and the same module is what puts two
 24-tooth spur gears 60 LDU apart, which M1 tested years of findings ago.
 
+**Then the whole library was asked, rather than nine parts.** Every file whose
+own title says "Technic Gear N Tooth": 34 are on the module and 4 are not, each
+of the four for a nameable reason — 641 is a 1970s gear at 3.29 LDU a tooth,
+69761 and 69762 are true bevels whose outermost material is the big end of a
+cone, and 32060 is a timing wheel that meshes with nothing. None of the four is
+a part this engine can place.
+
+Two things had to be got right for that to mean anything.
+
+**The tooth count comes from the part, not from a list.** An earlier draft had
+94925 down as 12 tooth; its title says 16, and at 16 it is perfectly in family.
+Typed in, it looked like a wild outlier — 6.66 LDU proud against a family that
+sits between 1.0 and 2.6.
+
+**The radius is the median over azimuth, not the maximum.** 24014 is a 12-tooth
+double bevel with an axle extension reaching to 49.5, and the maximum reads the
+extension rather than the teeth. A gear is round and the things bolted to it are
+not: every azimuth sees the same tooth radius, and only a few see an extension.
+That one correction moved it from an outlier to a confirmation.
+
 ### The placement is plane geometry
 
 Two pitch circles must touch. Crossing at the origin, A's axis along z and B's

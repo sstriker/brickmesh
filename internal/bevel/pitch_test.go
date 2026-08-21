@@ -4,53 +4,45 @@
 package bevel
 
 import (
+	"bufio"
 	"math"
 	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"testing"
 
 	"github.com/sstriker/brickmesh/internal/geom"
 	"github.com/sstriker/brickmesh/internal/ldraw"
 )
 
-// The pitch radius is teeth x 1.25 LDU, measured off the parts.
+// pitchRadius is a gear's outermost material, taken as the median over azimuth.
 //
-// It mattered because a bevel pair's placement was the last open question in
-// PLAN.md, and it rested on a rule taken from documentation: each gear sits at
-// the OTHER's pitch radius from where the axes cross. Half of that rule is the
-// module, and the module can be measured — a gear's outermost material is its
-// pitch circle plus however far the tooth tip stands proud, and that overhang
-// is small and consistent.
-func TestThePitchRadiusIsTeethTimesFiveQuarters(t *testing.T) {
-	if os.Getenv("BRICKMESH_LIBRARIES") != "1" {
-		t.Skip("set BRICKMESH_LIBRARIES=1 to run against the real libraries")
-	}
-	lib := ldraw.New("")
-	for _, c := range []struct {
-		name  string
-		teeth int
-	}{
-		{"3648b.dat", 24}, {"4019.dat", 16}, {"6542a.dat", 16},
-		{"32270.dat", 12}, {"32269.dat", 20}, {"32498.dat", 36},
-		{"18946.dat", 16}, {"81346.dat", 20}, {"3647.dat", 8},
-	} {
-		g, err := lib.Geometry(c.name)
-		if err != nil {
-			t.Fatalf("%s: %v", c.name, err)
+// The median rather than the maximum, because a gear is round and the things
+// bolted to it are not: 24014 is a 12-tooth double bevel with an axle extension
+// reaching to 49.5, and the maximum reads that instead of its teeth. Every
+// azimuth of a gear sees the same tooth radius; only a few see an extension.
+func pitchRadius(g *ldraw.Geometry) float64 {
+	const bins = 36
+	var best [bins]float64
+	for _, v := range g.Verts {
+		r := math.Hypot(v.X, v.Y)
+		a := math.Atan2(v.Y, v.X)
+		if a < 0 {
+			a += 2 * math.Pi
 		}
-		outer := 0.0
-		for _, v := range g.Verts {
-			outer = math.Max(outer, math.Hypot(v.X, v.Y))
+		i := int(a / (2 * math.Pi) * bins)
+		if i >= bins {
+			i = bins - 1
 		}
-		pitch := float64(c.teeth) * 1.25
-		proud := outer - pitch
-		// A tooth stands proud of the pitch circle by about an addendum. Wider
-		// than this and the pitch radius is not what the module says it is.
-		if proud < 0.5 || proud > 3.0 {
-			t.Errorf("%s %dt: outermost material at %.2f, which is %.2f proud of "+
-				"the %.2f the module gives. The module is what fixes where a "+
-				"bevel pair sits", c.name, c.teeth, outer, proud, pitch)
+		if r > best[i] {
+			best[i] = r
 		}
 	}
+	out := best[:]
+	sort.Float64s(out)
+	return out[bins/2]
 }
 
 // The three double bevels agree to a hundredth, which is what says the overhang
@@ -69,11 +61,7 @@ func TestTheDoubleBevelsShareOneAddendum(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
-		outer := 0.0
-		for _, v := range g.Verts {
-			outer = math.Max(outer, math.Hypot(v.X, v.Y))
-		}
-		proud = append(proud, outer-float64(c.teeth)*1.25)
+		proud = append(proud, pitchRadius(g)-float64(c.teeth)*1.25)
 	}
 	for _, p := range proud[1:] {
 		if math.Abs(p-proud[0]) > 0.02 {
@@ -107,4 +95,93 @@ func TestEachBevelSitsAtTheOthersPitchRadius(t *testing.T) {
 				c.ta, c.tb, a, b)
 		}
 	}
+}
+
+// toothRe reads the tooth count out of a part's own title.
+var toothRe = regexp.MustCompile(`^0\s+Technic Gear\s+(\d+)\s+Tooth\b`)
+
+// notOnTheModule are the parts whose title says "Technic Gear N Tooth" and
+// whose teeth are not on the 1.25 LDU module. Named rather than tolerated
+// silently, because each is a different reason.
+var notOnTheModule = map[string]string{
+	// An old tooth system: 14 teeth on a radius of 46, which is 3.29 a tooth.
+	"641.dat": "a 1970s gear, not the Technic module",
+	// True bevels, whose outermost material is the large end of a cone rather
+	// than a tooth tip on the reference plane, so this measure does not apply.
+	"69761.dat": "a true bevel; its outer radius is the big end of a cone",
+	"69762.dat": "a true bevel; its outer radius is the big end of a cone",
+	// Not a gear at all.
+	"32060.dat": "a timing wheel, which meshes with nothing",
+}
+
+// Every gear in the library, not nine of them.
+//
+// The module is what fixes where a bevel pair sits — see the tests above — so
+// it is worth knowing it holds generally rather than for a list somebody typed.
+// Typing the list was in fact the near-miss: an earlier draft had 94925 down as
+// 12 tooth when its own title says 16, and it looked like a wild outlier until
+// the title was read. The count comes from the part now.
+func TestEveryGearInTheLibraryIsOnTheModule(t *testing.T) {
+	if os.Getenv("BRICKMESH_LIBRARIES") != "1" {
+		t.Skip("set BRICKMESH_LIBRARIES=1 to run against the real libraries")
+	}
+	lib := ldraw.New("")
+	if _, err := lib.Geometry("3001.dat"); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Join(lib.Root, "parts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tested := 0
+	seenException := map[string]bool{}
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".dat" {
+			continue
+		}
+		f, err := os.Open(filepath.Join(lib.Root, "parts", e.Name()))
+		if err != nil {
+			continue
+		}
+		sc := bufio.NewScanner(f)
+		var title string
+		if sc.Scan() {
+			title = sc.Text()
+		}
+		f.Close()
+		m := toothRe.FindStringSubmatch(title)
+		if m == nil {
+			continue
+		}
+		if why, skip := notOnTheModule[e.Name()]; skip {
+			seenException[e.Name()] = true
+			_ = why
+			continue
+		}
+		teeth, _ := strconv.Atoi(m[1])
+		g, err := lib.Geometry(e.Name())
+		if err != nil || len(g.Verts) == 0 {
+			continue
+		}
+		tested++
+		proud := pitchRadius(g) - float64(teeth)*1.25
+		if proud < 0.5 || proud > 3.0 {
+			t.Errorf("%s (%s): %d teeth put its pitch circle at %.2f, and its "+
+				"outermost material is %.2f past that. Either it is not on the "+
+				"module or it belongs in notOnTheModule with a reason",
+				e.Name(), title, teeth, float64(teeth)*1.25, proud)
+		}
+	}
+	if tested < 30 {
+		t.Fatalf("only %d gear(s) found; the title match has stopped working "+
+			"and this test is checking almost nothing", tested)
+	}
+	// The exception list does not get to go stale.
+	for name := range notOnTheModule {
+		if !seenException[name] {
+			t.Errorf("%s is listed as off the module and is no longer in the "+
+				"library under that name; take it out", name)
+		}
+	}
+	t.Logf("%d gear(s) on the module, %d named exceptions", tested, len(notOnTheModule))
 }
