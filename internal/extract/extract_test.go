@@ -95,14 +95,31 @@ func TestExpandFollowsTheSnapOrientation(t *testing.T) {
 // is not established, so the snap's own position is kept and the repeats
 // dropped rather than invented. Python does the same, which is what keeps the
 // two catalogs identical.
-func TestExpandKeepsOnlyTheStatedPositionForThreeAxisGrids(t *testing.T) {
+// A three-axis grid runs along local X, then Y, then Z.
+//
+// LDCad's documentation says a grid has two axes and the library has 92 with
+// three, so the parts were asked instead — see Expand and docs/findings.md.
+// This states the layout that answer gives, since it is not something a reader
+// can check against the documentation.
+func TestAThreeAxisGridRunsXThenYThenZ(t *testing.T) {
+	// counts 1, 2, 2 and spacings 0, 80, 60, the last two centered.
 	s := shadow.Snap{Grid: "1 C 2 C 2 0 80 60", Pos: geom.Vec3{Y: 5}, Ori: identity()}
 	got := Expand(s)
-	if len(got) != 1 {
-		t.Fatalf("got %d positions, want 1", len(got))
+	if len(got) != 4 {
+		t.Fatalf("got %d positions, want 4 — one axis of 1 and two of 2", len(got))
 	}
-	if got[0] != (geom.Vec3{Y: 5}) {
-		t.Errorf("got %+v, want the snap position", got[0])
+	want := map[geom.Vec3]bool{
+		{Y: 5 - 40, Z: -30}: true, {Y: 5 - 40, Z: 30}: true,
+		{Y: 5 + 40, Z: -30}: true, {Y: 5 + 40, Z: 30}: true,
+	}
+	for _, p := range got {
+		if !want[p] {
+			t.Errorf("%+v is not one of the four the grid describes", p)
+		}
+		delete(want, p)
+	}
+	for p := range want {
+		t.Errorf("%+v was not produced", p)
 	}
 }
 

@@ -461,23 +461,36 @@ were sampled.
 Settling it needs either a criterion that suits an angled mesh, or one built
 mechanism to check an answer against.
 
-## Open question: the third grid axis
+## The third grid axis — SETTLED
 
-92 grid specs in the shadow library declare three axes rather than two. The
-count is unambiguous — each axis contributes a count, a spacing, and a leading
-C when centered, so `t` tokens of which `c` are C means `(t-c)/2` axes — but
-which local direction the third one is has not been established. For two axes
-it is local X and Z, the pair perpendicular to the cylinder; the third is
-presumably the cylinder's own axis, but presumably is not good enough to place
-a port on.
+92 grid specs in the shadow library declare three axes rather than two. LDCad's
+own documentation says that cannot happen: a grid is `Xcnt Zcnt Xstep Zstep`,
+two axes, "as all snap info is Y-axis orientated only the X and Z grid stepping
+values need to be given". The library disagrees with the documentation, so the
+question was put to the parts.
 
-72 of the 92 have a degenerate first axis (count 1, spacing 0), so the ordering
-only changes the answer for the other 20. Both extractors currently keep the
-one position the file states outright and drop the repeats, which is incomplete
-but never wrong.
+**The order is X, then Y, then Z.** The guess recorded here was that the third
+axis is the cylinder's own — the right axis, in the wrong place: Y comes second,
+not last.
 
-Settle it from the LDCad documentation, or by taking a part with such a grid and
-checking its holes against a physical one.
+Measured. A pin hole is a bore, so its wall puts mesh vertices all the way round
+a circle of the radius the snap declares, and solid material puts them nowhere.
+Scoring all six orderings by whether the positions each produces are real holes:
+
+| ordering | every position a real hole |
+| --- | --- |
+| **X Y Z** | **10** |
+| Y X Z | 1 |
+| X Z Y, Y Z X, Z X Y, Z Y X | 0 |
+
+Of the eleven female snaps — bores, which is what the measure can see — eight
+come out right under X Y Z. The male ones are pegs and the measure does not
+apply to them, so their failures are not evidence either way.
+
+`Expand` now lays three-axis grids out along X, Y and Z rather than keeping only
+the position the file states. `TestNoOtherAxisOrderingFitsThePartsBetter` runs
+the comparison against the real library on every test run, so the reading is
+rechecked rather than remembered.
 
 ## Open question that code cannot settle
 

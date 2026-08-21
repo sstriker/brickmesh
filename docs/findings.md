@@ -1601,3 +1601,48 @@ the run says whether anything holds it. Switching the requirement on wants a
 cost function that prefers a second wall in an existing cross section, or a
 bracing step that reaches an unheld line from the frame that already exists.
 Neither is a tweak.
+
+## The third grid axis is Y, and it comes second
+
+92 grids in the shadow library parse as three axes. LDCad's documentation says a
+grid has two — `Xcnt Zcnt Xstep Zstep`, "as all snap info is Y-axis orientated
+only the X and Z grid stepping values need to be given" — so the library and the
+documentation disagree, and PLAN.md had it open on the grounds that "presumably
+is not good enough to place a port on".
+
+**The parts settle it, and the answer is X, then Y, then Z.** The guess in
+PLAN.md was that the third axis is the cylinder's own, and therefore last. Right
+axis, wrong place.
+
+The instrument: a pin hole is a bore, so its wall puts mesh vertices all the way
+round a circle of the radius the snap declares. Solid material puts none there.
+Score every ordering of the local axes by whether the positions it produces are
+real holes, and:
+
+| ordering | every position a real hole |
+| --- | --- |
+| **X Y Z** | **10** |
+| Y X Z | 1 |
+| the other four | 0 |
+
+### Two wrong turns worth keeping
+
+**Counting vertices at the right radius was not specific enough.** A beam's own
+rounded outside puts plenty of them there, and one part scored *higher* at
+positions deliberately moved off its holes than at the holes themselves. What
+distinguishes a bore is that the vertices go all the way round, so the measure
+became azimuthal coverage in twelfths — a real hole reads 12, a place there is
+none reads 8 or less.
+
+**Then it reported that no ordering works at all.** Six orderings, five snaps,
+zero fits. That is a null reading, and this project has learned what those are
+worth: the radius was being taken from the widest section a snap declares, which
+for `R 8 2  R 6 16  R 8 2` is the two-unit chamfer rather than the sixteen-unit
+bore. Every part built that way scored zero at every position including the ones
+the file states outright. Taking the radius of the *longest* section instead
+turned "nothing works" into 10 against 0.
+
+Two null readings in one afternoon, both from an instrument aimed slightly off
+the thing it was meant to measure. The tell both times was that the answer
+implied something absurd — that the library contains 92 grids describing
+positions that are not holes.

@@ -127,22 +127,41 @@ func offsets(count int, spacing float64, centered bool) []float64 {
 // basis. The cylinder points along Y locally, so the two grid directions are
 // local X and Z, carried over by the orientation matrix.
 //
-// Ninety-two grids in the library declare a THIRD axis, and which local
-// direction that one is has not been established — see PLAN.md. Rather than
-// guess and place ports where there are none, those keep the one position the
-// file states outright, the snap's own, and drop the repeats.
+// Ninety-two grids in the library declare a THIRD axis, which LDCad's own
+// documentation says cannot happen — a grid is "Xcnt Zcnt Xstep Zstep", two
+// axes, "as all snap info is Y-axis orientated". The library disagrees with the
+// documentation, and the parts settle it: the third axis is local Y, and it
+// comes SECOND rather than last, so the order is X, Y, Z.
+//
+// Measured rather than assumed. A pin hole is a bore, so its wall puts mesh
+// vertices all the way round a circle of the radius the snap declares; solid
+// material puts them nowhere. Scoring every ordering of the three local axes by
+// whether the positions it produces are real holes gives X, Y, Z in ten cases
+// and no more than one for any other ordering. PLAN.md guessed the third axis
+// was the cylinder's own and therefore last; that was the right axis in the
+// wrong place. See docs/findings.md.
 func Expand(s shadow.Snap) []geom.Vec3 {
 	counts, spacings, centered := ParseGrid(s.Grid)
-	if len(counts) > 2 {
+	dirs := []geom.Vec3{{X: 1}, {Z: 1}}
+	if len(counts) == 3 {
+		dirs = []geom.Vec3{{X: 1}, {Y: 1}, {Z: 1}}
+	}
+	if len(counts) != len(dirs) {
 		return []geom.Vec3{s.Pos}
 	}
-	u := s.Ori.Apply(geom.Vec3{X: 1})
-	v := s.Ori.Apply(geom.Vec3{Z: 1})
-	var out []geom.Vec3
-	for _, da := range offsets(counts[0], spacings[0], centered[0]) {
-		for _, db := range offsets(counts[1], spacings[1], centered[1]) {
-			out = append(out, s.Pos.Add(u.Scale(da)).Add(v.Scale(db)))
+	out := []geom.Vec3{{}}
+	for i, dir := range dirs {
+		d := s.Ori.Apply(dir)
+		var next []geom.Vec3
+		for _, base := range out {
+			for _, step := range offsets(counts[i], spacings[i], centered[i]) {
+				next = append(next, base.Add(d.Scale(step)))
+			}
 		}
+		out = next
+	}
+	for i := range out {
+		out[i] = s.Pos.Add(out[i])
 	}
 	return out
 }
