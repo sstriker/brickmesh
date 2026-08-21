@@ -50,8 +50,10 @@ func run() error {
 		outPath   = flag.String("out", "", "where to write the model (default <spec>.ldr)")
 		checkOnly = flag.Bool("check", false, "run the checks and stop, writing nothing")
 		restarts  = flag.Int("restarts", 60, "restarts for the structural search")
-		seed      = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
-		span      = flag.Int("span", 4, "how far along each shaft to search, in half studs")
+		holdShift = flag.Bool("hold-shift", false,
+			"make the frame bear the axle each catch turns on, not just the shafts")
+		seed = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
+		span = flag.Int("span", 4, "how far along each shaft to search, in half studs")
 
 		// What a good frame is. Ranking by part count treats a pin as it treats
 		// a thirteen-hole beam, and pushes against making the thing compact,
@@ -111,7 +113,7 @@ func run() error {
 	defer stop()
 
 	res, err := pipeline.Run(ctx, m, deps, pipeline.Options{
-		Restarts: *restarts, Seed: *seed, Span: *span,
+		Restarts: *restarts, Seed: *seed, Span: *span, HoldShift: *holdShift,
 		Budget: synth.Budget{
 			PerStud:      *perStud,
 			PerPart:      *perPart,

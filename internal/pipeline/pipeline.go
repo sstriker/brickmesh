@@ -167,6 +167,20 @@ type Options struct {
 	MaxLayouts int
 	Span       int
 	Restarts   int
+	// HoldShift asks for a frame that bears the axle each catch turns on, as
+	// well as the shafts.
+	//
+	// A choice rather than the default, because it is a real trade and not a
+	// free improvement. Measured on the two-speed: off, the frame is two walls
+	// and 10.4 cubic studs and the shift falls out; on, it is six parts and
+	// about 103, and holds everything. A builder who wants a compact gearbox
+	// and will hold the shift themselves should not be made to pay for that.
+	//
+	// It also costs search. Where such a frame exists it is found quickly; on a
+	// compound gearbox, where two control axles on two lines make the cover
+	// much harder, the full allowance took 51 seconds against 0.85 and still
+	// came back in two pieces. The run says so rather than pretending.
+	HoldShift bool
 	// Budget is what a good structure is: what to charge for beam length, for
 	// parts, for the envelope, and how big the envelope may be. Zero means
 	// synth.DefaultBudget.
@@ -424,8 +438,15 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 	// The same joints the rigidity report counts. Without these the search
 	// braces against a frame it believes to be in loose pieces.
 	searcher.Shafts = res.Axles
+	// A control axle is not a shaft, so the layout does not offer it, but it
+	// still has to be held — if the caller wants to pay for that. See
+	// Options.HoldShift.
+	restarts := opts.Restarts
+	if opts.HoldShift {
+		searcher.Extra = controlRequirements(res)
+	}
 	solutions, err := searcher.Synthesize(ctx, res.Layout, res.Stations, synth.Options{
-		Restarts: opts.Restarts, Seed: opts.Seed, Progress: opts.Progress,
+		Restarts: restarts, Seed: opts.Seed, Progress: opts.Progress,
 		Budget: opts.Budget,
 	})
 	if errors.Is(err, context.Canceled) {

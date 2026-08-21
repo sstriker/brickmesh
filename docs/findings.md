@@ -1597,10 +1597,50 @@ in the restarts it was given. Loosening the test to accept a sprawling frame
 would be trading the criterion for the feature.
 
 So what is kept is the placement and the answer: the axle is in the model, and
-the run says whether anything holds it. Switching the requirement on wants a
-cost function that prefers a second wall in an existing cross section, or a
-bracing step that reaches an unheld line from the frame that already exists.
-Neither is a tweak.
+the run says whether anything holds it.
+
+### The cost function was the wrong fix, and measuring it said so
+
+The obvious next step was a cost term that prefers a second wall in a cross
+section already in use. It was built — `PerWall`, charged per distinct cross
+section the bearing parts sit at — and it changed **nothing**:
+
+```text
+PerWall   0.0  walls=4 parts=6 volume=142.2
+PerWall  20.0  walls=4 parts=6 volume=142.2
+PerWall  40.0  walls=4 parts=6 volume=142.2
+```
+
+Not at forty times the cost of a whole beam, and not at a hundred and twenty
+restarts either. **The bottleneck is generation, not ranking.** A cost function
+chooses among what the search proposes, and the search never proposes a compact
+frame here; no weighting can select an option that was never produced.
+
+One thing the attempt did expose: counting distinct positions is the wrong
+measure anyway. A wall that reaches a line off the shaft plane is an L of two
+beams bolted side by side, and those sit a stud apart along the shafts — so a
+naive count calls the thickness of a wall a second wall, and no compact frame
+could ever win even if one were offered. Clustering within a stud fixes the
+measure, and changed no outcome, which is how it is known the measure was not
+what was wrong.
+
+The term is not shipped. An inert knob is worse than none.
+
+### What is shipped is the choice
+
+`-hold-shift` asks the search to bear the control axle as well as the shafts.
+Off is the default and is what the examples use.
+
+| | frame | control axle |
+| --- | --- | --- |
+| default | 2 parts, 10.4 cubic studs | placed, borne by nothing, said plainly |
+| `-hold-shift` | 6 parts, 142 cubic studs | borne by the frame |
+
+That is a real trade rather than a free improvement, which is why it is the
+caller's and not the engine's: somebody who wants a compact gearbox and will
+hold the shift themselves should not be made to pay fourteen times the room for
+it. What would remove the trade is a search that proposes L-shaped walls, which
+is generation work and still open.
 
 ## The third grid axis is Y, and it comes second
 

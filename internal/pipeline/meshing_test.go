@@ -4,6 +4,8 @@
 package pipeline
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -343,4 +345,65 @@ func catchPos(t *testing.T, res *Result) geom.Vec3 {
 	}
 	t.Fatal("no catch in the model")
 	return geom.Vec3{}
+}
+
+// Holding the shift is a choice, and both answers are honest.
+//
+// Off: a compact frame and a control axle nothing holds, said plainly. On: a
+// frame that bears it, and a bigger one. The trade is real — 10.4 cubic studs
+// against about 142 on the two-speed — so it is the caller's to make.
+func TestHoldShiftIsATradeTheCallerMakes(t *testing.T) {
+	deps := requireLibraries(t)
+	at := filepath.Join("..", "..", "examples", "gearbox-2-speed.json")
+
+	loose := runSpecWith(t, deps, at, false)
+	held := runSpecWith(t, deps, at, true)
+
+	if borneBy(loose) {
+		t.Error("without -hold-shift the frame is not asked to bear the control " +
+			"axle, and should not happen to")
+	}
+	if !borneBy(held) {
+		t.Error("with -hold-shift the frame should bear the control axle")
+	}
+	if loose.Structure == nil || held.Structure == nil {
+		t.Fatal("both should find a structure")
+	}
+	if held.Structure.BBoxStud3 <= loose.Structure.BBoxStud3 {
+		t.Errorf("holding the shift should cost room: %.1f against %.1f cubic "+
+			"studs. If it were free there would be nothing to choose",
+			held.Structure.BBoxStud3, loose.Structure.BBoxStud3)
+	}
+}
+
+func borneBy(res *Result) bool {
+	for _, f := range res.Findings {
+		if f.Check == "bearings" && strings.Contains(f.Detail, "borne by the frame") {
+			return true
+		}
+	}
+	return false
+}
+
+func runSpecWith(t *testing.T, deps Deps, path string, hold bool) *Result {
+	t.Helper()
+	doc, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, err := spec.Read(strings.NewReader(string(doc)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := sp.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Run(context.Background(), m, deps, Options{
+		Restarts: 24, Seed: 1, HoldShift: hold,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
 }

@@ -189,3 +189,45 @@ func borne(res *Result, deps Deps, c controlAxle, centre geom.Vec3, length float
 	}
 	return false
 }
+
+// controlRequirements is each control axle as points the frame has to bear.
+//
+// Taken from where its own shaft is borne, shifted across to its line. Asking
+// for bearings at the axle's two ends instead answers that no structure exists,
+// correctly: the ends of an axle running the length of a gearbox are outside
+// the walls. A control axle is held where everything else is.
+//
+// Matched by line rather than by name. A gearbox output is coupled to the gears
+// it selects, so they share one piece of axle and the bearings for it may be
+// recorded under any of their names — asking for the output's own produced
+// nothing at all, and the requirement went quietly missing.
+//
+// Only for an axle parallel to its shaft. A lever's crosses the shafts and has
+// no such correspondence, so nothing is asked for it and the run says it is
+// unheld.
+func controlRequirements(res *Result) []synth.Requirement {
+	var out []synth.Requirement
+	for _, c := range controlAxles(res) {
+		if !c.alongShaft {
+			continue
+		}
+		place, ok := res.Layout.Place[c.ring]
+		if !ok {
+			continue
+		}
+		v := c.at.Sub(place.Point.Scale(synth.HalfStud))
+		across := v.Sub(c.dir.Scale(v.Dot(c.dir)))
+
+		line := layout.LineOf(res.Layout, c.ring)
+		name := "the catch on '" + c.ring + "'"
+		for _, r := range synth.BearingRequirements(res.Layout, res.Stations, 2, 8) {
+			if layout.LineOf(res.Layout, r.Shaft) != line {
+				continue
+			}
+			out = append(out, synth.Requirement{
+				Shaft: name, Point: r.Point.Add(across), Direction: c.dir,
+			})
+		}
+	}
+	return out
+}
