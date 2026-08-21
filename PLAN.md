@@ -449,17 +449,35 @@ LDCad accepts it. Worth opening once.
       segment, so the shift is a thing that happens rather than a thing between
       frames
 
-## Open question: bevel engagement
+## Bevel engagement — the rule now rests on a measurement, not a document
 
-Still open, and now with a measured negative to go with it. The sweep that
-settles spur meshing finds nothing at any of the 444 candidate positions for a
-12t against a differential's ring, because a bevel's teeth do not block and
-clear evenly through a revolution. See docs/findings.md. What is left is a
-heuristic — most points in contact — whose answer depends on how the surfaces
-were sampled.
+Was open on the grounds that nine measurement approaches disagreed. They did,
+and all nine were asking the same wrong question: **where do the surfaces touch**
+rather than where the pitch circles do. See docs/findings.md.
 
-Settling it needs either a criterion that suits an angled mesh, or one built
-mechanism to check an answer against.
+The rule the layout applies — each gear at the OTHER's pitch radius from where
+the axes cross — has two halves, and both are now accounted for.
+
+**The module is measured.** A gear's outermost material is its pitch circle plus
+the tooth's addendum, and across nine gears that overhang is 1.0 to 2.6 LDU
+against a pitch radius of teeth x 1.25. The three double bevels agree to a
+hundredth of an LDU — 2.01 each — which is what says it is a designed addendum
+rather than three shapes coinciding. The same module is what makes two 24-tooth
+spur gears mesh at 60 LDU, which M1 already tested.
+
+**The placement is geometry.** Two pitch circles have to touch. With the
+crossing at the origin, A's axis along z and B's along x, a common point forces
+db = Ra and da = Rb. There is nothing to measure there.
+
+`internal/bevel/pitch_test.go` holds both.
+
+### What a physical measurement would still add
+
+Whether LEGO's bevel teeth engage at the theoretical pitch circle or somewhere
+slightly off it — real bevels are sometimes cut with a profile shift, and no
+amount of reasoning about nominal geometry can see that. So a differential and a
+12-tooth gear under calipers would still be worth having, and would confirm or
+correct a constant rather than choose one.
 
 ## The third grid axis — SETTLED
 
@@ -492,14 +510,16 @@ the position the file states. `TestNoOtherAxisOrderingFitsThePartsBetter` runs
 the comparison against the real library on every test run, so the reading is
 rechecked rather than remembered.
 
-## Open question that code cannot settle
+## What code cannot settle
 
-Bevel engagement position. Nine measurement approaches disagreed. The
-documented rule says each gear sits at the other's effective radius from the
-axis intersection; the collision pipeline disagrees, and the pipeline is built
-on non-watertight meshes. Resolve by measuring a physical differential and a
-12-tooth gear, then record the number in `docs/findings.md` and use it as a
-fixed constant.
+Bevel engagement was here, on the grounds that the documented rule and the
+collision pipeline disagreed and the pipeline is built on non-watertight meshes.
+The disagreement turned out not to be about the answer: the pipeline was asked
+where surfaces touch, which in LDraw's nominal geometry is not where gears mesh.
+See above and docs/findings.md.
+
+What is left for a physical measurement is confirmation rather than choice — see
+"What a physical measurement would still add".
 
 Note in passing: the fixture meshes are watertight and consistently wound, so
 they are a usable calibration target for the *mechanics* of a collision test,

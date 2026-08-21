@@ -1646,3 +1646,63 @@ Two null readings in one afternoon, both from an instrument aimed slightly off
 the thing it was meant to measure. The tell both times was that the answer
 implied something absurd — that the library contains 92 grids describing
 positions that are not holes.
+
+## Bevel engagement: nine approaches, all asking where the surfaces touch
+
+The last open question in PLAN.md, and it had defeated nine measurement
+approaches. Every one of them swept one gear against the other and scored the
+result by contact — free windows through a revolution, or the count of points
+within a tolerance. The findings above record why that fails: a bevel's teeth
+meet at an angle, so they neither block nor clear evenly, and among 444 touching
+positions the winner depends on which vertices were sampled.
+
+**It is not a contact question.** The rule has two halves and neither of them is
+about surfaces meeting.
+
+### The module is measurable
+
+A gear's outermost material is its pitch circle plus the tooth's addendum. Across
+nine gears the overhang above teeth x 1.25 LDU is:
+
+| gear | teeth | outer | proud of pitch |
+| --- | --- | --- | --- |
+| 32270 | 12 | 17.01 | 2.01 |
+| 32269 | 20 | 27.01 | 2.01 |
+| 32498 | 36 | 47.01 | 2.01 |
+| 4019 | 16 | 21.66 | 1.66 |
+| 3648b | 24 | 32.40 | 2.40 |
+| 3647 | 8 | 12.45 | 2.45 |
+
+The three double bevels agree to a hundredth of an LDU. That is a designed
+addendum, not three shapes coinciding — and the same module is what puts two
+24-tooth spur gears 60 LDU apart, which M1 tested years of findings ago.
+
+### The placement is plane geometry
+
+Two pitch circles must touch. Crossing at the origin, A's axis along z and B's
+along x: A's circle is (Ra cos, Ra sin, da), B's is (db, Rb sin, Rb cos). A
+common point forces **db = Ra and da = Rb** — each gear at the other's pitch
+radius from the crossing, which is exactly what `anchorBevels` applies. There is
+nothing there to measure.
+
+### What the sweep was really reporting
+
+Placed by that rule, two double bevels' *bodies* overlap in LDraw's nominal
+geometry — a 12t at 25 along z and a 20t at 15 along x share solid volume well
+away from their teeth. So the triangle test reads TOO DEEP at the correct
+placement and at every scaling of it, which is the same shape of answer this
+engine has now seen from a driving ring on its clutch gear, a fork in a groove,
+a liftarm in a slot, and a gear inside a differential. A test that cannot
+represent a fit cannot adjudicate one.
+
+Two other things fell out of looking at the shape rather than the contact. These
+"double bevel" gears are chamfered spur teeth rather than true bevel cones —
+between z 3.00 and z 4.75 the tip radius falls by 2.5 and then the profile turns
+back — which is why a criterion built on evenly spaced windows had nothing to
+find. And the first attempt at this spun the moving gear about the wrong axis:
+`interfere.Options.SpinAxis` is applied in the part's own frame, before its
+placement, and a gear's axis is its local z whatever the placement does with it.
+
+**What a physical measurement would still add** is whether LEGO cuts these teeth
+with a profile shift, which no reasoning about nominal geometry can see. That
+would confirm or correct a constant rather than choose one.
