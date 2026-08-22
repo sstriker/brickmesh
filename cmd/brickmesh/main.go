@@ -26,6 +26,7 @@ import (
 
 	"github.com/sstriker/brickmesh/internal/extract"
 	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/layout"
 	"github.com/sstriker/brickmesh/internal/ldr"
 	"github.com/sstriker/brickmesh/internal/ldraw"
 	"github.com/sstriker/brickmesh/internal/mech"
@@ -56,6 +57,8 @@ func run() error {
 			"read an .ldr or .mpd and report what mechanism is in it")
 		drive = flag.String("drive", "",
 			"with -read: which shaft is turned, so the ratios can be worked out")
+		fit = flag.String("fit", "",
+			"with --spec: an .ldr to fit that mechanism into, instead of building it a frame")
 		holdShift = flag.Bool("hold-shift", false,
 			"make the frame bear the axle each catch turns on, not just the shafts")
 		seed = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
@@ -84,6 +87,12 @@ func run() error {
 
 	if *read != "" {
 		return readModel(*read, *drive)
+	}
+	if *fit != "" {
+		if *specPath == "" {
+			return fmt.Errorf("-fit needs a --spec: it says where THAT mechanism could go")
+		}
+		return fitToModel(*fit, *specPath, *span)
 	}
 	if *specPath == "" {
 		flag.Usage()
@@ -307,6 +316,54 @@ func readModel(at, drive string) error {
 			continue
 		}
 		fmt.Printf("  %-24s %+.4f turn(s) per turn of %s\n", id, speeds[id], drive)
+	}
+	return nil
+}
+
+// fitToModel says where a mechanism could go inside a model that exists.
+//
+// The layout is worked out the usual way, around the origin, and then moved:
+// what a chassis decides is where a mechanism sits, not how its gears are
+// arranged among themselves.
+func fitToModel(modelAt, specAt string, span int) error {
+	sf, err := os.Open(specAt)
+	if err != nil {
+		return err
+	}
+	defer sf.Close()
+	sp, err := spec.Read(sf)
+	if err != nil {
+		return err
+	}
+	m, err := sp.Build()
+	if err != nil {
+		return err
+	}
+	layouts := layout.Realize(m, layout.Options{MaxSolutions: 1, Span: span})
+	if len(layouts) == 0 {
+		return fmt.Errorf("no arrangement of these shafts lands on the lattice")
+	}
+
+	mf, err := os.Open(modelAt)
+	if err != nil {
+		return err
+	}
+	defer mf.Close()
+	parts, err := ldr.Decode(mf)
+	if err != nil {
+		return fmt.Errorf("%s: %w", modelAt, err)
+	}
+	shadowRoot, err := shadow.Ensure("")
+	if err != nil {
+		return err
+	}
+	ports := extract.NewPorts(shadow.Open(shadowRoot), ldraw.New(""))
+	r := pipeline.InspectWith(parts, &pipeline.LibraryTeeth{From: ldraw.New("")})
+	for _, fi := range r.Findings {
+		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
+	}
+	for _, fi := range pipeline.ReportFit(layouts[0], r.Bearings(ports)) {
+		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
 	}
 	return nil
 }

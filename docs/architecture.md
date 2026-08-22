@@ -466,3 +466,31 @@ the geometry puts it, and this engine's own gears are turned by a fraction of a
 tooth to interleave. Carrying holes over by the part's own matrix instead is
 both simpler and correct; going through the lattice index crashed on the first
 real model it saw.
+
+### Where a mechanism could go
+
+`-fit chassis.ldr --spec gearbox.json` says where that mechanism could sit
+inside that model. The layout is worked out the usual way, around the origin,
+and then moved: a chassis decides where a mechanism sits, not how its gears are
+arranged among themselves. Turning it would be a different layout, and the
+layout search already offers those.
+
+Every bearing the model offers is tried as the home of every shaft, which fixes
+a translation; the rest of the shafts are then counted. Quadratic in a number
+that is small for a mechanism and large for a chassis, so the bearings are the
+outer loop.
+
+The test that matters is that a model fits its own mechanism, exactly, without
+moving — the frame was built for those shafts, so every one lands on a line it
+bears and the offset is nothing. A fitter that cannot find that will not find
+anything harder.
+
+**The offset is not on the lattice, and that was a bug worth having.** A
+mechanism's gears sit on the lattice with respect to *each other*, which is what
+the layout settles; where the whole assembly then goes is wherever the holes it
+bolts to are. 42110's chassis is turned about three thousandths of a radian and
+its lines run through points like `{-200 -184.139 0.552}`, so rounding the move
+to whole studs put all 767 of its bearing lines out of reach and reported that a
+gearbox cannot go anywhere in a Land Rover. With the exact offset it finds
+placements putting all four shafts of a two-speed on lines that chassis already
+bears.
