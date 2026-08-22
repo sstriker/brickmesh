@@ -1819,61 +1819,65 @@ space read as empty. And the catch was placed by a routine that avoided other
 shafts and had no idea a chassis was there. Each one produced a confident
 answer about a question that had not been asked.
 
-## 2473a and 4159: what the file settles, and what it does not
+## 2473a and 4159: a fork that slides, and a groove I could not see
 
 A five-line `.ldr` with `2473a` (Transmission Driving Ring 2L with 8 Teeth) and
-`4159` (Changeover Catch Fork), built in Stud.io to anchor a third clutch
-generation the way 8448 anchored the first. It does not anchor it, and the
-reasons are worth keeping because two of them are about the instruments.
+`4159` (Changeover Catch Fork), built in Stud.io, which snapped the fork into
+the ring's groove.
 
-**The two parts are not assembled in the file.** The fork's prongs sit 5.6 LDU
-inside the ring's body: the prongs are at the fork's own z = +/-5 with an arc
-radius of 12.40 to 14.88, and the ring's surface at that z is at 17.50. Stud.io
-placed them near each other without snapping them together, which these old
-parts give it no connectivity data to do.
+I first read it as two parts dropped near each other, and said so: the fork's
+prongs appeared to sit 5.6 LDU inside the ring's body. They do not. The
+placement is exact and the instrument was wrong.
 
-**The ring's grooves are where 6539's are.** Taking, per slice, the largest
-radius present in every sector -- the radius of the surface that goes all the
-way round, so a groove floor counts and a tooth does not:
+### The groove, from the part rather than from a profile
 
-| part | grooves at | floor radius |
-| --- | --- | --- |
-| 2473a | z = +/-9 | 14.47 |
-| 6539 | z = +/-9 | 15.13 |
+```text
+4-4cylo.dat      pos 0 0  5.00   scale 11.88 10.00 11.88   <- the groove floor
+48\4-4cylo.dat   pos 0 0  5.00   scale 17.50  5.00 17.50   <- shoulder
+48\4-4cylo.dat   pos 0 0 -5.00   scale 17.50  5.00 17.50   <- shoulder
+```
 
-Same positions, near enough the same floor. That makes 2473a look like a variant
-ring for the FIRST system rather than the start of a new one.
+The groove is a cylinder of radius 11.88 running from z = -5 to z = +5: ten LDU
+wide, on the ring's mid-plane, between two shoulders of radius 17.50. The fork's
+prong is an arc of inner radius 12.40 and outer 14.88 whose walls are at its own
+z = +/-5. It wraps the floor with 0.52 LDU of clearance and matches the width
+exactly.
 
-**A catch that grips the parallel section is not a catch.** Swept properly,
-4159 does have a band where it holds 2473a and the ring still turns: reach 28 to
-31, 97-99% free, four equivalent orientations. But the band is the same at every
-axial position from z = -12 to +12, which is the ring's parallel section. A fork
-gripping the plain cylinder cannot push the ring anywhere along the shaft. The
-holding band is real and it is not a shift.
+Checked against the placement: the prong's arc centre lands 0.587 LDU from the
+ring's axis, at z = 0. That is Stud.io's rounding, and it is the whole answer.
 
-What the file does give, exactly, from the part rather than the placement:
-4159's prong arc is centred at its own (20, -40, +/-5) and its axle holes are at
-(+/-20, 0, -/+10) with their axes along the part's own z -- so the prong centre
-is exactly 40 LDU from the hole, and the catch turns on an axle PARALLEL to the
-shaft, a cam like 35188 rather than a lever like 6641.
+### Why the profile could not see it
 
-### Two instrument errors, both caught by a control
+The groove was measured by taking the largest radius present at each slice, and
+at a groove that reports the SHOULDER. A floor that runs as one cylinder between
+two shoulder rings has no vertices of its own anywhere along its length -- the
+only vertices are at z = +/-5, where the shoulders also are, and 17.50 wins.
+Every slice said 17.50 and the groove was invisible.
 
-The first: a part's axis cannot be guessed from its bounding box. 6539 is a 40
-cube, so the box has nothing to say, and the axis was taken as x. Everything
-downstream was wrong with it -- including a confident reading that 4159's prongs
-matched 6539's groove, which was comparing the fork against a slice through the
-side of the ring. The axis has to come from which direction makes the part
-round, or from a control that reproduces a known answer.
+The dips the profile did find, at z = +/-9 with radius 14.47, are the taper at
+the dog-tooth ends. Reading those as the fork groove put 2473a in the first
+system's family, since 6539 has dips in the same places, and that was wrong too.
 
-The second: the first sweep of 4159 against 2473a returned nothing holding at
-any of 24 orientations and any reach from 25 to 75, and that was very nearly
-written down as "these two do not go together". It held the catch at the ring's
-mid-plane throughout. Sweeping the axial position as well found the holding band
-immediately. A null result from a sweep is a statement about the sweep until the
-sweep has been shown to find something it should.
+A radial profile can find a groove only when the groove has edges in it. Read
+the primitives instead: they carry the radius and the span as numbers.
 
-What settles it either way is a model with 4159 seated on whatever it actually
-moves. 4158, the Changeover Cylinder with Groove, is the obvious candidate on
-its name and part number, but the fork reads too deep against it at every reach
-out to 58 -- so that is a hypothesis here, not a finding.
+### What it anchors
+
+The fork's axle holes are at its own (+/-20, 0, -/+10) with their axes along the
+part's own z, which the placement puts along the shaft. So:
+
+| | |
+| --- | --- |
+| catch reach | 40 LDU, prong centre to axle hole, exact from the part |
+| catch axial position | level with the ring, its axle 10 LDU along the shaft |
+| how it moves | it SLIDES on a shaft-parallel axle |
+
+That last is the new thing. 6641 swings on an axle across the shaft, a lever;
+35188 turns on one along it, a cam; 4159 is threaded on a shaft-parallel axle
+and pushed. Rotating it would carry the prong off the axis and let go, so
+sliding is the only motion that shifts anything -- which is what the builder
+reports: move the fork and the driving ring goes with it.
+
+Still missing before this can be a System: the gears 2473a's eight dogs engage,
+and the engaged distance from a gear's centre. The ring and its catch are
+settled; what it shifts INTO is not.

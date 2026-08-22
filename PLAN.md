@@ -571,18 +571,19 @@ the position the file states. `TestNoOtherAxisOrderingFitsThePartsBetter` runs
 the comparison against the real library on every test run, so the reading is
 rechecked rather than remembered.
 
-## The third clutch generation is not settled, and 2473a may not be one
+## The third clutch generation — the ring and its catch are settled
 
-A five-line model with 2473a and 4159 was built to anchor it. Measured, the
-ring's grooves sit where 6539's sit, which makes it look like a variant of the
-first system rather than a new one; and the only place the fork holds it is on
-the parallel section, which cannot shift anything. See docs/findings.md.
+A five-line model with 2473a and 4159, snapped together in Stud.io, anchors it.
+The ring's groove is a cylinder of radius 11.88 from z = -5 to +5, ten LDU wide
+and central; the fork's prong wraps it with half an LDU of clearance and matches
+the width exactly. The catch reaches 40 LDU to its axle, sits level with the
+ring, and SLIDES on a shaft-parallel axle rather than swinging or turning — a
+third kind of motion. See docs/findings.md.
 
-- [ ] find a model with 4159 seated on what it actually moves. 4158, the
-      Changeover Cylinder with Groove, is the candidate on its name and number,
-      but the fork reads too deep against it at every reach out to 58, so
-      something about that pairing is not understood yet. An official set with
-      the parts in it would settle it the way 8448 settled the first system.
+- [ ] the gears its eight dogs engage, and the engaged distance from a gear's
+      centre. What shifts is settled; what it shifts INTO is not, and one model
+      with 2473a beside the gear it locks would give both — the way 8448's rings
+      sitting 30 LDU from their clutch gears gave the first system's.
 
 ## What code cannot settle
 
