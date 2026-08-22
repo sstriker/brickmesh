@@ -93,6 +93,9 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 			append(lines[lineKey(p.Point.Scale(synth.HalfStud), p.Direction.Unit())], id)
 	}
 
+	// How far the mechanism reaches along its own shafts, so a bearing can be
+	// asked whether it reaches the same stretch.
+	lo, hi := mechSpan(l)
 	idx := indexBearings(bearings)
 	seen := map[[3]float64]bool{}
 	bestBorne := 0
@@ -138,7 +141,7 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 				// naming the shafts it bears costs an allocation and a sort —
 				// while a real chassis gives over a million candidates, nearly
 				// all of them losers. Only the best-so-far are kept.
-				f := scoreFit(lines, idx, at)
+				f := scoreFit(lines, idx, at, lo, hi)
 				if f.Borne < bestBorne {
 					continue
 				}
@@ -153,7 +156,7 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 	// Only the survivors pay for a clash test, or for being named.
 	for i := range out {
 		out[i].Clashes, out[i].Shared = clashesAt(solids, occupied, out[i].Offset)
-		nameBorne(lines, idx, &out[i])
+		nameBorne(lines, idx, &out[i], lo, hi)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		// Room first, then support: a placement that cannot be built is not
@@ -350,8 +353,15 @@ func bucketOf(at, dir geom.Vec3) [6]int64 {
 	}
 }
 
-// near reports whether any bearing lies on this line.
-func (idx bearingIndex) near(at, dir geom.Vec3) bool {
+// near reports whether any bearing lies on this line and reaches the stretch of
+// it the mechanism occupies.
+//
+// The reach matters. A line runs for ever and a wall does not, so checking only
+// which line a shaft is on lets a mechanism slide clean out of the chassis and
+// still call itself borne: fitting a two-speed to a pair of walls a hundred LDU
+// apart put it at y = -120, outside both, reporting four shafts of four on
+// lines the model bears.
+func (idx bearingIndex) near(at, dir geom.Vec3, lo, hi float64) bool {
 	base := bucketOf(at, dir)
 	for dx := int64(-1); dx <= 1; dx++ {
 		for dy := int64(-1); dy <= 1; dy++ {
@@ -365,9 +375,16 @@ func (idx bearingIndex) near(at, dir geom.Vec3) bool {
 						continue
 					}
 					d := b.At.Sub(at)
-					if d.Sub(dir.Scale(d.Dot(dir))).Len() <= fitTolerance {
-						return true
+					if d.Sub(dir.Scale(d.Dot(dir))).Len() > fitTolerance {
+						continue
 					}
+					// Where the bearing sits along the line, against where the
+					// mechanism does.
+					t := b.At.Sub(at).Dot(dir)
+					if t+b.To < lo || t+b.From > hi {
+						continue
+					}
+					return true
 				}
 			}
 		}
@@ -378,13 +395,15 @@ func (idx bearingIndex) near(at, dir geom.Vec3) bool {
 // scoreFit counts how many of a layout's lines land on a bearing once moved.
 //
 // Counts only. Naming them meant an allocation and a sort for every candidate.
-func scoreFit(lines map[[6]float64][]string, idx bearingIndex, off geom.Vec3) Fit {
+func scoreFit(lines map[[6]float64][]string, idx bearingIndex, off geom.Vec3,
+	lo, hi float64) Fit {
+
 	f := Fit{Offset: off}
 	for k, ids := range lines {
 		f.Total += len(ids)
 		at := geom.Vec3{X: k[0], Y: k[1], Z: k[2]}.Add(off)
 		dir := geom.Vec3{X: k[3], Y: k[4], Z: k[5]}
-		if idx.near(at, dir) {
+		if idx.near(at, dir, lo, hi) {
 			f.Borne += len(ids)
 		}
 	}
@@ -392,12 +411,14 @@ func scoreFit(lines map[[6]float64][]string, idx bearingIndex, off geom.Vec3) Fi
 }
 
 // nameBorne fills in which shafts a placement bears, once it is worth knowing.
-func nameBorne(lines map[[6]float64][]string, idx bearingIndex, f *Fit) {
+func nameBorne(lines map[[6]float64][]string, idx bearingIndex, f *Fit,
+	lo, hi float64) {
+
 	f.On = nil
 	for k, ids := range lines {
 		at := geom.Vec3{X: k[0], Y: k[1], Z: k[2]}.Add(f.Offset)
 		dir := geom.Vec3{X: k[3], Y: k[4], Z: k[5]}
-		if idx.near(at, dir) {
+		if idx.near(at, dir, lo, hi) {
 			f.On = append(f.On, ids...)
 		}
 	}
@@ -601,4 +622,22 @@ func sitesFor(res *Result, stations []layout.Station) []ringSite {
 	out := ringSites(res.Layout.Mech, res)
 	res.Stations = was
 	return out
+}
+
+// mechSpan is how far a laid-out mechanism reaches along its shafts, in LDU
+// from each line's own origin.
+//
+// Its gears are what has to be between the walls, so their stations bound it,
+// with a stud either side for the axle to reach its bearing.
+func mechSpan(l *layout.Layout) (float64, float64) {
+	stations, _ := layout.SolveStations(l.Mech, l)
+	if len(stations) == 0 {
+		return -geom.Stud, geom.Stud
+	}
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, st := range stations {
+		at := st.Axial * synth.HalfStud
+		lo, hi = math.Min(lo, at), math.Max(hi, at)
+	}
+	return lo - geom.Stud, hi + geom.Stud
 }
