@@ -1818,3 +1818,62 @@ Parts with no geometry were skipped with a bare `continue`, so unmeasurable
 space read as empty. And the catch was placed by a routine that avoided other
 shafts and had no idea a chassis was there. Each one produced a confident
 answer about a question that had not been asked.
+
+## 2473a and 4159: what the file settles, and what it does not
+
+A five-line `.ldr` with `2473a` (Transmission Driving Ring 2L with 8 Teeth) and
+`4159` (Changeover Catch Fork), built in Stud.io to anchor a third clutch
+generation the way 8448 anchored the first. It does not anchor it, and the
+reasons are worth keeping because two of them are about the instruments.
+
+**The two parts are not assembled in the file.** The fork's prongs sit 5.6 LDU
+inside the ring's body: the prongs are at the fork's own z = +/-5 with an arc
+radius of 12.40 to 14.88, and the ring's surface at that z is at 17.50. Stud.io
+placed them near each other without snapping them together, which these old
+parts give it no connectivity data to do.
+
+**The ring's grooves are where 6539's are.** Taking, per slice, the largest
+radius present in every sector -- the radius of the surface that goes all the
+way round, so a groove floor counts and a tooth does not:
+
+| part | grooves at | floor radius |
+| --- | --- | --- |
+| 2473a | z = +/-9 | 14.47 |
+| 6539 | z = +/-9 | 15.13 |
+
+Same positions, near enough the same floor. That makes 2473a look like a variant
+ring for the FIRST system rather than the start of a new one.
+
+**A catch that grips the parallel section is not a catch.** Swept properly,
+4159 does have a band where it holds 2473a and the ring still turns: reach 28 to
+31, 97-99% free, four equivalent orientations. But the band is the same at every
+axial position from z = -12 to +12, which is the ring's parallel section. A fork
+gripping the plain cylinder cannot push the ring anywhere along the shaft. The
+holding band is real and it is not a shift.
+
+What the file does give, exactly, from the part rather than the placement:
+4159's prong arc is centred at its own (20, -40, +/-5) and its axle holes are at
+(+/-20, 0, -/+10) with their axes along the part's own z -- so the prong centre
+is exactly 40 LDU from the hole, and the catch turns on an axle PARALLEL to the
+shaft, a cam like 35188 rather than a lever like 6641.
+
+### Two instrument errors, both caught by a control
+
+The first: a part's axis cannot be guessed from its bounding box. 6539 is a 40
+cube, so the box has nothing to say, and the axis was taken as x. Everything
+downstream was wrong with it -- including a confident reading that 4159's prongs
+matched 6539's groove, which was comparing the fork against a slice through the
+side of the ring. The axis has to come from which direction makes the part
+round, or from a control that reproduces a known answer.
+
+The second: the first sweep of 4159 against 2473a returned nothing holding at
+any of 24 orientations and any reach from 25 to 75, and that was very nearly
+written down as "these two do not go together". It held the catch at the ring's
+mid-plane throughout. Sweeping the axial position as well found the holding band
+immediately. A null result from a sweep is a statement about the sweep until the
+sweep has been shown to find something it should.
+
+What settles it either way is a model with 4159 seated on whatever it actually
+moves. 4158, the Changeover Cylinder with Groove, is the obvious candidate on
+its name and part number, but the fork reads too deep against it at every reach
+out to 58 -- so that is a hypothesis here, not a finding.

@@ -571,6 +571,19 @@ the position the file states. `TestNoOtherAxisOrderingFitsThePartsBetter` runs
 the comparison against the real library on every test run, so the reading is
 rechecked rather than remembered.
 
+## The third clutch generation is not settled, and 2473a may not be one
+
+A five-line model with 2473a and 4159 was built to anchor it. Measured, the
+ring's grooves sit where 6539's sit, which makes it look like a variant of the
+first system rather than a new one; and the only place the fork holds it is on
+the parallel section, which cannot shift anything. See docs/findings.md.
+
+- [ ] find a model with 4159 seated on what it actually moves. 4158, the
+      Changeover Cylinder with Groove, is the candidate on its name and number,
+      but the fork reads too deep against it at every reach out to 58, so
+      something about that pairing is not understood yet. An official set with
+      the parts in it would settle it the way 8448 settled the first system.
+
 ## What code cannot settle
 
 Bevel engagement was here, on the grounds that the documented rule and the
