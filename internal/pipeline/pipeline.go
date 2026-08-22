@@ -329,7 +329,7 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	res.axles = computeAxles(m, res)
 	// And the catches, for the same reason: the axle each one turns on is a
 	// line the frame has to bear, and the search cannot be told after it runs.
-	settleCatches(res)
+	settleCatches(ctx, deps, res)
 
 	if !opts.SkipStructure {
 		if err := runStructure(ctx, res, deps, opts); err != nil {
@@ -1796,7 +1796,7 @@ func placeSelector(res *Result, model *ldr.Model, site ringSite,
 // Nothing here depends on the structure — a catch's place follows from the ring
 // and from which way out is clear of the other shafts, both of which the layout
 // settles — so there is nothing to wait for.
-func settleCatches(res *Result) {
+func settleCatches(ctx context.Context, deps Deps, res *Result) {
 	for i := range res.ringSites {
 		site := &res.ringSites[i]
 		if site.system.Catch == "" {
@@ -1809,13 +1809,13 @@ func settleCatches(res *Result) {
 		at := place.Point.Scale(synth.HalfStud).
 			Add(place.Direction.Unit().Scale(site.engaged * synth.HalfStud))
 		d := place.Direction.Unit()
-		out, ok := clearOfOtherShafts(res, place, at, d, site.system)
+		out, ok, why := clearOfOtherShafts(ctx, deps, res, place, at, d, site.system)
 		if !ok {
 			res.Findings = append(res.Findings, mech.Finding{
 				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
-					"no room beside the ring for %s on '%s': every way out of the "+
-						"shaft runs into another one. The shift is named rather than "+
-						"placed for this one", site.system.Catch, site.rides)})
+					"no room beside the ring for %s on '%s': %s. The shift is named "+
+						"rather than placed for this one",
+					site.system.Catch, site.rides, why)})
 			continue
 		}
 		site.catchRot = catchFrame(site.system, d, out)
@@ -1853,8 +1853,8 @@ func catchFrame(s clutch.System, d, out geom.Vec3) geom.Mat3 {
 // open air and wrong for one fitted into somebody's model: a two-speed put into
 // 42110 sent its catch straight through a beam and a panel, on the side the
 // Land Rover was densest, because no other shaft happened to be that way.
-func clearOfOtherShafts(res *Result, place layout.Placement, at, d geom.Vec3,
-	sys clutch.System) (geom.Vec3, bool) {
+func clearOfOtherShafts(ctx context.Context, deps Deps, res *Result,
+	place layout.Placement, at, d geom.Vec3, sys clutch.System) (geom.Vec3, bool, string) {
 
 	reach := sys.CatchReach
 	var across []geom.Vec3
@@ -1863,6 +1863,7 @@ func clearOfOtherShafts(res *Result, place layout.Placement, at, d geom.Vec3,
 			across = append(across, c)
 		}
 	}
+	shafts, model := 0, 0
 	for _, out := range across {
 		blocked := false
 		for _, other := range res.Layout.Place {
@@ -1877,12 +1878,30 @@ func clearOfOtherShafts(res *Result, place layout.Placement, at, d geom.Vec3,
 				break
 			}
 		}
-		if blocked || catchIsInTheModel(res, sys, at, d, out) {
+		if blocked {
+			shafts++
 			continue
 		}
-		return out, true
+		if catchIsInTheModel(ctx, deps, res, sys, at, d, out) {
+			model++
+			continue
+		}
+		return out, true, ""
 	}
-	return geom.Vec3{}, false
+	// Which of the two closed it off is worth saying: another shaft is the
+	// mechanism's own doing and can be laid out around, while the model is
+	// somebody else's and cannot.
+	switch {
+	case model > 0 && shafts > 0:
+		return geom.Vec3{}, false, fmt.Sprintf(
+			"%d way(s) out run into another shaft and %d into the model "+
+				"it was fitted to", shafts, model)
+	case model > 0:
+		return geom.Vec3{}, false, "every way out of the shaft is inside the " +
+			"model it was fitted to"
+	default:
+		return geom.Vec3{}, false, "every way out of the shaft runs into another one"
+	}
 }
 
 // catchIsInTheModel reports whether a catch this way out would be inside the
@@ -1890,11 +1909,20 @@ func clearOfOtherShafts(res *Result, place layout.Placement, at, d geom.Vec3,
 //
 // Only meaningful after a fit; without one there is no model to be inside and
 // the answer is no.
-func catchIsInTheModel(res *Result, sys clutch.System, at, d, out geom.Vec3) bool {
+//
+// The cells narrow it down and the exact test answers it. Asking the cells
+// alone — is any one of them somebody else's — makes resting against a beam
+// indistinguishable from being buried in it: an 18947 shares 127 of its 466
+// cells with a 40490 it is merely touching, and 129 with one it is 18 LDU
+// inside. See docs/findings.md.
+func catchIsInTheModel(ctx context.Context, deps Deps, res *Result,
+	sys clutch.System, at, d, out geom.Vec3) bool {
+
 	if res.intoRast == nil || len(res.intoOccupied) == 0 {
 		return false
 	}
-	cells, err := res.intoRast.VoxelsAt(sys.Catch, catchFrame(sys, d, out))
+	rot := catchFrame(sys, d, out)
+	cells, err := res.intoRast.VoxelsAt(sys.Catch, rot)
 	if err != nil {
 		return false // nothing to say, rather than a wrong no
 	}
@@ -1904,10 +1932,33 @@ func catchIsInTheModel(res *Result, sys clutch.System, at, d, out geom.Vec3) boo
 		Y: int32(math.Round(pos.Y / geom.VoxelPitch)),
 		Z: int32(math.Round(pos.Z / geom.VoxelPitch)),
 	}
+	touches := false
 	for _, c := range cells {
 		if res.intoOccupied[c.Add(shift)] {
-			return true
+			touches = true
+			break
 		}
 	}
-	return false
+	if !touches {
+		return false // nowhere near anything, and no mesh check needed
+	}
+	return !clearOf(ctx, deps, ldr.Part{Name: sys.Catch, Rot: rot, Pos: pos},
+		nearbyParts(deps, res.into, pos, sys.CatchReach))
+}
+
+// nearbyParts is the model's parts whose boxes come within reach of a point.
+func nearbyParts(deps Deps, into []ldr.Placed, at geom.Vec3, reach float64) []ldr.Part {
+	var near []ldr.Part
+	for _, p := range into {
+		q := ldr.Part{Name: p.Name, Color: p.Color, Rot: p.Rot, Pos: p.Pos}
+		lo, hi, err := placedBox(deps, q)
+		if err != nil {
+			continue
+		}
+		if overlapOf(lo, hi, at.Sub(geom.Vec3{X: reach, Y: reach, Z: reach}),
+			at.Add(geom.Vec3{X: reach, Y: reach, Z: reach})) > 0 {
+			near = append(near, q)
+		}
+	}
+	return near
 }

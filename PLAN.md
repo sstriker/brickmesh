@@ -346,11 +346,22 @@ take one with nothing sharing space; 42099 is refused, and the clearance check
 agrees with the refusal. That agreement is the property worth keeping — the fit
 and the check that judges it now answer the same question.
 
-- [ ] the fit cannot say which side a catch will end up on, because the
+- [x] the fit cannot say which side a catch will end up on, because the
       structural search settles that afterwards. It asks the weaker question
       instead — whether any of the four sides is free — and an offset where
-      none is gets refused. Answering the stronger one means moving the catch
-      into the search, which is a larger change than it has earned.
+      none is gets refused. Placement then picks a free side, so the two halves
+      compose: the fit guarantees one exists and placement finds it.
+
+      They have to ask with the same instrument, which took a second pass to
+      get right. Placement first decided by voxel cells, which cannot tell
+      resting against a beam from being buried in it, so it would have refused
+      sides that were free. Cells narrow it down now and the exact test
+      answers, as everywhere else.
+
+      When it does refuse, it says which of the two closed it off. In 8880 one
+      way out runs into another shaft and three into the model — the
+      mechanism's own layout accounts for one of the four, and the model for
+      the rest.
 
 ## M3 — port to Go — DONE
 
