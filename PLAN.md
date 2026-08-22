@@ -302,6 +302,56 @@ therefore means the box is buildable and the shift mechanism is not.
       to be called clear when it is not, and nothing else would say so, since
       the clearance sweep allows gear against gear.
 
+## M7 — start from somebody else's model — DONE
+
+Both directions. `--read` takes an `.ldr` or `.mpd` and says what mechanism is
+in it: the gears and their tooth counts, which run loose on their shaft and
+which are keyed to it, the pairs standing where they would drive each other,
+the driving rings, and with `--drive` the ratios. `--fit` goes the other way
+and places a mechanism from `--spec` into that model, writing a copy of it with
+the mechanism built in and a frame only for the shafts the model does not
+already hold. `--replace` takes the model's own drivetrain out first.
+
+The cross hole decides most of the reading. A gear on a cross hole is keyed to
+its axle and a gear on a round one turns free, so the same two parts side by
+side are a pair that drives or a pair that idles depending on one bit in the
+part's own definition.
+
+What the fit cost was four wrong answers, each of them confident:
+
+- The clash test rasterised only gears. A driving ring is 36 LDU across, fatter
+  than most gears, and one sat 18 LDU inside a chassis beam while every gear
+  cleared it. Rings and joiners are on the shaft too.
+- A bearing was a line, and a line runs for ever. Fitted to two walls a hundred
+  LDU apart, the two-speed settled at y = -120 — outside both — and reported
+  four shafts of four borne. A bearing has to reach the stretch of line the
+  gears occupy.
+- The verdict came from the coarse filter. Parts are rasterised as surfaces so
+  a Technic hole stays a hole; two shells that interpenetrate share only the
+  thin ring where the surfaces cross, so no fraction of shared cells separates
+  a gear driven 18 LDU into a beam from one resting against it. Voxels rank now
+  and the tri-tri test decides — the same predicate clearance uses, since a
+  stricter one rejects an axle standing in a hole, which is what holes are for.
+- The catch was placed by a routine that knew about other shafts and nothing
+  else. Into 42110 it went straight through a beam and a panel.
+
+Three smaller things had to be true before any of that could be: slip shafts
+are settled before the fit, so the fitter names the parts the model ends up
+with; the shortlist is walked two hundred deep, where eight ran out with a
+clean offset still waiting; and parts with no geometry are reported rather than
+skipped, because space nothing could be measured in is not empty space.
+
+Where it stands, a two-speed fitted with `--replace`: 42110, 42083 and 8880
+take one with nothing sharing space; 42099 is refused, and the clearance check
+agrees with the refusal. That agreement is the property worth keeping — the fit
+and the check that judges it now answer the same question.
+
+- [ ] the fit cannot say which side a catch will end up on, because the
+      structural search settles that afterwards. It asks the weaker question
+      instead — whether any of the four sides is free — and an offset where
+      none is gets refused. Answering the stronger one means moving the catch
+      into the search, which is a larger change than it has earned.
+
 ## M3 — port to Go — DONE
 
 Every module has a Go counterpart and the Python has been removed. What each

@@ -1766,3 +1766,55 @@ placement, and a gear's axis is its local z whatever the placement does with it.
 **What a physical measurement would still add** is whether LEGO cuts these teeth
 with a profile shift, which no reasoning about nominal geometry can see. That
 would confirm or correct a constant rather than choose one.
+
+## A surface rasteriser cannot say how deep something is buried
+
+The fit into somebody else's model reported OK and the clearance check that
+runs straight after it reported six collisions on the same parts. Both were
+looking at the same geometry.
+
+The voxel grid rasterises the **surface** of a part, not its volume, and that
+is deliberate: fill a Technic beam and its holes silt up, and the structural
+search never finds a bearing again. The consequence had not been drawn out. Two
+surfaces that pass through each other share only the cells along the ring where
+they cross, and two that merely touch share the cells of the contact patch.
+Neither is a large part of either body, and nothing says which is which.
+
+So the statistic the fit was thresholding on, *what fraction of this part's
+cells are also somebody else's*, does not separate the two cases at all.
+Measured, an 18947 driving ring against a 40490 nine-hole beam, 466 cells in the
+ring:
+
+| where the ring is | shared cells | fraction |
+| --- | --- | --- |
+| 18 LDU inside the beam | 129 | 0.277 |
+| resting against it | 127 | 0.273 |
+| clear by 40 LDU | 42 | 0.090 |
+| far away | 0 | 0.000 |
+
+Four thousandths separate buried from touching. No threshold sits in that gap,
+and the one that was there — 0.25, arrived at after an earlier round of
+trouble — sits below both, so with the ring rasterised at all it would have
+called ordinary contact a collision. The two rows that matter are not far
+apart and noisy; they are the same number.
+
+The exact tri-tri test does separate them, because it asks a different question
+— do these two closed surfaces enclose overlapping space — and it has the
+`coplanarIsContact` rule that makes face-to-face meeting ordinary rather than a
+collision. It is dear, but only relative to a voxel lookup: bounding boxes
+throw out all but a handful of a 3,000-part model, and the walk stops at the
+first offset that passes. Two hundred candidates cost no measurable time.
+
+The correction is not a better threshold. It is that the coarse filter ranks
+and the exact test decides — and specifically the *same* exact test that will
+judge the finished model. An earlier attempt used raw `collide.Intersects`
+instead of the clearance check's `sharesSpace`, and rejected every offset into
+a two-beam chassis that clearance then passed: an axle standing in a hole is
+inside it, and that is what a hole is for.
+
+Three variants of the same error travelled with it. Rings and joiners were
+never rasterised at all, so the fattest parts on the shaft were invisible.
+Parts with no geometry were skipped with a bare `continue`, so unmeasurable
+space read as empty. And the catch was placed by a routine that avoided other
+shafts and had no idea a chassis was there. Each one produced a confident
+answer about a question that had not been asked.
