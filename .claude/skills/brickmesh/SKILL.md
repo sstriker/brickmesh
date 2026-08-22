@@ -275,10 +275,22 @@ would go. Add `--out` and it writes a copy of the chassis with the mechanism
 built into it, adding a frame only for the shafts the chassis does not already
 hold.
 
+Where the model already has a drivetrain, `--replace` takes it out first and
+fits into the space it leaves. "Alongside the gearbox that is there" and "where
+that gearbox was" are different questions, and in a set built as tightly as
+42110 only the second one has an answer.
+
 Worth knowing: it turns the mechanism as well as moving it, so the answer may be
 oriented differently from what `--spec` alone would build. And a chassis full of
 somebody else's drivetrain will refuse placements, correctly — a gear is as
 solid as a beam.
+
+The placement is settled in two passes. Voxels rank the offsets, cheaply and
+coarsely, and then the same tri-tri test that judges the finished model picks
+among the top of that ranking. The coarse pass alone cannot decide it: parts are
+rasterised as surfaces so a Technic hole stays a hole, and two surfaces that
+interpenetrate share only the thin ring where they cross. So a fit that reports
+OK is one the clearance check will also pass.
 
 The first run fetches the LDraw and LDCad libraries, so it is slow once.
 

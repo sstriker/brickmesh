@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/layout"
 	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // A model fits its own mechanism, exactly, without moving.
@@ -250,5 +252,53 @@ func TestABearingOnlyHoldsWhereItReaches(t *testing.T) {
 	if idx.near(at, dir, -220, -120) {
 		t.Error("a mechanism 120 LDU clear of the walls claims to be held; " +
 			"the line runs for ever but the walls do not")
+	}
+}
+
+func TestTheFitAccountsForWhatRidesTheShaft(t *testing.T) {
+	// A driving ring is 36 LDU across, fatter than most of the gears it sits
+	// between, and was once left out of the fit's clash test entirely.
+	deps := requireLibraries(t)
+	rast := voxel.NewRasterizer(deps.Lib)
+	res := runSpec(t, deps, filepath.Join("..", "..", "examples", "gearbox-2-speed.json"))
+	stations, _ := layout.SolveStations(res.Layout.Mech, res.Layout)
+	sites := sitesFor(res, stations)
+	if len(sites) == 0 {
+		t.Fatal("a two-speed with no ring site to place a ring at")
+	}
+	solids := SolidsOf(res.Layout, stations, rast, sites, nil)
+
+	var rings int
+	for _, s := range solids {
+		for _, site := range sites {
+			if s.Part == site.system.Ring {
+				rings++
+			}
+		}
+	}
+	if rings == 0 {
+		t.Errorf("%d solids and not one of them a driving ring; the fit is "+
+			"blind to the fattest part on the shaft", len(solids))
+	}
+}
+
+func TestEverySolidKnowsWhatItIsAndHowItTurns(t *testing.T) {
+	// The exact confirm needs the part named, not only sampled, and needs its
+	// spin: a gear that clears a beam at rest may not clear it a few degrees on.
+	deps := requireLibraries(t)
+	res := runSpec(t, deps, filepath.Join("..", "..", "examples", "gearbox-2-speed.json"))
+	stations, _ := layout.SolveStations(res.Layout.Mech, res.Layout)
+	solids := SolidsOf(res.Layout, stations, voxel.NewRasterizer(deps.Lib),
+		sitesFor(res, stations), nil)
+	if len(solids) == 0 {
+		t.Fatal("no solids at all")
+	}
+	for _, s := range solids {
+		if s.Part == "" {
+			t.Error("a solid with no part name cannot be put to the exact test")
+		}
+		if s.Spin == (geom.Vec3{}) {
+			t.Errorf("%s has no spin axis, so it will be swept as if it stood still", s.Part)
+		}
 	}
 }

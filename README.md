@@ -172,7 +172,8 @@ brickmesh --fit chassis.ldr --spec mechanism.json --out merged.ldr
 places that mechanism inside that model and writes a copy of the chassis with it
 built in, adding a frame only for the shafts the chassis does not already hold.
 It turns the mechanism as well as moving it, so the result may be oriented
-differently from what `--spec` alone would build.
+differently from what `--spec` alone would build. Add `--replace` where the
+model has a drivetrain of its own and the new one should go where it was.
 
 Reading LDraw's 42110 finds 3,012 parts, 65 gears on 125 axis lines and 24 pairs
 meeting, and offers 767 lines two studs or more long that a shaft could turn in.

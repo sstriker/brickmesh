@@ -59,6 +59,8 @@ func run() error {
 			"with -read: which shaft is turned, so the ratios can be worked out")
 		fit = flag.String("fit", "",
 			"with --spec: an .ldr to fit that mechanism into, instead of building it a frame")
+		replace = flag.Bool("replace", false,
+			"with --fit: take the model's own drivetrain out first, and fit into the space it leaves")
 		holdShift = flag.Bool("hold-shift", false,
 			"make the frame bear the axle each catch turns on, not just the shafts")
 		seed = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
@@ -102,7 +104,7 @@ func run() error {
 
 	var into *pipeline.FitInto
 	if *fit != "" {
-		got, err := readFitInto(*fit)
+		got, err := readFitInto(*fit, *replace)
 		if err != nil {
 			return err
 		}
@@ -384,7 +386,7 @@ func fitToModel(modelAt, specAt string, span int) error {
 }
 
 // readFitInto reads the model a mechanism is to be placed inside.
-func readFitInto(at string) (*pipeline.FitInto, error) {
+func readFitInto(at string, replace bool) (*pipeline.FitInto, error) {
 	f, err := os.Open(at)
 	if err != nil {
 		return nil, err
@@ -401,6 +403,14 @@ func readFitInto(at string) (*pipeline.FitInto, error) {
 	lib := ldraw.New("")
 	r := pipeline.InspectWith(parts, &pipeline.LibraryTeeth{From: lib})
 	rast := voxel.NewRasterizer(lib)
+	// Where the model already has a drivetrain, "fit alongside it" and "fit
+	// where it was" are different questions, and only the second one has an
+	// answer in a model built as tightly as 42110: every candidate offset for a
+	// two-speed put some part of it inside the Land Rover's own gearbox.
+	if replace {
+		r = r.WithoutMechanism()
+		parts = r.Placed()
+	}
 	return &pipeline.FitInto{
 		Parts:    parts,
 		Bearings: r.Bearings(extract.NewPorts(shadow.Open(shadowRoot), lib)),

@@ -225,6 +225,11 @@ type Result struct {
 	// slip is the shafts a torque limiter is fitted to, so the gear chosen at a
 	// 24-tooth station on one is the slipping variant.
 	slip map[string]bool
+	// intoOccupied and intoRast are the model this was fitted into, kept so
+	// that what is placed after the fit — the catches above all — can be kept
+	// out of it too.
+	intoOccupied map[geom.Cell]bool
+	intoRast     *voxel.Rasterizer
 }
 
 // axlePlacement is a shaft worked out but not yet written.
@@ -284,12 +289,19 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 		return res, nil
 	}
 	res.Layout = layouts[0]
+	// Settled before the fit, not after it, because the fit has to name the
+	// same parts the model will end up with: a station on a slipping shaft
+	// takes the slip clutch, and one a ring engages takes the clutch gear. The
+	// fitter guessing plain gears put a 20-tooth where a 35188 would go and
+	// passed an offset the finished model failed on.
+	res.slip = slipShafts(m)
 	if opts.Into != nil {
 		res.Layout = bestLayoutFor(layouts, opts.Into)
-		if err := fitInto(res, opts.Into); err != nil {
+		if err := fitInto(ctx, deps, res, opts.Into); err != nil {
 			return res, err
 		}
 		res.into = opts.Into.Parts
+		res.intoOccupied, res.intoRast = opts.Into.Occupied, opts.Into.Rast
 		opts.SkipStructure = opts.SkipStructure || res.fitBearsEverything
 	}
 
@@ -310,7 +322,6 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	// Where the rings go decides where the shafts are cut, so it is settled
 	// before the axles rather than when the model is drawn.
 	checkFraming(res)
-	res.slip = slipShafts(m)
 	checkSlipClutches(m, res)
 	res.ringSites = ringSites(m, res)
 	// Worked out before the structural search, because the rigidity check needs
@@ -1798,7 +1809,7 @@ func settleCatches(res *Result) {
 		at := place.Point.Scale(synth.HalfStud).
 			Add(place.Direction.Unit().Scale(site.engaged * synth.HalfStud))
 		d := place.Direction.Unit()
-		out, ok := clearOfOtherShafts(res, place, at, d, site.system.CatchReach)
+		out, ok := clearOfOtherShafts(res, place, at, d, site.system)
 		if !ok {
 			res.Findings = append(res.Findings, mech.Finding{
 				Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
@@ -1836,9 +1847,16 @@ func catchFrame(s clutch.System, d, out geom.Vec3) geom.Mat3 {
 	}
 }
 
-// clearOfOtherShafts picks a way out of a shaft that no other shaft is in.
+// clearOfOtherShafts picks a way out of a shaft that nothing is already in.
+//
+// Other shafts were all it looked at, which is right for a mechanism built in
+// open air and wrong for one fitted into somebody's model: a two-speed put into
+// 42110 sent its catch straight through a beam and a panel, on the side the
+// Land Rover was densest, because no other shaft happened to be that way.
 func clearOfOtherShafts(res *Result, place layout.Placement, at, d geom.Vec3,
-	reach float64) (geom.Vec3, bool) {
+	sys clutch.System) (geom.Vec3, bool) {
+
+	reach := sys.CatchReach
 	var across []geom.Vec3
 	for _, c := range []geom.Vec3{{X: 1}, {X: -1}, {Y: 1}, {Y: -1}, {Z: 1}, {Z: -1}} {
 		if math.Abs(c.Dot(d)) < 1e-6 {
@@ -1859,9 +1877,37 @@ func clearOfOtherShafts(res *Result, place layout.Placement, at, d geom.Vec3,
 				break
 			}
 		}
-		if !blocked {
-			return out, true
+		if blocked || catchIsInTheModel(res, sys, at, d, out) {
+			continue
 		}
+		return out, true
 	}
 	return geom.Vec3{}, false
+}
+
+// catchIsInTheModel reports whether a catch this way out would be inside the
+// model the mechanism was fitted into.
+//
+// Only meaningful after a fit; without one there is no model to be inside and
+// the answer is no.
+func catchIsInTheModel(res *Result, sys clutch.System, at, d, out geom.Vec3) bool {
+	if res.intoRast == nil || len(res.intoOccupied) == 0 {
+		return false
+	}
+	cells, err := res.intoRast.VoxelsAt(sys.Catch, catchFrame(sys, d, out))
+	if err != nil {
+		return false // nothing to say, rather than a wrong no
+	}
+	pos := at.Add(out.Scale(sys.CatchReach))
+	shift := geom.Cell{
+		X: int32(math.Round(pos.X / geom.VoxelPitch)),
+		Y: int32(math.Round(pos.Y / geom.VoxelPitch)),
+		Z: int32(math.Round(pos.Z / geom.VoxelPitch)),
+	}
+	for _, c := range cells {
+		if res.intoOccupied[c.Add(shift)] {
+			return true
+		}
+	}
+	return false
 }

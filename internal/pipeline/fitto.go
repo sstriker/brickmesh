@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -40,6 +41,16 @@ type Fit struct {
 	// does not.
 	Shared int
 }
+
+// fitShortlist is how far down the voxel ranking the exact test will walk.
+//
+// It was eight, on the guess that the right offset would be near the top and
+// mesh checks are dear. Fitting a two-speed into 42110 found all eight fouled
+// and reported no room; the ranked list had a clean offset waiting further
+// down, and reaching it cost no measurable time — the bounding boxes throw out
+// all but a handful of the model's parts, and the walk stops at the first
+// candidate that passes. So walk far enough that "no room" means it.
+const fitShortlist = 200
 
 // fitTolerance is how close a line has to come to a bearing to count, in LDU.
 //
@@ -190,6 +201,15 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 // the exercise.
 type Solid struct {
 	Cells []geom.Cell
+	// Part, Rot and Pos are the same body again, named rather than sampled, so
+	// a shortlisted offset can be put to the exact test that will judge the
+	// finished model rather than only to the voxel one that shortlisted it.
+	Part string
+	Rot  geom.Mat3
+	Pos  geom.Vec3
+	// Spin is the shaft it turns about. A gear that clears its neighbour at
+	// rest may not clear it a few degrees on.
+	Spin geom.Vec3
 }
 
 // SolidsOf rasterises a laid-out mechanism where it stands: its gears, and the
@@ -211,7 +231,8 @@ func SolidsOf(l *layout.Layout, stations []layout.Station, rast *voxel.Rasterize
 		if !ok {
 			continue
 		}
-		rot, ok := rotationIndex(alignZTo(place.Direction))
+		mat, _ := alignZTo(place.Direction)
+		rot, ok := rotationIndex(mat, true)
 		if !ok {
 			continue
 		}
@@ -233,7 +254,11 @@ func SolidsOf(l *layout.Layout, stations []layout.Station, rast *voxel.Rasterize
 			for _, c := range cells {
 				moved = append(moved, c.Add(shift))
 			}
-			out = append(out, Solid{Cells: moved})
+			out = append(out, Solid{Cells: moved, Part: at.part,
+				Rot: mat,
+				Pos: origin.Add(place.Direction.Unit().
+					Scale(at.half * synth.HalfStud)),
+				Spin: place.Direction.Unit()})
 		}
 	}
 	for _, st := range stations {
@@ -245,7 +270,11 @@ func SolidsOf(l *layout.Layout, stations []layout.Station, rast *voxel.Rasterize
 		if !ok {
 			continue
 		}
-		rot, ok := rotationIndex(alignZTo(place.Direction))
+		mat, ok := alignZTo(place.Direction)
+		if !ok {
+			continue
+		}
+		rot, ok := rotationIndex(mat, true)
 		if !ok {
 			continue
 		}
@@ -260,7 +289,8 @@ func SolidsOf(l *layout.Layout, stations []layout.Station, rast *voxel.Rasterize
 		for _, c := range cells {
 			moved = append(moved, c.Add(shift))
 		}
-		out = append(out, Solid{Cells: moved})
+		out = append(out, Solid{Cells: moved, Part: name,
+			Rot: mat, Pos: at, Spin: place.Direction.Unit()})
 	}
 	return out
 }
@@ -506,10 +536,11 @@ type FitInto struct {
 // Only the layout moves. A mechanism's gears sit on the lattice with respect to
 // each other and that is settled by the time this runs; what a chassis decides
 // is where the whole assembly goes.
-func fitInto(res *Result, into *FitInto) error {
+func fitInto(ctx context.Context, deps Deps, res *Result, into *FitInto) error {
 	stations, _ := layout.SolveStations(res.Layout.Mech, res.Layout)
-	solids := SolidsOf(res.Layout, stations, into.Rast, sitesFor(res, stations), nil)
-	fits := FitToIn(res.Layout, into.Bearings, into.Occupied, solids, 1)
+	sites := sitesFor(res, stations)
+	solids := SolidsOf(res.Layout, stations, into.Rast, sites, res.slip)
+	fits := FitToIn(res.Layout, into.Bearings, into.Occupied, solids, fitShortlist)
 	if len(fits) == 0 || fits[0].Borne == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
 			Level: "WARN", Check: "fit", Detail: "this model bears none of these " +
@@ -517,7 +548,19 @@ func fitInto(res *Result, into *FitInto) error {
 				"given a frame of its own"})
 		return nil
 	}
-	best := fits[0]
+	// The voxels ranked them; the exact test picks among them. Walking down the
+	// list costs a mesh check per candidate and buys a fit that clearance will
+	// agree with.
+	best, exact := fits[0], false
+	for _, f := range fits {
+		if f.Borne < fits[0].Borne {
+			break // a clean fit that holds fewer shafts is not the better fit
+		}
+		if confirmFit(ctx, deps, solids, sites, f.Offset, into.Parts) {
+			best, exact = f, true
+			break
+		}
+	}
 	// The offset splits in two, and only half of it can live in the layout.
 	//
 	// NewPlacement pulls a point back to the foot of the perpendicular, because
@@ -535,16 +578,21 @@ func fitInto(res *Result, into *FitInto) error {
 			p.Point.Add(across.Scale(1/synth.HalfStud)), p.Direction)
 	}
 	res.fitOffset = best.Offset
-	res.fitBearsEverything = best.Borne == best.Total && best.Clashes == 0
+	res.fitBearsEverything = best.Borne == best.Total && best.Clashes == 0 && exact
 
 	level, detail := "OK", fmt.Sprintf(
 		"placed %s into the model: %d of %d shaft(s) on lines it already bears",
 		show(best.Offset), best.Borne, best.Total)
-	if !res.fitBearsEverything {
+	switch {
+	case !exact:
+		level = "WARN"
+		detail += ", but every candidate offset has some part of the mechanism " +
+			"inside the model; the clearance check below says which"
+	case best.Borne < best.Total:
 		level = "WARN"
 		detail += fmt.Sprintf(", and %d not — those get a frame of their own, "+
 			"which may duplicate what is already there", best.Total-best.Borne)
-	} else {
+	default:
 		detail += ", so it needs no frame of its own"
 	}
 	res.Findings = append(res.Findings, mech.Finding{
@@ -579,9 +627,9 @@ func bestLayoutFor(layouts []*layout.Layout, into *FitInto) *layout.Layout {
 		for _, rot := range geom.Rotations {
 			turned := turnLayout(l, rot)
 			stations, _ := layout.SolveStations(turned.Mech, turned)
-			sites := sitesFor(&Result{Layout: turned, Stations: stations}, stations)
+			at := &Result{Layout: turned, Stations: stations}
 			fits := FitToIn(turned, into.Bearings, into.Occupied,
-				SolidsOf(turned, stations, into.Rast, sites, nil), 1)
+				SolidsOf(turned, stations, into.Rast, sitesFor(at, stations), nil), 1)
 			if len(fits) == 0 {
 				continue
 			}
@@ -640,4 +688,164 @@ func mechSpan(l *layout.Layout) (float64, float64) {
 		lo, hi = math.Min(lo, at), math.Max(hi, at)
 	}
 	return lo - geom.Stud, hi + geom.Stud
+}
+
+// confirmFit puts a shortlisted offset to the exact test.
+//
+// The voxel pass is a coarse filter and cannot be more than that: parts are
+// rasterised as SURFACES, deliberately, so a Technic hole stays a hole. Two
+// shells that genuinely interpenetrate share only the thin ring where the two
+// surfaces cross, which is a few percent of either — so no fraction of shared
+// cells separates a gear driven 18 LDU into a beam from a gear resting against
+// one. Fitting a two-speed into 42110 was reported OK by the voxels and then
+// failed clearance six times over.
+//
+// So the shortlist is settled by voxels and the choice by sharesSpace — the
+// same predicate clearance uses, not a stricter one. Reaching for raw
+// Intersects instead rejected every offset into a chassis that clearance then
+// passed: an axle standing in a hole is inside it, and two faces meeting is
+// how bricks are built.
+func confirmFit(ctx context.Context, deps Deps, solids []Solid, sites []ringSite,
+	off geom.Vec3, into []ldr.Placed) bool {
+
+	if deps.Lib == nil || len(solids) == 0 {
+		return true // nothing to check with, so nothing to say
+	}
+	// Only the model's parts anywhere near the mechanism are worth meshing.
+	lo, hi := solidsBox(solids, off)
+	var near []ldr.Part
+	for _, p := range into {
+		q := ldr.Part{Name: p.Name, Color: p.Color, Rot: p.Rot, Pos: p.Pos}
+		plo, phi, err := placedBox(deps, q)
+		if err != nil {
+			continue
+		}
+		if overlapOf(lo, hi, plo, phi) > -confirmMargin {
+			near = append(near, q)
+		}
+	}
+	// Every one of these turns, and has to be asked as a thing that turns. Put
+	// to sharesSpace as if it stood still, a gear fitted into 42110 cleared the
+	// beam beside it at rest and drove ten LDU into it a few degrees on.
+	for _, s := range solids {
+		if s.Part == "" {
+			continue
+		}
+		a := ldr.Part{Name: s.Part, Rot: s.Rot, Pos: s.Pos.Add(off)}
+		spins := turning{about: map[int]axis{0: {at: a.Pos, dir: s.Spin}}}
+		for _, b := range near {
+			if err := ctx.Err(); err != nil {
+				return true
+			}
+			if mayBeInside(a, b) {
+				continue
+			}
+			inside, _, err := sharesSpace(ctx, deps, a, b, spins, 0, -1)
+			if err != nil || !inside {
+				continue
+			}
+			return false
+		}
+	}
+	return catchHasASide(ctx, deps, sites, solids, off, near)
+}
+
+// catchHasASide asks whether each catch could go anywhere at all.
+//
+// Which side of the shaft a catch sticks out on is settled by the structural
+// search, long after the fit, so the fitter cannot place it. What it can do is
+// insist there is room on one of the four sides: a catch reaches 40 LDU off the
+// shaft, and an offset that buries every one of those four is an offset the
+// catch cannot be built at. Fitting a two-speed into 42110 chose exactly such a
+// spot, and the finished model failed clearance three times on the catch alone.
+//
+// This is deliberately the weaker question. Asking which side would be to
+// answer the structural search's question before it has the frame to answer it
+// with; asking whether any side exists needs only the model.
+func catchHasASide(ctx context.Context, deps Deps, sites []ringSite,
+	solids []Solid, off geom.Vec3, near []ldr.Part) bool {
+
+	for _, site := range sites {
+		name, reach := site.system.Catch, site.system.CatchReach
+		if name == "" || reach == 0 {
+			continue
+		}
+		var at geom.Vec3
+		var spin geom.Vec3
+		var rot geom.Mat3
+		found := false
+		for _, s := range solids {
+			if s.Part == site.system.Ring {
+				at, spin, rot, found = s.Pos.Add(off), s.Spin, s.Rot, true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+		open := false
+		for _, side := range perpendicularsTo(spin) {
+			c := ldr.Part{Name: name, Rot: rot, Pos: at.Add(side.Scale(reach))}
+			if clearOf(ctx, deps, c, near) {
+				open = true
+				break
+			}
+		}
+		if !open {
+			return false
+		}
+	}
+	return true
+}
+
+// clearOf reports whether one part sits clear of all of them.
+func clearOf(ctx context.Context, deps Deps, a ldr.Part, near []ldr.Part) bool {
+	var still turning
+	for _, b := range near {
+		if err := ctx.Err(); err != nil {
+			return true
+		}
+		if mayBeInside(a, b) {
+			continue
+		}
+		if inside, _, err := sharesSpace(ctx, deps, a, b, still, -1, -2); err == nil && inside {
+			return false
+		}
+	}
+	return true
+}
+
+// perpendicularsTo is the four lattice directions square to an axis.
+func perpendicularsTo(dir geom.Vec3) []geom.Vec3 {
+	var out []geom.Vec3
+	for _, ax := range []geom.Vec3{{X: 1}, {Y: 1}, {Z: 1}} {
+		if math.Abs(ax.Dot(dir.Unit())) > 0.5 {
+			continue
+		}
+		out = append(out, ax, ax.Scale(-1))
+	}
+	return out
+}
+
+// confirmMargin is how far outside the mechanism's own box a model part still
+// counts as worth meshing against, in LDU. A stud is enough to cover a part
+// whose box the fit only just misses.
+const confirmMargin = geom.Stud
+
+// solidsBox is the box the whole mechanism occupies once it is moved by off.
+func solidsBox(solids []Solid, off geom.Vec3) (geom.Vec3, geom.Vec3) {
+	lo := geom.Vec3{X: math.Inf(1), Y: math.Inf(1), Z: math.Inf(1)}
+	hi := geom.Vec3{X: math.Inf(-1), Y: math.Inf(-1), Z: math.Inf(-1)}
+	for _, s := range solids {
+		for _, c := range s.Cells {
+			p := geom.Vec3{
+				X: float64(c.X)*geom.VoxelPitch + off.X,
+				Y: float64(c.Y)*geom.VoxelPitch + off.Y,
+				Z: float64(c.Z)*geom.VoxelPitch + off.Z,
+			}
+			lo = geom.Vec3{X: math.Min(lo.X, p.X), Y: math.Min(lo.Y, p.Y), Z: math.Min(lo.Z, p.Z)}
+			hi = geom.Vec3{X: math.Max(hi.X, p.X), Y: math.Max(hi.Y, p.Y), Z: math.Max(hi.Z, p.Z)}
+		}
+	}
+	return lo, hi
 }

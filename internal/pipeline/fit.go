@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
 	"github.com/sstriker/brickmesh/internal/mech"
 	"github.com/sstriker/brickmesh/internal/part"
 	"github.com/sstriker/brickmesh/internal/voxel"
@@ -192,6 +193,19 @@ func (r *Reading) WithoutMechanism() *Reading {
 			k := lineKey(f.Pos, f.Axis)
 			out.Lines[k] = append(out.Lines[k], i)
 		}
+	}
+	return out
+}
+
+// Placed is the parts of this reading, as the model would write them.
+//
+// A reading with its drivetrain taken out is still a model, and the fit needs
+// to write the mechanism into a copy of it. Handing on the file's own parts
+// instead would put the old gearbox back beside the new one.
+func (r *Reading) Placed() []ldr.Placed {
+	out := make([]ldr.Placed, 0, len(r.Parts))
+	for _, f := range r.Parts {
+		out = append(out, f.Placed)
 	}
 	return out
 }
