@@ -559,3 +559,43 @@ on sliding along it, so the first version dropped that component as meaningless
 — but where the gears sit on the line does depend on it, and every placement
 offered put a gear inside the wall bearing the shaft. The line is chosen across;
 the gears are cleared along.
+
+### Making it work on a real model
+
+A synthetic chassis of two beams proved the idea. LDraw's 42110 — 3,012 parts —
+proved it was not finished, and every problem it found was one of scale or of a
+heuristic too blunt to survive contact with somebody else's build.
+
+**It took nearly two minutes, and almost none of that was the fit.** Reading was
+three seconds and the whole placement search about six. The rest was the
+clearance check comparing 3,012 parts of Land Rover with each other. Their build
+is not ours to review — they built it and it stands — so pairs where both parts
+came from the model are skipped, which is also right on its own terms: their
+build's own fits would otherwise be reported as faults. Under half a minute now.
+
+**Twenty arrangements were nineteen too many.** The fitter tries every lattice
+rotation, and the layout search returns arrangements that all run the same way,
+so asking for two dozen of them multiplied the work by twenty-four and bought
+nothing. That was a mistake of mine from believing the arrangements differed in
+orientation; they do not, which is why the rotations exist.
+
+**Eroding forgives too much.** Contact had to be told from intrusion, and
+eroding the model's cells by one layer forgives four LDU — enough that the
+fitter offered a placement with a beam two and a half LDU inside a gear, which
+the clearance check then rejected. Measured on the two-speed instead: a gear
+resting in its bearings shares 16 to 18 cells of 188 to 372, under a tenth of
+itself. A quarter is the threshold, comfortably above contact and well below a
+part driven into another.
+
+**And two placements that both pass are not equally good.** Preferring the one
+sharing fewest cells is what finally put a reduction into that Land Rover with
+the clearance check clean: 3,018 parts, the eight-tooth and twenty-four-tooth
+gears on lines the chassis already bore, and reading the result back finds 67
+gears where it had 65.
+
+That last one cost a test its assertion, and the test was wrong rather than the
+code. It insisted a model fit its own mechanism at an offset of nothing — but a
+frame that bears a mechanism at one place along its shafts usually bears it at
+the next stud too, and between two that both work the fitter now prefers the one
+touching least. What matters is that the frame accepts it where it already is,
+which is what it now asks.

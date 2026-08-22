@@ -88,17 +88,29 @@ func TestItsOwnMechanismDoesNotClashWithItsOwnFrame(t *testing.T) {
 	// every one of them is a gear the answer is about.
 	read := Inspect(parts).WithoutMechanism()
 	solids := SolidsOf(res.Layout, res.Stations, deps.Rast, res.ringSites, res.slip)
+	// Where it already is must be among the placements that work — not
+	// necessarily the one chosen. A frame that bears a mechanism at one place
+	// along its shafts usually bears it at the next stud too, and between two
+	// that both work the fitter prefers the one touching least. Insisting on
+	// the offset being nothing asserts that tiebreak rather than the fit.
 	fits := FitToIn(res.Layout, read.Bearings(deps.Shadow),
-		read.Occupied(deps.Rast), solids, 1)
+		read.Occupied(deps.Rast), solids, 0)
 	if len(fits) == 0 {
 		t.Fatal("its own frame offered nowhere to put it")
 	}
 	if fits[0].Clashes != 0 {
-		t.Errorf("%d of its gears read as inside the frame built to clear them",
-			fits[0].Clashes)
+		t.Errorf("the best placement puts %d gear(s) inside the frame built to "+
+			"clear them", fits[0].Clashes)
 	}
-	if fits[0].Offset != (geom.Vec3{}) {
-		t.Errorf("it should fit where it already is, not at %v", fits[0].Offset)
+	found := false
+	for _, f := range fits {
+		if f.Offset == (geom.Vec3{}) && f.Borne == f.Total && f.Clashes == 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the frame built for this mechanism does not accept it where " +
+			"it already is")
 	}
 }
 
@@ -122,13 +134,13 @@ func TestAGearInFilledSpaceIsSeen(t *testing.T) {
 			full[c] = true
 		}
 	}
-	if got := clashesAt(solids, full, geom.Vec3{}); got != len(solids) {
+	if got, _ := clashesAt(solids, full, geom.Vec3{}); got != len(solids) {
 		t.Errorf("%d of %d gears read as clashing with space they fill exactly",
 			got, len(solids))
 	}
 	// And moved well clear of it, none of them do.
 	away := geom.Vec3{X: 400, Y: 400, Z: 400}
-	if got := clashesAt(solids, full, away); got != 0 {
+	if got, _ := clashesAt(solids, full, away); got != 0 {
 		t.Errorf("%d gear(s) still clash after moving twenty studs away", got)
 	}
 }

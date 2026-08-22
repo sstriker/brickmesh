@@ -273,17 +273,8 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 
 	opts.Progress.Report(progress.Report{Stage: progress.StageLayout,
 		Note: "arranging the shafts on the lattice"})
-	maxLayouts := opts.MaxLayouts
-	if opts.Into != nil && maxLayouts < fitLayouts {
-		// A model's bearings run whichever way somebody built them, and this
-		// fitter only ever moves a mechanism, never turns it. Turning it IS a
-		// different layout, so several are asked for and the one that suits the
-		// model is taken. With one, a chassis whose shafts run along y was told
-		// that a reduction laid out along x could not go in it anywhere.
-		maxLayouts = fitLayouts
-	}
 	layouts := layout.Realize(m, layout.Options{
-		MaxSolutions: maxLayouts, Span: opts.Span,
+		MaxSolutions: opts.MaxLayouts, Span: opts.Span,
 	})
 	if len(layouts) == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
@@ -462,10 +453,6 @@ func overlapping(ctx context.Context, parts []synth.Placed, deps Deps) bool {
 func lattice(p synth.Placed) ldr.Part {
 	return ldr.Part{Name: p.Part, Rot: geom.Rotations[p.Rot], Pos: p.Origin}
 }
-
-// fitLayouts is how many arrangements to try when fitting into a model. Each
-// is a different orientation or spacing, and only some suit a given chassis.
-const fitLayouts = 24
 
 func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) error {
 	if deps.Rast == nil || deps.Shadow == nil {

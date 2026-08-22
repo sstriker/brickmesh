@@ -33,6 +33,12 @@ type Fit struct {
 	// at this placement. A line the model bears is only half the question: the
 	// other half is whether there is room along it.
 	Clashes int
+	// Shared is how many cells it shares with the model in total, counting the
+	// ones under the threshold. Two placements that both pass are not equally
+	// good: one may be resting against a wall and the other creeping into it,
+	// and the clearance check afterwards will tell them apart even though this
+	// does not.
+	Shared int
 }
 
 // fitTolerance is how close a line has to come to a bearing to count, in LDU.
@@ -49,6 +55,10 @@ const fitTolerance = 0.5
 // Ten is two shafts' worth of gearbox in each direction, which is enough to
 // clear a wall and not so much that the search stops being quick.
 const slideStuds = 10
+
+// fitArrangements is how many of the layout search's answers are tried when
+// fitting into a model. See bestLayoutFor.
+const fitArrangements = 3
 
 // FitTo finds where a layout could sit in a model, best first.
 //
@@ -83,7 +93,9 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 			append(lines[lineKey(p.Point.Scale(synth.HalfStud), p.Direction.Unit())], id)
 	}
 
+	idx := indexBearings(bearings)
 	seen := map[[3]float64]bool{}
+	bestBorne := 0
 	var out []Fit
 	for _, b := range bearings {
 		for k := range lines {
@@ -121,11 +133,27 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 					continue
 				}
 				seen[key] = true
-				f := scoreFit(lines, bearings, at)
-				f.Clashes = clashesAt(solids, occupied, at)
+				// Scored first and cleared later. Working out whether a
+				// placement has room costs a hundred cell lookups a gear, and
+				// naming the shafts it bears costs an allocation and a sort —
+				// while a real chassis gives over a million candidates, nearly
+				// all of them losers. Only the best-so-far are kept.
+				f := scoreFit(lines, idx, at)
+				if f.Borne < bestBorne {
+					continue
+				}
+				if f.Borne > bestBorne {
+					bestBorne = f.Borne
+					out = out[:0] // everything kept so far is beaten
+				}
 				out = append(out, f)
 			}
 		}
+	}
+	// Only the survivors pay for a clash test, or for being named.
+	for i := range out {
+		out[i].Clashes, out[i].Shared = clashesAt(solids, occupied, out[i].Offset)
+		nameBorne(lines, idx, &out[i])
 	}
 	sort.Slice(out, func(i, j int) bool {
 		// Room first, then support: a placement that cannot be built is not
@@ -138,6 +166,11 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 		}
 		if out[i].Clashes != out[j].Clashes {
 			return out[i].Clashes < out[j].Clashes
+		}
+		// Least shared: two placements that both pass are not equally good, and
+		// the one merely resting against a wall beats the one creeping into it.
+		if out[i].Shared != out[j].Shared {
+			return out[i].Shared < out[j].Shared
 		}
 		return out[i].Offset.Len() < out[j].Offset.Len()
 	})
@@ -201,51 +234,138 @@ func cellOf(at geom.Vec3) geom.Cell {
 	}
 }
 
+// touchFraction is how much of a part may be shared before it is inside
+// something rather than against it.
+//
+// The rasteriser marks every cell a part so much as brushes, and parts in a
+// model touch by design — a bearing IS a shaft touching a beam. Measured on the
+// two-speed, whose frame was built to clear its gears: a gear resting in its
+// bearings shares 16 to 18 cells of 188 to 372, under a tenth of itself. A
+// quarter is comfortably above that and well below a part driven into another.
+//
+// Eroding the model's cells was the first answer and it forgives a whole cell
+// layer, four LDU, so the fitter offered a placement with a beam two and a half
+// LDU inside a gear. This is a better measure and still a heuristic: the
+// clearance check is what actually decides, and it runs afterwards on the model
+// that was built.
+const touchFraction = 0.25
+
 // clashesAt counts the mechanism's parts that would be inside the model.
 //
-// The parts themselves, cell for cell. A ball of the gear's pitch radius was
-// the first try and it counts a wall standing a stud away as a wall through the
-// gear: the two-speed reported two of its own gears clashing with the frame
-// built to clear them.
-func clashesAt(solids []Solid, occupied map[geom.Cell]bool, off geom.Vec3) int {
+// The parts themselves, cell for cell. A ball of the gear's pitch radius was the
+// first try and it counts a wall standing a stud away as a wall through the
+// gear.
+func clashesAt(solids []Solid, occupied map[geom.Cell]bool, off geom.Vec3) (int, int) {
 	if len(occupied) == 0 || len(solids) == 0 {
-		return 0
+		return 0, 0
 	}
 	shift := cellOf(off)
-	n := 0
+	n, total := 0, 0
 	for _, s := range solids {
+		shared := 0
 		for _, c := range s.Cells {
 			if occupied[c.Add(shift)] {
-				n++
-				break
+				shared++
 			}
 		}
+		if len(s.Cells) > 0 && float64(shared)/float64(len(s.Cells)) > touchFraction {
+			n++
+		}
+		total += shared
 	}
-	return n
+	return n, total
 }
 
 // scoreFit counts how many of a layout's lines land on a bearing once moved.
-func scoreFit(lines map[[6]float64][]string, bearings []Bearing, off geom.Vec3) Fit {
+// bearingIndex answers "is there a bearing on this line" without looking at
+// every bearing.
+//
+// A linear scan is what it was, and a chassis offers over a thousand lines
+// while the fitter tries more than a million placements. Buckets are a stud
+// across and a lookup checks the neighbours, so a bearing within the tolerance
+// is found wherever in its bucket it sits.
+type bearingIndex map[[6]int64][]Bearing
+
+func indexBearings(bs []Bearing) bearingIndex {
+	idx := bearingIndex{}
+	for _, b := range bs {
+		k := bucketOf(b.At, b.Axis.Unit())
+		idx[k] = append(idx[k], b)
+	}
+	return idx
+}
+
+// bucketOf keys a line by its direction and the foot of its perpendicular, both
+// coarsened. The direction is rounded hard, since a chassis a few thousandths
+// of a radian off axis must land in the same bucket as the mechanism being
+// fitted into it.
+func bucketOf(at, dir geom.Vec3) [6]int64 {
+	d := dir
+	if d.X < -1e-9 || (math.Abs(d.X) < 1e-9 && (d.Y < -1e-9 ||
+		(math.Abs(d.Y) < 1e-9 && d.Z < -1e-9))) {
+		d = d.Scale(-1)
+	}
+	foot := at.Sub(d.Scale(at.Dot(d)))
+	return [6]int64{
+		int64(math.Round(foot.X / geom.Stud)),
+		int64(math.Round(foot.Y / geom.Stud)),
+		int64(math.Round(foot.Z / geom.Stud)),
+		int64(math.Round(d.X)), int64(math.Round(d.Y)), int64(math.Round(d.Z)),
+	}
+}
+
+// near reports whether any bearing lies on this line.
+func (idx bearingIndex) near(at, dir geom.Vec3) bool {
+	base := bucketOf(at, dir)
+	for dx := int64(-1); dx <= 1; dx++ {
+		for dy := int64(-1); dy <= 1; dy++ {
+			for dz := int64(-1); dz <= 1; dz++ {
+				k := base
+				k[0] += dx
+				k[1] += dy
+				k[2] += dz
+				for _, b := range idx[k] {
+					if math.Abs(math.Abs(dir.Dot(b.Axis.Unit()))-1) > 1e-3 {
+						continue
+					}
+					d := b.At.Sub(at)
+					if d.Sub(dir.Scale(d.Dot(dir))).Len() <= fitTolerance {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+// scoreFit counts how many of a layout's lines land on a bearing once moved.
+//
+// Counts only. Naming them meant an allocation and a sort for every candidate.
+func scoreFit(lines map[[6]float64][]string, idx bearingIndex, off geom.Vec3) Fit {
 	f := Fit{Offset: off}
 	for k, ids := range lines {
 		f.Total += len(ids)
 		at := geom.Vec3{X: k[0], Y: k[1], Z: k[2]}.Add(off)
 		dir := geom.Vec3{X: k[3], Y: k[4], Z: k[5]}
-		for _, b := range bearings {
-			if math.Abs(math.Abs(dir.Dot(b.Axis.Unit()))-1) > 1e-3 {
-				continue
-			}
-			d := b.At.Sub(at)
-			if d.Sub(dir.Scale(d.Dot(dir))).Len() > fitTolerance {
-				continue
-			}
+		if idx.near(at, dir) {
 			f.Borne += len(ids)
+		}
+	}
+	return f
+}
+
+// nameBorne fills in which shafts a placement bears, once it is worth knowing.
+func nameBorne(lines map[[6]float64][]string, idx bearingIndex, f *Fit) {
+	f.On = nil
+	for k, ids := range lines {
+		at := geom.Vec3{X: k[0], Y: k[1], Z: k[2]}.Add(f.Offset)
+		dir := geom.Vec3{X: k[3], Y: k[4], Z: k[5]}
+		if idx.near(at, dir) {
 			f.On = append(f.On, ids...)
-			break
 		}
 	}
 	sort.Strings(f.On)
-	return f
 }
 
 // show rounds an offset for printing. The exact value is what gets used; a
@@ -383,9 +503,20 @@ func fitInto(res *Result, into *FitInto) error {
 // them. Without turning, a chassis whose shafts run along y was told that a
 // reduction could not go in it anywhere.
 //
-// All 24 lattice rotations, which is cheap: a handful of layouts by 24 by a few
-// thousand candidate offsets is still arithmetic on small vectors.
+// The turning is why asking for more ARRANGEMENTS is not the answer, and asking
+// for two dozen of them was a mistake that cost a factor of twenty-four: they
+// all run the same way, so the rotations were doing the work twice over. Fitting
+// a reduction into 42110 went from over a hundred seconds to about six.
 func bestLayoutFor(layouts []*layout.Layout, into *FitInto) *layout.Layout {
+	// A few arrangements, every orientation. Arrangements differ in which
+	// shaft sits where, which can matter in a tight chassis, but they all run
+	// the same way — so trying twenty of them multiplies the work by twenty and
+	// buys very little. Sweeping a 3,000-part model takes about a tenth of a
+	// second per orientation, so three arrangements is a few seconds and twenty
+	// was over a minute.
+	if len(layouts) > fitArrangements {
+		layouts = layouts[:fitArrangements]
+	}
 	best, bestBorne, bestClash := layouts[0], -1, 0
 	for _, l := range layouts {
 		for _, rot := range geom.Rotations {

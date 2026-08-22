@@ -168,12 +168,7 @@ func (r *Reading) Occupied(rast *voxel.Rasterizer) map[geom.Cell]bool {
 			out[c.Add(shift)] = true
 		}
 	}
-	// Eroded, for the reason turningCells erodes: the rasteriser marks every
-	// cell a part so much as touches, and parts in a model touch each other by
-	// design. Without it a gear resting against the wall that bears its shaft
-	// counts as a gear inside the wall, and the two-speed reported two of its
-	// own gears clashing with the frame built to clear them.
-	return erode(out)
+	return out
 }
 
 // WithoutMechanism is this reading with the drivetrain taken out, leaving the

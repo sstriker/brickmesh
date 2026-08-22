@@ -247,6 +247,39 @@ through them, sliding each ring between engaged and clear. `--seconds` and
 a smaller structure. `--force` writes a model despite a failed check, which is
 for looking at a problem, not for building.
 
+`--hold-shift` asks the frame to bear the axle each catch turns on, not only the
+shafts. Off by default because it is a trade and not a free improvement: on a
+two-speed it takes the frame from 2 parts and 10 cubic studs to 6 and about 140.
+Somebody who will hold the shift themselves should not pay for it.
+
+## Starting from a model instead of a description
+
+Two things go the other way, for when there is already an `.ldr` or `.mpd`.
+
+**Read one.** `brickmesh --read model.ldr` says what mechanism is in it: the
+gears with their tooth counts, which run loose on their shaft and which are
+keyed to it, the pairs that stand where they would drive each other, and the
+driving rings. Add `--drive <shaft>` — it names them, `line1` and so on — and it
+solves the ratios.
+
+Two things to be careful of when reading. It says what it did not recognise, and
+on a real set that is most of the parts; a ratio worked out from the third of a
+model that was understood is not a ratio. And a driving ring shows the gear it
+is **in**, never the set it could be shifted to, so what comes back is that
+model in the state it was built in, not its gearbox's states.
+
+**Fit into one.** `brickmesh --fit chassis.ldr --spec mechanism.json` says where
+that mechanism could sit inside that model — which of its shafts land on lines
+the chassis already bears, and whether anything is standing where the gears
+would go. Add `--out` and it writes a copy of the chassis with the mechanism
+built into it, adding a frame only for the shafts the chassis does not already
+hold.
+
+Worth knowing: it turns the mechanism as well as moving it, so the answer may be
+oriented differently from what `--spec` alone would build. And a chassis full of
+somebody else's drivetrain will refuse placements, correctly — a gear is as
+solid as a beam.
+
 The first run fetches the LDraw and LDCad libraries, so it is slow once.
 
 ## Reading what it says

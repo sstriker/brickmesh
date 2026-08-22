@@ -151,6 +151,32 @@ The parts libraries are fetched on first use: the LDraw parts library as one
 [ATTRIBUTION.md](ATTRIBUTION.md) for what they are and what their licences ask
 of anything you publish from them.
 
+## Starting from a model
+
+Both directions, for when there is already an `.ldr` or `.mpd`.
+
+```console
+brickmesh --read model.ldr --drive line1
+```
+
+says what mechanism is in it — gears and tooth counts, which run loose on their
+shaft and which are keyed to it, the pairs that stand where they would drive
+each other, the driving rings — and works out the ratios. It also says what it
+did not recognise, which on a real set is most of the parts: a ratio worked out
+from the third of a model that was understood is not a ratio.
+
+```console
+brickmesh --fit chassis.ldr --spec mechanism.json --out merged.ldr
+```
+
+places that mechanism inside that model and writes a copy of the chassis with it
+built in, adding a frame only for the shafts the chassis does not already hold.
+It turns the mechanism as well as moving it, so the result may be oriented
+differently from what `--spec` alone would build.
+
+Reading LDraw's 42110 finds 3,012 parts, 65 gears on 125 axis lines and 24 pairs
+meeting, and offers 767 lines two studs or more long that a shaft could turn in.
+
 ## Will it survive being turned?
 
 `brickmesh` answers whether a train turns. `brickmesh-torque` answers whether it

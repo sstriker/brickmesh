@@ -52,12 +52,23 @@ func checkClearance(ctx context.Context, res *Result, deps Deps) error {
 					"were left, not on the model",
 				strings.Join(missing, ", "), plural(len(missing)))})
 	}
+	// Where a mechanism has been fitted into somebody's model, their parts come
+	// first and are not ours to review: they built it and it stands. Checking
+	// them against each other is n squared over a model that may run to
+	// thousands — fitting a reduction into 42110 spent nearly two minutes
+	// comparing 3,012 parts of Land Rover with each other — and it would report
+	// their build's own fits as faults besides.
+	theirs := len(res.into)
+
 	clashes := 0
 	for i := 0; i < len(parts); i++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		for j := i + 1; j < len(parts); j++ {
+			if j < theirs {
+				continue // both from the model this was fitted into
+			}
 			a, b := parts[i], parts[j]
 			if mayBeInside(a, b) {
 				continue
