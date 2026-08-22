@@ -461,6 +461,24 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 	searcher := synth.NewSearcher(deps.Rast, deps.Shadow, opts.Inventory)
 	searcher.Taken = ringSpans(res)
 	searcher.Reserved = turningCells(res, deps)
+	if opts.Into != nil {
+		// The model it is being fitted into is in the way too, and the search
+		// had no idea: it would happily run a beam straight through somebody's
+		// chassis to reach a bearing.
+		//
+		// Eroded first, unlike the turning parts already in Reserved. Those
+		// admit no contact at all, because a beam sharing a cell with something
+		// that turns is inside it. A chassis is the opposite case: a new beam
+		// bolted to it shares cells at the joint by design, which is what
+		// bolting IS. A layer of erosion is the difference between touching it
+		// and going through it.
+		if searcher.Reserved == nil {
+			searcher.Reserved = map[geom.Cell]bool{}
+		}
+		for c := range erode(opts.Into.Occupied) {
+			searcher.Reserved[c] = true
+		}
+	}
 	// The same joints the rigidity report counts. Without these the search
 	// braces against a frame it believes to be in loose pieces.
 	searcher.Shafts = res.Axles

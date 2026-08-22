@@ -189,7 +189,13 @@ type Solid struct {
 	Cells []geom.Cell
 }
 
-// SolidsOf rasterises a laid-out mechanism's gears where they stand.
+// SolidsOf rasterises a laid-out mechanism where it stands: its gears, and the
+// driving rings and joiners that ride its shafts.
+//
+// The rings matter as much as the gears and were left out at first, on the
+// unexamined assumption that a shaft's own furniture is thin. A driving ring is
+// 36 LDU across — fatter than most gears — and the first mechanism fitted to a
+// chassis put one 18 LDU inside a wall while every gear cleared it.
 func SolidsOf(l *layout.Layout, stations []layout.Station, rast *voxel.Rasterizer,
 	sites []ringSite, slip map[string]bool) []Solid {
 
@@ -197,6 +203,36 @@ func SolidsOf(l *layout.Layout, stations []layout.Station, rast *voxel.Rasterize
 		return nil
 	}
 	var out []Solid
+	for _, site := range sites {
+		place, ok := l.Place[site.station.Shaft]
+		if !ok {
+			continue
+		}
+		rot, ok := rotationIndex(alignZTo(place.Direction))
+		if !ok {
+			continue
+		}
+		origin := place.Point.Scale(synth.HalfStud)
+		for _, at := range []struct {
+			part string
+			half float64
+		}{
+			{site.system.Ring, site.engaged},
+			{site.system.Joiner, site.joiner},
+		} {
+			cells, err := rast.Voxels(at.part, rot)
+			if err != nil {
+				continue
+			}
+			shift := cellOf(origin.Add(place.Direction.Unit().
+				Scale(at.half * synth.HalfStud)))
+			moved := make([]geom.Cell, 0, len(cells))
+			for _, c := range cells {
+				moved = append(moved, c.Add(shift))
+			}
+			out = append(out, Solid{Cells: moved})
+		}
+	}
 	for _, st := range stations {
 		place, ok := l.Place[st.Shaft]
 		if !ok {
@@ -451,7 +487,7 @@ type FitInto struct {
 // is where the whole assembly goes.
 func fitInto(res *Result, into *FitInto) error {
 	stations, _ := layout.SolveStations(res.Layout.Mech, res.Layout)
-	solids := SolidsOf(res.Layout, stations, into.Rast, nil, nil)
+	solids := SolidsOf(res.Layout, stations, into.Rast, sitesFor(res, stations), nil)
 	fits := FitToIn(res.Layout, into.Bearings, into.Occupied, solids, 1)
 	if len(fits) == 0 || fits[0].Borne == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
@@ -522,8 +558,9 @@ func bestLayoutFor(layouts []*layout.Layout, into *FitInto) *layout.Layout {
 		for _, rot := range geom.Rotations {
 			turned := turnLayout(l, rot)
 			stations, _ := layout.SolveStations(turned.Mech, turned)
+			sites := sitesFor(&Result{Layout: turned, Stations: stations}, stations)
 			fits := FitToIn(turned, into.Bearings, into.Occupied,
-				SolidsOf(turned, stations, into.Rast, nil, nil), 1)
+				SolidsOf(turned, stations, into.Rast, sites, nil), 1)
 			if len(fits) == 0 {
 				continue
 			}
@@ -546,5 +583,22 @@ func turnLayout(l *layout.Layout, rot geom.Mat3) *layout.Layout {
 	for id, p := range l.Place {
 		out.Place[id] = layout.NewPlacement(rot.Apply(p.Point), rot.Apply(p.Direction))
 	}
+	return out
+}
+
+// sitesFor works out where the driving rings go, early enough for the fitter to
+// know they are there.
+//
+// The pipeline settles ring sites well after the layout, and the fit happens
+// before that — so it has to ask for them itself. Nothing here depends on the
+// structure, only on the layout and the stations.
+func sitesFor(res *Result, stations []layout.Station) []ringSite {
+	if res.Layout == nil || res.Layout.Mech == nil {
+		return nil
+	}
+	was := res.Stations
+	res.Stations = stations
+	out := ringSites(res.Layout.Mech, res)
+	res.Stations = was
 	return out
 }
