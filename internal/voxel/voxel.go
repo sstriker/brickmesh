@@ -133,6 +133,37 @@ func sampleTriangle(v0, v1, v2 geom.Vec3) []geom.Vec3 {
 // symmetry, so a cube does not collapse all the way to one: sampling on a cell
 // boundary differs slightly between orientations. It is a search-space
 // optimization, not a claim about the part.
+// VoxelsAt is the cells a part occupies under any rotation, not only one of the
+// 24.
+//
+// Voxels takes an index into the lattice rotations, which is what the
+// structural search works in and what a model being READ is under no obligation
+// to use: a suspension arm sits where the geometry puts it, and a gear turned
+// to interleave its teeth is a fraction of a degree off. Uncached, because a
+// model is read once and there is no small set of keys to cache under.
+func (r *Rasterizer) VoxelsAt(part string, rot geom.Mat3) (Cells, error) {
+	g, err := r.Lib.Geometry(part)
+	if err != nil {
+		return nil, err
+	}
+	if len(g.Tris) == 0 {
+		return nil, fmt.Errorf("%s: no triangles", part)
+	}
+	seen := map[geom.Cell]bool{}
+	var cells Cells
+	for _, tri := range g.Tris {
+		a, b, c := rot.Apply(tri[0]), rot.Apply(tri[1]), rot.Apply(tri[2])
+		for _, p := range sampleTriangle(a, b, c) {
+			cell := geom.ToCell(p)
+			if !seen[cell] {
+				seen[cell] = true
+				cells = append(cells, cell)
+			}
+		}
+	}
+	return cells, nil
+}
+
 func (r *Rasterizer) DistinctRotations(part string) ([]int, error) {
 	seen := map[string]bool{}
 	var keep []int

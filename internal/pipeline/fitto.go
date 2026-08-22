@@ -12,6 +12,7 @@ import (
 	"github.com/sstriker/brickmesh/internal/layout"
 	"github.com/sstriker/brickmesh/internal/mech"
 	"github.com/sstriker/brickmesh/internal/synth"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // Fit is a place a mechanism could go in a model that already exists.
@@ -27,6 +28,10 @@ type Fit struct {
 	Borne, Total int
 	// On names them, for saying which.
 	On []string
+	// Clashes is how many of the mechanism's gears would be inside the model
+	// at this placement. A line the model bears is only half the question: the
+	// other half is whether there is room along it.
+	Clashes int
 }
 
 // fitTolerance is how close a line has to come to a bearing to count, in LDU.
@@ -45,6 +50,17 @@ const fitTolerance = 0.5
 // 42110 offers 767 usable lines — so the bearings are the outer loop and the
 // shafts the inner one.
 func FitTo(l *layout.Layout, bearings []Bearing, want int) []Fit {
+	return FitToIn(l, bearings, nil, nil, want)
+}
+
+// FitToIn is FitTo with the model's own space taken into account.
+//
+// A placement that puts a gear where the bodywork is bears the shafts and
+// cannot be built, so what it costs is counted rather than left to be
+// discovered afterwards. Needs the stations, since a mechanism's gears are what
+// take up room; the shafts themselves fit anywhere their line is clear.
+func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
+	solids []Solid, want int) []Fit {
 	if l == nil || len(bearings) == 0 {
 		return nil
 	}
@@ -89,12 +105,22 @@ func FitTo(l *layout.Layout, bearings []Bearing, want int) []Fit {
 				continue
 			}
 			seen[key] = true
-			out = append(out, scoreFit(lines, bearings, off))
+			f := scoreFit(lines, bearings, off)
+			f.Clashes = clashesAt(solids, occupied, off)
+			out = append(out, f)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
+		// Room first, then support: a placement that cannot be built is not
+		// better than one that needs a bearing adding, however well it lines up.
+		if (out[i].Clashes == 0) != (out[j].Clashes == 0) {
+			return out[i].Clashes == 0
+		}
 		if out[i].Borne != out[j].Borne {
 			return out[i].Borne > out[j].Borne
+		}
+		if out[i].Clashes != out[j].Clashes {
+			return out[i].Clashes < out[j].Clashes
 		}
 		return out[i].Offset.Len() < out[j].Offset.Len()
 	})
@@ -102,6 +128,83 @@ func FitTo(l *layout.Layout, bearings []Bearing, want int) []Fit {
 		out = out[:want]
 	}
 	return out
+}
+
+// Solid is one of the mechanism's parts as cells, ready to be moved about.
+//
+// Rasterised once and then shifted, because the fitter tries a few thousand
+// placements and rasterising a gear at each of them would be the whole cost of
+// the exercise.
+type Solid struct {
+	Cells []geom.Cell
+}
+
+// SolidsOf rasterises a laid-out mechanism's gears where they stand.
+func SolidsOf(l *layout.Layout, stations []layout.Station, rast *voxel.Rasterizer,
+	sites []ringSite, slip map[string]bool) []Solid {
+
+	if rast == nil || l == nil {
+		return nil
+	}
+	var out []Solid
+	for _, st := range stations {
+		place, ok := l.Place[st.Shaft]
+		if !ok {
+			continue
+		}
+		name, ok := gearAt(st, sites, slip)
+		if !ok {
+			continue
+		}
+		rot, ok := rotationIndex(alignZTo(place.Direction))
+		if !ok {
+			continue
+		}
+		cells, err := rast.Voxels(name, rot)
+		if err != nil {
+			continue
+		}
+		at := place.Point.Scale(synth.HalfStud).
+			Add(place.Direction.Unit().Scale(st.Axial * synth.HalfStud))
+		shift := cellOf(at)
+		moved := make([]geom.Cell, 0, len(cells))
+		for _, c := range cells {
+			moved = append(moved, c.Add(shift))
+		}
+		out = append(out, Solid{Cells: moved})
+	}
+	return out
+}
+
+func cellOf(at geom.Vec3) geom.Cell {
+	return geom.Cell{
+		X: int32(math.Round(at.X / geom.VoxelPitch)),
+		Y: int32(math.Round(at.Y / geom.VoxelPitch)),
+		Z: int32(math.Round(at.Z / geom.VoxelPitch)),
+	}
+}
+
+// clashesAt counts the mechanism's parts that would be inside the model.
+//
+// The parts themselves, cell for cell. A ball of the gear's pitch radius was
+// the first try and it counts a wall standing a stud away as a wall through the
+// gear: the two-speed reported two of its own gears clashing with the frame
+// built to clear them.
+func clashesAt(solids []Solid, occupied map[geom.Cell]bool, off geom.Vec3) int {
+	if len(occupied) == 0 || len(solids) == 0 {
+		return 0
+	}
+	shift := cellOf(off)
+	n := 0
+	for _, s := range solids {
+		for _, c := range s.Cells {
+			if occupied[c.Add(shift)] {
+				n++
+				break
+			}
+		}
+	}
+	return n
 }
 
 // scoreFit counts how many of a layout's lines land on a bearing once moved.
@@ -136,7 +239,14 @@ func show(v geom.Vec3) string {
 
 // ReportFit says where a mechanism could go in a model.
 func ReportFit(l *layout.Layout, bearings []Bearing) []mech.Finding {
-	fits := FitTo(l, bearings, 3)
+	return ReportFitIn(l, bearings, nil, nil)
+}
+
+// ReportFitIn is ReportFit with the model's own space taken into account.
+func ReportFitIn(l *layout.Layout, bearings []Bearing,
+	occupied map[geom.Cell]bool, solids []Solid) []mech.Finding {
+
+	fits := FitToIn(l, bearings, occupied, solids, 3)
 	if len(fits) == 0 {
 		return []mech.Finding{{Level: "WARN", Check: "fit", Detail: "nothing to " +
 			"fit to: the model offers no bearing running the way any of these " +
@@ -152,6 +262,12 @@ func ReportFit(l *layout.Layout, bearings []Bearing) []mech.Finding {
 	out := []mech.Finding{{Level: "OK", Check: "fit", Detail: fmt.Sprintf(
 		"best placement moves it by %v and puts %d of %d shaft(s) on lines the "+
 			"model already bears: %v", show(best.Offset), best.Borne, best.Total, best.On)}}
+	if best.Clashes > 0 {
+		out = append(out, mech.Finding{Level: "WARN", Check: "fit", Detail: fmt.Sprintf(
+			"%d of its gears would be inside the model there. Every placement "+
+				"tried has that problem, so this one is the least bad rather "+
+				"than a place it goes", best.Clashes)})
+	}
 	for _, f := range fits[1:] {
 		if f.Borne == 0 {
 			break
@@ -165,4 +281,12 @@ func ReportFit(l *layout.Layout, bearings []Bearing) []mech.Finding {
 				"need holding", best.Total-best.Borne)})
 	}
 	return out
+}
+
+// SolidsOfLayout is SolidsOf for a mechanism that has not been through the
+// pipeline, so has no ring sites or slip clutches to choose gear variants by.
+func SolidsOfLayout(l *layout.Layout, stations []layout.Station,
+	rast *voxel.Rasterizer) []Solid {
+
+	return SolidsOf(l, stations, rast, nil, nil)
 }

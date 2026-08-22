@@ -11,6 +11,7 @@ import (
 	"github.com/sstriker/brickmesh/internal/geom"
 	"github.com/sstriker/brickmesh/internal/mech"
 	"github.com/sstriker/brickmesh/internal/part"
+	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
 // Bearing is an axis a model already offers to hold a shaft on.
@@ -133,4 +134,47 @@ func (r *Reading) ReportBearings(src part.Holes) []mech.Finding {
 			b.Axis, b.At, b.Span(), b.Holes, b.Parts)})
 	}
 	return out
+}
+
+// Occupied is the space a mechanism fitted into this model may not enter.
+//
+// Structure and bodywork, not the parts of a mechanism. A gear already in the
+// model is not an obstacle in the same sense: it is somebody's drivetrain, and
+// whether a new one can share a model with it is a question about what drives
+// what, which this does not answer. Counting them made a model fitted with its
+// OWN mechanism report four gears in the way — all four of them the ones it was
+// asking about.
+//
+// Built with VoxelsAt rather than Voxels because a model being read is not on
+// the lattice: 42110's chassis is turned about three thousandths of a radian,
+// and asking for a lattice rotation index would have skipped nearly all of it.
+func (r *Reading) Occupied(rast *voxel.Rasterizer) map[geom.Cell]bool {
+	if rast == nil {
+		return nil
+	}
+	out := map[geom.Cell]bool{}
+	for _, f := range r.Parts {
+		switch f.Class {
+		case classGear, classRing, classJoiner, classAxle, classSelector:
+			continue // a mechanism, not the room around one
+		}
+		cells, err := rast.VoxelsAt(f.Name, f.Rot)
+		if err != nil {
+			continue
+		}
+		shift := geom.Cell{
+			X: int32(math.Round(f.Pos.X / geom.VoxelPitch)),
+			Y: int32(math.Round(f.Pos.Y / geom.VoxelPitch)),
+			Z: int32(math.Round(f.Pos.Z / geom.VoxelPitch)),
+		}
+		for _, c := range cells {
+			out[c.Add(shift)] = true
+		}
+	}
+	// Eroded, for the reason turningCells erodes: the rasteriser marks every
+	// cell a part so much as touches, and parts in a model touch each other by
+	// design. Without it a gear resting against the wall that bears its shaft
+	// counts as a gear inside the wall, and the two-speed reported two of its
+	// own gears clashing with the frame built to clear them.
+	return erode(out)
 }

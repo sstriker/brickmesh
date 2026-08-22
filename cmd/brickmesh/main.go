@@ -362,7 +362,11 @@ func fitToModel(modelAt, specAt string, span int) error {
 	for _, fi := range r.Findings {
 		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
 	}
-	for _, fi := range pipeline.ReportFit(layouts[0], r.Bearings(ports)) {
+	rast := voxel.NewRasterizer(ldraw.New(""))
+	stations, _ := layout.SolveStations(m, layouts[0])
+	solids := pipeline.SolidsOfLayout(layouts[0], stations, rast)
+	for _, fi := range pipeline.ReportFitIn(layouts[0], r.Bearings(ports),
+		r.Occupied(rast), solids) {
 		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
 	}
 	return nil

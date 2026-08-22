@@ -494,3 +494,34 @@ to whole studs put all 767 of its bearing lines out of reach and reported that a
 gearbox cannot go anywhere in a Land Rover. With the exact offset it finds
 placements putting all four shafts of a two-speed on lines that chassis already
 bears.
+
+### Room, not just alignment
+
+A line the model bears is half the question. The other half is whether there is
+anything already standing where the gears would go, so a fit is scored on both
+and room comes first: a placement that cannot be built is not better than one
+needing a bearing added, however well it lines up.
+
+The mechanism's gears are rasterised once and then shifted, because the fitter
+tries a few thousand placements and rasterising at each would be the whole cost.
+
+Two things had to be right before the number meant anything, and the two-speed
+fitted into its own model found both — it must clash with nothing, since its
+frame was built to clear those gears.
+
+**A ball is not a gear.** The first version asked whether the model filled any
+cell within the gear's pitch radius, which counts a wall standing a stud away as
+a wall through the gear. Testing the gear's actual cells is both cheaper and
+right.
+
+**Contact is not overlap.** The rasteriser marks every cell a part so much as
+touches, and parts in a model touch each other by design — that is what a
+bearing IS. `turningCells` already erodes for this reason and the model's
+occupied space has to as well. Without it a gear resting against the wall that
+carries its shaft reads as a gear inside the wall.
+
+**And what counts as an obstacle is the structure, not a mechanism.** A gear
+already in the model is somebody's drivetrain, and whether a new one can share a
+model with it is a question about what drives what. Counting them made a model
+fitted with its own mechanism report four gears in the way — all four of them
+the ones it was asking about.
