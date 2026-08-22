@@ -272,7 +272,11 @@ func readModel(at, drive string) error {
 	if err != nil {
 		return err
 	}
-	mm, more := r.Mechanism(extract.NewPorts(shadow.Open(shadowRoot), ldraw.New("")))
+	ports := extract.NewPorts(shadow.Open(shadowRoot), ldraw.New(""))
+	for _, fi := range r.ReportBearings(ports) {
+		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
+	}
+	mm, more := r.Mechanism(ports)
 	for _, fi := range more {
 		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
 	}

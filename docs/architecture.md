@@ -427,3 +427,42 @@ known exactly and nothing about the reading is told it.
 kinds unrecognised — bodywork, panels, connectors this engine never places — and
 the reading says so, because a ratio worked out from the third of a model that
 was understood is not a ratio.
+
+## Fitting to a model that already exists
+
+The other direction again: not "what is in this model" but "what could be built
+into it". The structural search already takes the two things a given frame
+supplies — `Reserved`, the space no new part may enter, and `Requirement`, a
+point a shaft has to be borne at — so what was missing was reading them off a
+model.
+
+`Reading.Bearings` is every axis the model already supports a shaft on: two or
+more round holes with their centres on one line, facing along it. The same
+`lineKey` the reading uses for axis lines does the grouping, so a bearing line
+and a shaft line are the same kind of thing and compare directly.
+
+Two distinctions decide what counts, and both were already in the codebase.
+
+**A cross hole is not a bearing.** An axle is keyed into one and turns in a round
+one — `part.Hole.Cross` — so a cross hole is where a shaft is HELD, not where it
+turns. Offering one as a bearing offers a mechanism somewhere it would seize.
+
+**A gear's bore is not a bearing either.** A clutch gear has a round hole and an
+axle really does turn in it, but a gear is a thing the shaft carries, not a
+thing that carries the shaft. Counting bores made the two-speed's output line
+look like a four-point bearing when it is a two-point one with two gears strung
+between.
+
+What comes out is usable. The engine's own two-speed offers three lines of 60
+LDU, which are its two walls seen from the other side — and only two of them
+carry a shaft, so the third is a spare line a mechanism could be extended onto.
+LDraw's 42110 offers 1,264 lines with two or more round holes, 767 of them
+spanning two studs or more across two or more parts, the longest 870 LDU.
+
+**Reading a model means arbitrary rotations.** `part.WorldPorts` takes one of
+the 24 lattice rotations, which is what the structural search works in and what
+a model being read is under no obligation to use: a suspension arm sits where
+the geometry puts it, and this engine's own gears are turned by a fraction of a
+tooth to interleave. Carrying holes over by the part's own matrix instead is
+both simpler and correct; going through the lattice index crashed on the first
+real model it saw.
