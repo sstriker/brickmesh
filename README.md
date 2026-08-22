@@ -234,8 +234,10 @@ BRICKMESH_LIBRARIES=1 uv run --extra geometry pytest -m libraries
 CI runs those in a job that caches the libraries, so only a cold run fetches
 anything. Expect about a minute cold and thirty seconds warm.
 
-`prek run --all-files` runs the same hooks CI runs. Every source file carries an
-SPDX header, and a pre-commit hook adds one to files that do not.
+`prek run --all-files` runs the same hooks CI runs. It needs `uv` on PATH as
+well — the ruff hook shells out to `uv run ruff`, and without it prek stops with
+a bare "No such file or directory" that names neither. Every source file carries
+an SPDX header, and a pre-commit hook adds one to files that do not.
 
 ## License
 
