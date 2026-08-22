@@ -10,6 +10,7 @@ import (
 
 	"github.com/sstriker/brickmesh/internal/geom"
 	"github.com/sstriker/brickmesh/internal/layout"
+	"github.com/sstriker/brickmesh/internal/ldr"
 	"github.com/sstriker/brickmesh/internal/mech"
 	"github.com/sstriker/brickmesh/internal/synth"
 	"github.com/sstriker/brickmesh/internal/voxel"
@@ -41,6 +42,13 @@ type Fit struct {
 // than {0 0 1}. Half an LDU is far under the two studs between lattice
 // positions, so it cannot claim a fit that is not there.
 const fitTolerance = 0.5
+
+// slideStuds is how far along its own line a mechanism is slid looking for room,
+// in studs either way.
+//
+// Ten is two shafts' worth of gearbox in each direction, which is enough to
+// clear a wall and not so much that the search stops being quick.
+const slideStuds = 10
 
 // FitTo finds where a layout could sit in a model, best first.
 //
@@ -96,18 +104,27 @@ func FitToIn(l *layout.Layout, bearings []Bearing, occupied map[geom.Cell]bool,
 			// points like {-200 -184.139 0.552}, so insisting on a lattice
 			// offset put every one of its 767 bearing lines out of reach and
 			// reported that a gearbox could not go anywhere in a Land Rover.
-			key := [3]float64{
-				math.Round(off.X*10) / 10,
-				math.Round(off.Y*10) / 10,
-				math.Round(off.Z*10) / 10,
+			// And slid along the line as well as across it. Which LINE a shaft
+			// runs on does not depend on sliding along it, so the first version
+			// dropped that component — but where the gears sit on the line does,
+			// and every placement it offered put a gear inside the wall that
+			// bears the shaft. The line is chosen across, the gears are cleared
+			// along.
+			for slide := -slideStuds; slide <= slideStuds; slide++ {
+				at := off.Add(dir.Scale(float64(slide) * geom.Stud))
+				key := [3]float64{
+					math.Round(at.X*10) / 10,
+					math.Round(at.Y*10) / 10,
+					math.Round(at.Z*10) / 10,
+				}
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				f := scoreFit(lines, bearings, at)
+				f.Clashes = clashesAt(solids, occupied, at)
+				out = append(out, f)
 			}
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			f := scoreFit(lines, bearings, off)
-			f.Clashes = clashesAt(solids, occupied, off)
-			out = append(out, f)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -289,4 +306,114 @@ func SolidsOfLayout(l *layout.Layout, stations []layout.Station,
 	rast *voxel.Rasterizer) []Solid {
 
 	return SolidsOf(l, stations, rast, nil, nil)
+}
+
+// FitInto is a model to place a mechanism inside.
+type FitInto struct {
+	// Parts is the model itself, so the result can be written as a copy of it
+	// with the mechanism added.
+	Parts []ldr.Placed
+	// Bearings is what it already offers to hold a shaft on, and Occupied the
+	// space nothing new may enter.
+	Bearings []Bearing
+	Occupied map[geom.Cell]bool
+	// Rast turns the mechanism's own gears into cells, so a placement can be
+	// asked whether there is room and not only whether the lines line up.
+	// Without it every placement reads as clear, and the first one that lines
+	// up wins however solidly it is buried.
+	Rast *voxel.Rasterizer
+}
+
+// fitInto moves a laid-out mechanism to where it goes in an existing model.
+//
+// Only the layout moves. A mechanism's gears sit on the lattice with respect to
+// each other and that is settled by the time this runs; what a chassis decides
+// is where the whole assembly goes.
+func fitInto(res *Result, into *FitInto) error {
+	stations, _ := layout.SolveStations(res.Layout.Mech, res.Layout)
+	solids := SolidsOf(res.Layout, stations, into.Rast, nil, nil)
+	fits := FitToIn(res.Layout, into.Bearings, into.Occupied, solids, 1)
+	if len(fits) == 0 || fits[0].Borne == 0 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "WARN", Check: "fit", Detail: "this model bears none of these " +
+				"shafts anywhere, so the mechanism is placed at the origin and " +
+				"given a frame of its own"})
+		return nil
+	}
+	best := fits[0]
+	// The offset splits in two, and only half of it can live in the layout.
+	//
+	// NewPlacement pulls a point back to the foot of the perpendicular, because
+	// a line has no origin along itself — which is what stopped two shafts
+	// disagreeing about where axial zero was, and is why the three-speed's
+	// gears mesh. The consequence here is that the along-axis part of a fit
+	// offset cannot be stored in a Placement at all: it vanishes. It has to
+	// move the STATIONS instead. Put in the Point, a slide of one stud along
+	// the shafts was silently dropped and the model came out where it had
+	// already been rejected for.
+	for id, p := range res.Layout.Place {
+		d := p.Direction.Unit()
+		across := best.Offset.Sub(d.Scale(best.Offset.Dot(d)))
+		res.Layout.Place[id] = layout.NewPlacement(
+			p.Point.Add(across.Scale(1/synth.HalfStud)), p.Direction)
+	}
+	res.fitOffset = best.Offset
+	res.fitBearsEverything = best.Borne == best.Total && best.Clashes == 0
+
+	level, detail := "OK", fmt.Sprintf(
+		"placed %s into the model: %d of %d shaft(s) on lines it already bears",
+		show(best.Offset), best.Borne, best.Total)
+	if !res.fitBearsEverything {
+		level = "WARN"
+		detail += fmt.Sprintf(", and %d not — those get a frame of their own, "+
+			"which may duplicate what is already there", best.Total-best.Borne)
+	} else {
+		detail += ", so it needs no frame of its own"
+	}
+	res.Findings = append(res.Findings, mech.Finding{
+		Level: level, Check: "fit", Detail: detail})
+	return nil
+}
+
+// bestLayoutFor picks the arrangement and orientation that suit a model best.
+//
+// Turned as well as chosen. The layout search always puts its first shaft along
+// one fixed direction — see layout.candidates — so every arrangement it returns
+// runs the same way, and a model's bearings run whichever way somebody built
+// them. Without turning, a chassis whose shafts run along y was told that a
+// reduction could not go in it anywhere.
+//
+// All 24 lattice rotations, which is cheap: a handful of layouts by 24 by a few
+// thousand candidate offsets is still arithmetic on small vectors.
+func bestLayoutFor(layouts []*layout.Layout, into *FitInto) *layout.Layout {
+	best, bestBorne, bestClash := layouts[0], -1, 0
+	for _, l := range layouts {
+		for _, rot := range geom.Rotations {
+			turned := turnLayout(l, rot)
+			stations, _ := layout.SolveStations(turned.Mech, turned)
+			fits := FitToIn(turned, into.Bearings, into.Occupied,
+				SolidsOf(turned, stations, into.Rast, nil, nil), 1)
+			if len(fits) == 0 {
+				continue
+			}
+			f := fits[0]
+			if bestBorne < 0 || f.Borne > bestBorne ||
+				(f.Borne == bestBorne && f.Clashes < bestClash) {
+				best, bestBorne, bestClash = turned, f.Borne, f.Clashes
+			}
+		}
+	}
+	return best
+}
+
+// turnLayout is a layout with every shaft turned by one of the 24.
+//
+// The stations do not move: a station is an axial position along its own shaft,
+// so turning the shaft carries it round with no arithmetic of its own.
+func turnLayout(l *layout.Layout, rot geom.Mat3) *layout.Layout {
+	out := &layout.Layout{Mech: l.Mech, Place: make(map[string]layout.Placement, len(l.Place))}
+	for id, p := range l.Place {
+		out.Place[id] = layout.NewPlacement(rot.Apply(p.Point), rot.Apply(p.Direction))
+	}
+	return out
 }

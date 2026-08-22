@@ -136,14 +136,15 @@ func (r *Reading) ReportBearings(src part.Holes) []mech.Finding {
 	return out
 }
 
-// Occupied is the space a mechanism fitted into this model may not enter.
+// Occupied is every cell this model's parts fill.
 //
-// Structure and bodywork, not the parts of a mechanism. A gear already in the
-// model is not an obstacle in the same sense: it is somebody's drivetrain, and
-// whether a new one can share a model with it is a question about what drives
-// what, which this does not answer. Counting them made a model fitted with its
-// OWN mechanism report four gears in the way — all four of them the ones it was
-// asking about.
+// Everything, gears included. A gear is as solid as a beam, and the clearance
+// check that runs afterwards will say so — a fitter that ignored them would
+// offer placements that the very next check rejects, which is worse than
+// offering none.
+//
+// To ask the other question — where a mechanism could go if the one already
+// there were taken out — read WithoutMechanism first.
 //
 // Built with VoxelsAt rather than Voxels because a model being read is not on
 // the lattice: 42110's chassis is turned about three thousandths of a radian,
@@ -154,10 +155,6 @@ func (r *Reading) Occupied(rast *voxel.Rasterizer) map[geom.Cell]bool {
 	}
 	out := map[geom.Cell]bool{}
 	for _, f := range r.Parts {
-		switch f.Class {
-		case classGear, classRing, classJoiner, classAxle, classSelector:
-			continue // a mechanism, not the room around one
-		}
 		cells, err := rast.VoxelsAt(f.Name, f.Rot)
 		if err != nil {
 			continue
@@ -177,4 +174,29 @@ func (r *Reading) Occupied(rast *voxel.Rasterizer) map[geom.Cell]bool {
 	// counts as a gear inside the wall, and the two-speed reported two of its
 	// own gears clashing with the frame built to clear them.
 	return erode(out)
+}
+
+// WithoutMechanism is this reading with the drivetrain taken out, leaving the
+// structure and bodywork.
+//
+// For asking where a mechanism could go if the one already there were removed,
+// which is a different question from where one could go alongside it. Fitting a
+// model to ITSELF is the case that makes the difference obvious: every gear is
+// in the way, and every one of them is a gear the answer is about.
+func (r *Reading) WithoutMechanism() *Reading {
+	out := &Reading{Lines: map[[6]float64][]int{}, Unknown: r.Unknown}
+	for _, f := range r.Parts {
+		switch f.Class {
+		case classGear, classRing, classJoiner, classAxle, classSelector:
+			continue
+		}
+		out.Parts = append(out.Parts, f)
+	}
+	for i, f := range out.Parts {
+		if f.Axis != (geom.Vec3{}) {
+			k := lineKey(f.Pos, f.Axis)
+			out.Lines[k] = append(out.Lines[k], i)
+		}
+	}
+	return out
 }

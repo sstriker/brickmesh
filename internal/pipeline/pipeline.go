@@ -167,6 +167,9 @@ type Options struct {
 	MaxLayouts int
 	Span       int
 	Restarts   int
+	// Into places the mechanism inside a model that already exists, rather
+	// than building it a frame of its own. See FitInto.
+	Into *FitInto
 	// HoldShift asks for a frame that bears the axle each catch turns on, as
 	// well as the shafts.
 	//
@@ -214,6 +217,11 @@ type Result struct {
 	// ringSites is where each shift's driving ring sits and slides, kept so
 	// the animation can move it rather than only place it.
 	ringSites []ringSite
+	// fitOffset is how far the mechanism was moved to sit in a given model, and
+	// fitBearsEverything whether that model holds all of it.
+	into               []ldr.Placed
+	fitOffset          geom.Vec3
+	fitBearsEverything bool
 	// slip is the shafts a torque limiter is fitted to, so the gear chosen at a
 	// 24-tooth station on one is the slipping variant.
 	slip map[string]bool
@@ -265,8 +273,17 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 
 	opts.Progress.Report(progress.Report{Stage: progress.StageLayout,
 		Note: "arranging the shafts on the lattice"})
+	maxLayouts := opts.MaxLayouts
+	if opts.Into != nil && maxLayouts < fitLayouts {
+		// A model's bearings run whichever way somebody built them, and this
+		// fitter only ever moves a mechanism, never turns it. Turning it IS a
+		// different layout, so several are asked for and the one that suits the
+		// model is taken. With one, a chassis whose shafts run along y was told
+		// that a reduction laid out along x could not go in it anywhere.
+		maxLayouts = fitLayouts
+	}
 	layouts := layout.Realize(m, layout.Options{
-		MaxSolutions: opts.MaxLayouts, Span: opts.Span,
+		MaxSolutions: maxLayouts, Span: opts.Span,
 	})
 	if len(layouts) == 0 {
 		res.Findings = append(res.Findings, mech.Finding{
@@ -276,8 +293,26 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 		return res, nil
 	}
 	res.Layout = layouts[0]
+	if opts.Into != nil {
+		res.Layout = bestLayoutFor(layouts, opts.Into)
+		if err := fitInto(res, opts.Into); err != nil {
+			return res, err
+		}
+		res.into = opts.Into.Parts
+		opts.SkipStructure = opts.SkipStructure || res.fitBearsEverything
+	}
 
 	stations, stationFindings := layout.SolveStations(m, res.Layout)
+	// The along-axis half of a fit offset lives here rather than in the layout:
+	// a placement cannot carry it, since a line has no origin along itself.
+	if opts.Into != nil {
+		for i := range stations {
+			if place, ok := res.Layout.Place[stations[i].Shaft]; ok {
+				d := place.Direction.Unit()
+				stations[i].Axial += res.fitOffset.Dot(d) / synth.HalfStud
+			}
+		}
+	}
 	res.Stations = stations
 	res.Findings = append(res.Findings, stationFindings...)
 
@@ -428,6 +463,10 @@ func lattice(p synth.Placed) ldr.Part {
 	return ldr.Part{Name: p.Part, Rot: geom.Rotations[p.Rot], Pos: p.Origin}
 }
 
+// fitLayouts is how many arrangements to try when fitting into a model. Each
+// is a different orientation or spacing, and only some suit a given chassis.
+const fitLayouts = 24
+
 func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) error {
 	if deps.Rast == nil || deps.Shadow == nil {
 		return fmt.Errorf("the structural search needs both libraries")
@@ -540,6 +579,13 @@ func runStructure(ctx context.Context, res *Result, deps Deps, opts Options) err
 // buildModel places the gears along their shafts and adds the structure.
 func buildModel(m *mech.Mechanism, res *Result, deps Deps) (*ldr.Model, error) {
 	model := ldr.New(m.Name)
+
+	// The model it is being fitted into comes first, so what is written is a
+	// copy of somebody's build with a mechanism added rather than a mechanism
+	// with their build alongside it. Their parts keep their own colours.
+	for _, p := range res.into {
+		model.Add(p.Name, p.Color, p.Rot, p.Pos, "")
+	}
 
 	stations := append([]layout.Station(nil), res.Stations...)
 	sort.SliceStable(stations, func(i, j int) bool {

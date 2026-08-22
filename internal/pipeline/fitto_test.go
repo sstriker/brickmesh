@@ -4,6 +4,9 @@
 package pipeline
 
 import (
+	"context"
+	"github.com/sstriker/brickmesh/internal/spec"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -80,7 +83,10 @@ func TestItsOwnMechanismDoesNotClashWithItsOwnFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	read := Inspect(parts)
+	// Its own mechanism taken out, since the question is whether the FRAME has
+	// room for it: with the gears left in, every one of them is in the way and
+	// every one of them is a gear the answer is about.
+	read := Inspect(parts).WithoutMechanism()
 	solids := SolidsOf(res.Layout, res.Stations, deps.Rast, res.ringSites, res.slip)
 	fits := FitToIn(res.Layout, read.Bearings(deps.Shadow),
 		read.Occupied(deps.Rast), solids, 1)
@@ -96,33 +102,124 @@ func TestItsOwnMechanismDoesNotClashWithItsOwnFrame(t *testing.T) {
 	}
 }
 
-// And a solid model has nowhere to put anything, which the fitter must say
-// rather than offering the least bad spot as though it were a spot.
-func TestSomethingSolidHasNoRoom(t *testing.T) {
+// Space that is filled reads as filled.
+//
+// Asked of the clash test rather than of the ranking: the ranking is allowed to
+// slide the mechanism somewhere else, and does, which is the right answer to a
+// different question. This one is whether a gear standing in occupied space is
+// seen at all.
+func TestAGearInFilledSpaceIsSeen(t *testing.T) {
 	deps := requireLibraries(t)
 	res := runSpec(t, deps, filepath.Join("..", "..", "examples", "reduction.json"))
 
-	// Fill everything the mechanism would occupy.
 	solids := SolidsOf(res.Layout, res.Stations, deps.Rast, res.ringSites, res.slip)
+	if len(solids) == 0 {
+		t.Fatal("a reduction has gears; none were rasterised")
+	}
 	full := map[geom.Cell]bool{}
 	for _, s := range solids {
 		for _, c := range s.Cells {
 			full[c] = true
 		}
 	}
-	bearings := []Bearing{}
-	for id, place := range res.Layout.Place {
-		_ = id
-		bearings = append(bearings, Bearing{
-			At: place.Point.Scale(10), Axis: place.Direction.Unit(),
-			Holes: 2, To: 100, Parts: 2,
-		})
+	if got := clashesAt(solids, full, geom.Vec3{}); got != len(solids) {
+		t.Errorf("%d of %d gears read as clashing with space they fill exactly",
+			got, len(solids))
 	}
-	fits := FitToIn(res.Layout, bearings, full, solids, 1)
-	if len(fits) == 0 {
-		t.Fatal("expected placements to be offered and scored")
+	// And moved well clear of it, none of them do.
+	away := geom.Vec3{X: 400, Y: 400, Z: 400}
+	if got := clashesAt(solids, full, away); got != 0 {
+		t.Errorf("%d gear(s) still clash after moving twenty studs away", got)
 	}
-	if fits[0].Clashes == 0 {
-		t.Error("every gear sits in filled space and none was reported as clashing")
+}
+
+// The whole thing: a mechanism placed inside somebody else's model, written out
+// as a copy of that model with the mechanism in it, and read back to check it
+// still does what it was asked for.
+func TestAMechanismIsBuiltIntoTheModelItWasFittedTo(t *testing.T) {
+	deps := requireLibraries(t)
+
+	// Two nine-hole beams, five studs apart, holes facing along y — so a shaft
+	// runs between them. Written out rather than taken from anywhere, because
+	// the point is a model this engine did not build.
+	chassis := `0 a chassis
+1 4 0 0 0 1 0 0 0 1 0 0 0 1 40490.dat
+1 4 0 100 0 1 0 0 0 1 0 0 0 1 40490.dat
+`
+	parts, err := ldr.Decode(strings.NewReader(chassis))
+	if err != nil {
+		t.Fatal(err)
 	}
+	read := Inspect(parts)
+	into := &FitInto{
+		Parts:    parts,
+		Bearings: read.Bearings(deps.Shadow),
+		Occupied: read.Occupied(deps.Rast),
+		Rast:     deps.Rast,
+	}
+	if len(into.Bearings) == 0 {
+		t.Fatal("the chassis offers no bearing; the rest of this proves nothing")
+	}
+
+	res := runSpecInto(t, deps, filepath.Join("..", "..", "examples", "reduction.json"), into)
+
+	// Its parts are still there, at their own positions.
+	beams := 0
+	for _, p := range res.Model.Parts {
+		if p.Name == "40490.dat" {
+			beams++
+		}
+	}
+	if beams != 2 {
+		t.Errorf("the model it was fitted into has 2 beams and the result has %d; "+
+			"what is written should be a copy of somebody's build with a "+
+			"mechanism added", beams)
+	}
+
+	// And the mechanism is in it, clear of everything.
+	gears := 0
+	for _, p := range res.Model.Parts {
+		if _, _, ok := gearFromLabel(p.Label); ok {
+			gears++
+		}
+	}
+	if gears != 2 {
+		t.Errorf("a reduction has two gears and the result has %d", gears)
+	}
+	for _, f := range res.Findings {
+		if f.Level == "FAIL" {
+			t.Errorf("%s: %s", f.Check, f.Detail)
+		}
+	}
+
+	// The chassis bears both shafts, so it should not have been given a frame.
+	for _, p := range res.Model.Parts {
+		if p.Name == "32523.dat" || p.Name == "32316.dat" {
+			t.Errorf("%s was added: the chassis already bears every shaft, so "+
+				"there is nothing for a frame to do", p.Name)
+		}
+	}
+}
+
+func runSpecInto(t *testing.T, deps Deps, path string, into *FitInto) *Result {
+	t.Helper()
+	doc, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, err := spec.Read(strings.NewReader(string(doc)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := sp.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Run(context.Background(), m, deps, Options{
+		Restarts: 8, Seed: 1, Into: into,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
 }

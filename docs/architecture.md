@@ -525,3 +525,37 @@ already in the model is somebody's drivetrain, and whether a new one can share a
 model with it is a question about what drives what. Counting them made a model
 fitted with its own mechanism report four gears in the way — all four of them
 the ones it was asking about.
+
+### Building into it
+
+`-fit chassis.ldr --spec gearbox.json --out merged.ldr` writes a copy of the
+chassis with the mechanism in it. Its parts come first and keep their own
+colours, so what is written is somebody's build with a mechanism added rather
+than a mechanism with their build alongside.
+
+When the chassis bears every shaft, no frame is added at all — there is nothing
+for one to do. A reduction fitted to two nine-hole beams five studs apart comes
+out as six parts: their two beams, two axles through them, and the gears.
+
+Three things were wrong first, and each was a consequence of something else
+being right.
+
+**The layout search always runs one way.** It places its first shaft along one
+fixed direction, so every arrangement it returns is oriented the same. A model's
+bearings run whichever way somebody built them, so the fitter has to turn the
+mechanism — all 24 lattice rotations, which is cheap. Without it a chassis whose
+shafts run along y was told a reduction could not go in it anywhere.
+
+**A line has no origin along itself, so half the offset cannot live in the
+layout.** `NewPlacement` pulls a point back to the foot of the perpendicular —
+which is what stopped two shafts disagreeing about where axial zero was, and is
+why the three-speed's gears mesh at all. The consequence is that the along-axis
+part of a fit offset simply vanishes if put in a `Placement`. It has to move the
+stations instead. Put in the point, a slide of one stud was silently dropped and
+the model came out at the position that had just been rejected for clashing.
+
+**And the slide has to be searched.** Which line a shaft runs on does not depend
+on sliding along it, so the first version dropped that component as meaningless
+— but where the gears sit on the line does depend on it, and every placement
+offered put a gear inside the wall bearing the shaft. The line is chosen across;
+the gears are cleared along.

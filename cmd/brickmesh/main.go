@@ -88,15 +88,25 @@ func run() error {
 	if *read != "" {
 		return readModel(*read, *drive)
 	}
-	if *fit != "" {
-		if *specPath == "" {
-			return fmt.Errorf("-fit needs a --spec: it says where THAT mechanism could go")
-		}
+	if *fit != "" && *specPath == "" {
+		return fmt.Errorf("-fit needs a --spec: it says where THAT mechanism could go")
+	}
+	// Without somewhere to write, -fit only says where it would go.
+	if *fit != "" && *outPath == "" {
 		return fitToModel(*fit, *specPath, *span)
 	}
 	if *specPath == "" {
 		flag.Usage()
 		return fmt.Errorf("a --spec is required")
+	}
+
+	var into *pipeline.FitInto
+	if *fit != "" {
+		got, err := readFitInto(*fit)
+		if err != nil {
+			return err
+		}
+		into = got
 	}
 
 	f, err := os.Open(*specPath)
@@ -132,6 +142,7 @@ func run() error {
 
 	res, err := pipeline.Run(ctx, m, deps, pipeline.Options{
 		Restarts: *restarts, Seed: *seed, Span: *span, HoldShift: *holdShift,
+		Into: into,
 		Budget: synth.Budget{
 			PerStud:      *perStud,
 			PerPart:      *perPart,
@@ -370,4 +381,30 @@ func fitToModel(modelAt, specAt string, span int) error {
 		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
 	}
 	return nil
+}
+
+// readFitInto reads the model a mechanism is to be placed inside.
+func readFitInto(at string) (*pipeline.FitInto, error) {
+	f, err := os.Open(at)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	parts, err := ldr.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", at, err)
+	}
+	shadowRoot, err := shadow.Ensure("")
+	if err != nil {
+		return nil, err
+	}
+	lib := ldraw.New("")
+	r := pipeline.InspectWith(parts, &pipeline.LibraryTeeth{From: lib})
+	rast := voxel.NewRasterizer(lib)
+	return &pipeline.FitInto{
+		Parts:    parts,
+		Bearings: r.Bearings(extract.NewPorts(shadow.Open(shadowRoot), lib)),
+		Occupied: r.Occupied(rast),
+		Rast:     rast,
+	}, nil
 }
