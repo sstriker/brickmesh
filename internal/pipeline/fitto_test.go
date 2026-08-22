@@ -302,3 +302,16 @@ func TestEverySolidKnowsWhatItIsAndHowItTurns(t *testing.T) {
 		}
 	}
 }
+
+func TestTheFitOwnsUpToWhatItCouldNotMeasure(t *testing.T) {
+	// Space nothing could be measured in is not empty space. 42099 has two
+	// parts with no geometry, and a fit that called the model clear would be
+	// calling the parts that happened to be measurable clear.
+	names := shortList([]string{"a", "b", "c", "d", "e", "f", "g"})
+	if len(names) != 6 || names[5] != "and 2 more" {
+		t.Errorf("a long list of unmeasured parts reads as %v", names)
+	}
+	if got := shortList([]string{"a", "b"}); len(got) != 2 {
+		t.Errorf("a short list should be given whole, got %v", got)
+	}
+}

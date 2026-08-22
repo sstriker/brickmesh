@@ -411,10 +411,12 @@ func readFitInto(at string, replace bool) (*pipeline.FitInto, error) {
 		r = r.WithoutMechanism()
 		parts = r.Placed()
 	}
+	occupied, unmeasured := r.OccupiedWith(rast)
 	return &pipeline.FitInto{
-		Parts:    parts,
-		Bearings: r.Bearings(extract.NewPorts(shadow.Open(shadowRoot), lib)),
-		Occupied: r.Occupied(rast),
-		Rast:     rast,
+		Parts:      parts,
+		Bearings:   r.Bearings(extract.NewPorts(shadow.Open(shadowRoot), lib)),
+		Occupied:   occupied,
+		Unmeasured: unmeasured,
+		Rast:       rast,
 	}, nil
 }

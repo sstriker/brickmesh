@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/sstriker/brickmesh/internal/geom"
 	"github.com/sstriker/brickmesh/internal/layout"
@@ -524,6 +525,10 @@ type FitInto struct {
 	// space nothing new may enter.
 	Bearings []Bearing
 	Occupied map[geom.Cell]bool
+	// Unmeasured names the model's parts that could not be rasterised. The fit
+	// is blind to them, and says so rather than letting a clear verdict stand
+	// for the parts that happened to be measurable.
+	Unmeasured []string
 	// Rast turns the mechanism's own gears into cells, so a placement can be
 	// asked whether there is room and not only whether the lines line up.
 	// Without it every placement reads as clear, and the first one that lines
@@ -597,7 +602,25 @@ func fitInto(ctx context.Context, deps Deps, res *Result, into *FitInto) error {
 	}
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: level, Check: "fit", Detail: detail})
+	if n := len(into.Unmeasured); n > 0 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "WARN", Check: "fit", Detail: fmt.Sprintf(
+				"no geometry for %d of the model's parts (%s), so the mechanism "+
+					"was placed around the ones that could be measured. Where "+
+					"they stand is not known to be free", n,
+				strings.Join(shortList(into.Unmeasured), ", "))})
+	}
 	return nil
+}
+
+// shortList keeps a list of names readable, saying how many it left out.
+func shortList(names []string) []string {
+	const most = 5
+	if len(names) <= most {
+		return names
+	}
+	return append(append([]string{}, names[:most]...),
+		fmt.Sprintf("and %d more", len(names)-most))
 }
 
 // bestLayoutFor picks the arrangement and orientation that suit a model best.

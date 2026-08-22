@@ -151,13 +151,25 @@ func (r *Reading) ReportBearings(src part.Holes) []mech.Finding {
 // the lattice: 42110's chassis is turned about three thousandths of a radian,
 // and asking for a lattice rotation index would have skipped nearly all of it.
 func (r *Reading) Occupied(rast *voxel.Rasterizer) map[geom.Cell]bool {
+	cells, _ := r.OccupiedWith(rast)
+	return cells
+}
+
+// OccupiedWith is Occupied, and the parts it could not rasterise.
+//
+// They matter to the reader. Space that nothing could be measured in is not
+// empty space, and a fit worked out against a model with parts missing from it
+// is an answer about the parts that were left.
+func (r *Reading) OccupiedWith(rast *voxel.Rasterizer) (map[geom.Cell]bool, []string) {
 	if rast == nil {
-		return nil
+		return nil, nil
 	}
+	missed := map[string]bool{}
 	out := map[geom.Cell]bool{}
 	for _, f := range r.Parts {
 		cells, err := rast.VoxelsAt(f.Name, f.Rot)
 		if err != nil {
+			missed[f.Name] = true
 			continue
 		}
 		shift := geom.Cell{
@@ -169,7 +181,12 @@ func (r *Reading) Occupied(rast *voxel.Rasterizer) map[geom.Cell]bool {
 			out[c.Add(shift)] = true
 		}
 	}
-	return out
+	names := make([]string, 0, len(missed))
+	for n := range missed {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return out, names
 }
 
 // WithoutMechanism is this reading with the drivetrain taken out, leaving the
