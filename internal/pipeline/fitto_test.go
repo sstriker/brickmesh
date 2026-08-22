@@ -235,3 +235,20 @@ func runSpecInto(t *testing.T, deps Deps, path string, into *FitInto) *Result {
 	}
 	return res
 }
+
+func TestABearingOnlyHoldsWhereItReaches(t *testing.T) {
+	// A wall pair a hundred LDU long, on the Y axis at the origin.
+	idx := indexBearings([]Bearing{{
+		At: geom.Vec3{}, Axis: geom.Vec3{Y: 1},
+		Holes: 2, Parts: 2, From: 0, To: 100,
+	}})
+	at, dir := geom.Vec3{}, geom.Vec3{Y: 1}
+
+	if !idx.near(at, dir, 10, 60) {
+		t.Error("a mechanism between the walls is not held by them")
+	}
+	if idx.near(at, dir, -220, -120) {
+		t.Error("a mechanism 120 LDU clear of the walls claims to be held; " +
+			"the line runs for ever but the walls do not")
+	}
+}
