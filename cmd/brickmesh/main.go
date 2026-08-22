@@ -25,6 +25,7 @@ import (
 
 	"github.com/sstriker/brickmesh/internal/extract"
 	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldr"
 	"github.com/sstriker/brickmesh/internal/ldraw"
 	"github.com/sstriker/brickmesh/internal/mech"
 	"github.com/sstriker/brickmesh/internal/part"
@@ -50,6 +51,8 @@ func run() error {
 		outPath   = flag.String("out", "", "where to write the model (default <spec>.ldr)")
 		checkOnly = flag.Bool("check", false, "run the checks and stop, writing nothing")
 		restarts  = flag.Int("restarts", 60, "restarts for the structural search")
+		read      = flag.String("read", "",
+			"read an .ldr or .mpd and report what mechanism is in it")
 		holdShift = flag.Bool("hold-shift", false,
 			"make the frame bear the axle each catch turns on, not just the shafts")
 		seed = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
@@ -76,6 +79,9 @@ func run() error {
 	)
 	flag.Parse()
 
+	if *read != "" {
+		return readModel(*read)
+	}
 	if *specPath == "" {
 		flag.Usage()
 		return fmt.Errorf("a --spec is required")
@@ -231,4 +237,32 @@ func progressTo(w *os.File, quiet bool) progress.Func {
 func isTerminal(f *os.File) bool {
 	info, err := f.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+// readModel says what a model somebody else built turns out to contain.
+//
+// The other direction from everything else here: a description in, a model out
+// is the engine's usual job, and this is a model in and a description of it
+// out. What it does not recognise it says so about, because a ratio worked out
+// from the third of a model that was understood is not a ratio.
+func readModel(at string) error {
+	f, err := os.Open(at)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	parts, err := ldr.Decode(f)
+	if err != nil {
+		return fmt.Errorf("%s: %w", at, err)
+	}
+	r := pipeline.InspectWith(parts, &pipeline.LibraryTeeth{From: ldraw.New("")})
+	for _, fi := range r.Findings {
+		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
+	}
+	for _, m := range r.Meshes {
+		a, b := r.Parts[m.A], r.Parts[m.B]
+		fmt.Printf("  %s %dt meets %s %dt at %v\n",
+			a.Name, a.Teeth, b.Name, b.Teeth, m.Kind)
+	}
+	return nil
 }

@@ -329,6 +329,29 @@ type Ref = part.Ref
 // primitive and letting the part place thirteen of them, so finding a beam's
 // holes means walking this rather than reading the beam's own shadow file —
 // which declares one hole, at the end, and says nothing about the other twelve.
+// Title is a part's first line, which is what it calls itself.
+//
+// Worth having from the library rather than a table: a gear's own title says
+// how many teeth it has, and reading it there means a model full of parts this
+// engine never places can still be understood.
+func (l *Library) Title(name string) (string, error) {
+	body, err := l.Fetch(name)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "0 ") {
+			return strings.TrimSpace(line[2:]), nil
+		}
+		break // the first line was not a comment: no title
+	}
+	return "", nil
+}
+
 func (l *Library) Refs(name string) ([]part.Ref, error) {
 	// Cached like geometry is. Fetch reads from disk every time, and the port
 	// extractor walks a part's whole subfile tree — twenty-five files for a

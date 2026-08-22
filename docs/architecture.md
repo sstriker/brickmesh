@@ -355,3 +355,43 @@ of depth and requires the page to say which bound stopped it.
 The cost weights are not exposed. They are a knob for someone tuning what "good"
 means, and the defaults are reasoned about in findings.md; a page full of
 sliders nobody moves is worse than a page without them.
+
+## Reading a model back
+
+The engine's usual direction is a description in and a model out. `-read` is the
+other way: an `.ldr` or `.mpd` in, and what it turns out to contain out.
+
+`ldr.Decode` composes the nesting away and hands back parts in world
+coordinates. `pipeline.Inspect` then names what it can — gears with their tooth
+counts, rings, joiners, axles, pins, catches, beams — groups them onto axis
+lines, and pairs up the gears that stand where they would drive each other.
+
+**The same rule recognises a mesh that checks one.** Two gears meet here if they
+stand where `checkMeshing` would require them to: in one plane at their pitch
+distance for a spur pair, square with each at the other's pitch radius from the
+crossing for a bevel one. A criterion good enough to reject a placement is good
+enough to find one, and using a single rule for both means they cannot drift.
+
+Three things it needed that the writing direction never did.
+
+**An inlined part is not a submodel.** An `.mpd` may carry a copy of a part file
+for something not in the official library. Descending into one loses the part
+and gains its primitives: 42110 read as 9,297 parts with no catch in it, against
+3,012 with one.
+
+**Tooth counts come from the part, not a table.** The engine's own tables cover
+what it places, which for a real set is a minority: 42110 has sixty-five gears
+and the tables named twenty-four. A gear's own title says how many teeth it has.
+
+**The tolerance is not the engine's.** A model this engine wrote is exact to a
+float; one a person wrote is rounded at every level and composed through nested
+submodels, so error accumulates. Matching to a millionth of an LDU found nine
+pairs among those sixty-five gears; half an LDU finds twenty-four, and is still
+far under the two studs that separate any two lattice positions, so it cannot
+invent a pair. Its own models still read back with exactly the meshes they were
+built with, which is what says the looser number is not buying false ones.
+
+**What it does not know, it says.** 42110 comes back with 2,072 parts across 155
+kinds unrecognised — bodywork, panels, connectors this engine never places — and
+the reading says so, because a ratio worked out from the third of a model that
+was understood is not a ratio.
