@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"syscall"
 
 	"github.com/sstriker/brickmesh/internal/extract"
@@ -53,6 +54,8 @@ func run() error {
 		restarts  = flag.Int("restarts", 60, "restarts for the structural search")
 		read      = flag.String("read", "",
 			"read an .ldr or .mpd and report what mechanism is in it")
+		drive = flag.String("drive", "",
+			"with -read: which shaft is turned, so the ratios can be worked out")
 		holdShift = flag.Bool("hold-shift", false,
 			"make the frame bear the axle each catch turns on, not just the shafts")
 		seed = flag.Int64("seed", 0, "seed for the structural search, for a reproducible run")
@@ -80,7 +83,7 @@ func run() error {
 	flag.Parse()
 
 	if *read != "" {
-		return readModel(*read)
+		return readModel(*read, *drive)
 	}
 	if *specPath == "" {
 		flag.Usage()
@@ -245,7 +248,7 @@ func isTerminal(f *os.File) bool {
 // is the engine's usual job, and this is a model in and a description of it
 // out. What it does not recognise it says so about, because a ratio worked out
 // from the third of a model that was understood is not a ratio.
-func readModel(at string) error {
+func readModel(at, drive string) error {
 	f, err := os.Open(at)
 	if err != nil {
 		return err
@@ -263,6 +266,43 @@ func readModel(at string) error {
 		a, b := r.Parts[m.A], r.Parts[m.B]
 		fmt.Printf("  %s %dt meets %s %dt at %v\n",
 			a.Name, a.Teeth, b.Name, b.Teeth, m.Kind)
+	}
+
+	shadowRoot, err := shadow.Ensure("")
+	if err != nil {
+		return err
+	}
+	mm, more := r.Mechanism(extract.NewPorts(shadow.Open(shadowRoot), ldraw.New("")))
+	for _, fi := range more {
+		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
+	}
+	// Degrees of freedom is the one thing worth saying without being told what
+	// drives it: a train that cannot turn at all is worth knowing about, and
+	// that does not depend on which end you turn.
+	for _, fi := range mm.CheckDOF() {
+		fmt.Printf("  %-5s [%-12s] %s\n", fi.Level, fi.Check, fi.Detail)
+	}
+	fmt.Printf("  shafts: %v\n", mm.Order())
+	if drive == "" {
+		fmt.Println("  name one with -drive to see what the rest turn at")
+		return nil
+	}
+	if _, ok := mm.Get(drive); !ok {
+		return fmt.Errorf("no shaft %q in this model; it has %v", drive, mm.Order())
+	}
+	mm.Drive(drive, 1)
+	speeds, ok := mm.Solve("")
+	if !ok {
+		fmt.Printf("  turning %s does not determine the rest\n", drive)
+		return nil
+	}
+	names := mm.Order()
+	sort.Strings(names)
+	for _, id := range names {
+		if id == drive {
+			continue
+		}
+		fmt.Printf("  %-24s %+.4f turn(s) per turn of %s\n", id, speeds[id], drive)
 	}
 	return nil
 }

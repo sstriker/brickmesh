@@ -391,6 +391,38 @@ far under the two studs that separate any two lattice positions, so it cannot
 invent a pair. Its own models still read back with exactly the meshes they were
 built with, which is what says the looser number is not buying false ones.
 
+### An axis line is not a shaft
+
+The hard part of reading a gearbox. Its output line carries the output axle and,
+running loose on it, the gears a driving ring selects between — three things
+turning at three speeds through the same piece of plastic. Treat the line as one
+shaft and you report a gearbox that cannot shift.
+
+What separates them is readable: a gear keyed to an axle has a **cross** hole
+and a gear that runs free on one has a **round** hole, which is what
+`part.Hole.Cross` already says. So a line gives one shaft for whatever is keyed
+to it, plus a shaft of its own for every gear that is not. Reading the
+two-speed back finds exactly the two loose gears it was built with.
+
+A line carrying neither gear nor ring drives nothing — a control axle, an axle
+holding something still — and is left out. In it is a shaft nothing connects to,
+which is a degree of freedom that never resolves, and then a perfectly
+determined gearbox reports as undetermined.
+
+A driving ring locks a loose gear to the line it rides, and which gear is a
+question about where the ring is standing. That is worth being careful about in
+what the run says: **a static model shows the gear a ring is in, never the set
+of gears it could be shifted to.** So a reading is of the model in the state it
+was built in, and says so.
+
+### The round trip
+
+A description becomes a model, the model is written to LDraw, and the file is
+read back by something that never saw the description. The two-speed comes back
+turning its output at -0.6000 per turn of its input, which is the ratio it was
+asked for. That is the strongest test available here, because the answer is
+known exactly and nothing about the reading is told it.
+
 **What it does not know, it says.** 42110 comes back with 2,072 parts across 155
 kinds unrecognised — bodywork, panels, connectors this engine never places — and
 the reading says so, because a ratio worked out from the third of a model that

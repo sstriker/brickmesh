@@ -4,6 +4,8 @@
 package pipeline
 
 import (
+	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -124,4 +126,73 @@ func TestEveryPlaceablePartIsRecognised(t *testing.T) {
 		t.Errorf("the engine places these and cannot name them: %v. Either "+
 			"teach Inspect what they are or stop placing them", got.Unknown)
 	}
+}
+
+// The whole round trip: a description becomes a model, the model is written to
+// LDraw, and the file is read back by something that never saw the description.
+// The ratio has to survive that.
+//
+// It is the strongest test available here, because the answer is known exactly
+// and nothing about the reading is told it.
+func TestARatioSurvivesBeingWrittenAndReadBack(t *testing.T) {
+	deps := requireLibraries(t)
+	for _, c := range []struct {
+		name  string
+		state string
+	}{
+		{"reduction", ""},
+		{"gearbox-2-speed", "low"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			res := runSpec(t, deps, filepath.Join("..", "..", "examples", c.name+".json"))
+			want, ok := res.Layout.Mech.Solve(c.state)
+			if !ok {
+				t.Fatal("the mechanism it was built from does not solve")
+			}
+
+			parts, err := ldr.Decode(strings.NewReader(res.Model.Encode()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			read := Inspect(parts)
+			got, _ := read.Mechanism(deps.Shadow)
+
+			// Which read shaft is the input? The one on the same axis line.
+			drive := lineNamed(t, res, read, got, "input")
+			out := lineNamed(t, res, read, got, "output")
+			got.Drive(drive, want["input"])
+			speeds, ok := got.Solve("")
+			if !ok {
+				t.Fatalf("turning %s does not determine the model read back", drive)
+			}
+			if math.Abs(speeds[out]-want["output"]) > 1e-6 {
+				t.Errorf("built to turn the output at %+.4f and read back at "+
+					"%+.4f", want["output"], speeds[out])
+			}
+		})
+	}
+}
+
+// lineNamed finds the shaft in a reading that sits on the same axis as a named
+// shaft of the mechanism it was built from.
+func lineNamed(t *testing.T, res *Result, read *Reading, m *mech.Mechanism, id string) string {
+	t.Helper()
+	place, ok := res.Layout.Place[id]
+	if !ok {
+		t.Fatalf("no shaft %q in what it was built from", id)
+	}
+	want := lineKey(place.Point.Scale(10), place.Direction.Unit())
+	i := 0
+	keys := sortedLineKeys(read)
+	for _, k := range keys {
+		if !carriesDrive(read, k) {
+			continue
+		}
+		i++
+		if k == want {
+			return fmt.Sprintf("line%d", indexOf(keys, k)+1)
+		}
+	}
+	t.Fatalf("the line %q sits on was not found in the reading", id)
+	return ""
 }
