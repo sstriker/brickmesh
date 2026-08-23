@@ -191,6 +191,55 @@ await page.waitForFunction(
   null, { timeout: 180000 }).then(() => must(true, "a bound too small is refused, and says which"))
   .catch(() => must(false, "a frame was asked for inside two studs and nothing mentioned the cap"));
 
+// The animation. A model that does not move is the failure this is here to
+// catch: the transforms are computed on the page and applied in the shader, and
+// either half can be silently wrong while everything still draws.
+//
+// Waiting for the BUILD BUTTON rather than for findings. The findings from the
+// previous build are still on the page when this one starts, so waiting for
+// them returns at once and everything after races a build that is still going —
+// which is exactly what happened: the animation was started, and then the build
+// finished and reset it.
+await page.fill("#max-z", "");
+await page.evaluate(() => loadExample("examples/gearbox-2-speed.json"));
+await page.waitForFunction(
+  () => document.querySelector("#spec").value.includes("2-speed"),
+  null, { timeout: 30000 });
+await page.click("#build");
+await page.waitForFunction(
+  () => document.getElementById("build").disabled, null, { timeout: 30000 });
+await page.waitForFunction(
+  () => !document.getElementById("build").disabled, null, { timeout: 180000 });
+
+const canPlay = await page.evaluate(() => {
+  const el = document.getElementById("play");
+  return !!el && !el.hidden;
+});
+must(canPlay, "a gearbox offers to be played");
+
+if (canPlay) {
+  const still = await frame();
+  await page.click("#play");
+  await page.waitForTimeout(700);
+  must(await frame() !== still, "playing moves the model");
+
+  await page.click("#play"); // pause
+  const held = await frame();
+  await page.waitForTimeout(500);
+  must(await frame() === held, "pausing stops it where it is");
+
+  // Choosing a state moves the ring, without anything having to play.
+  const states = await page.evaluate(() =>
+    [...document.querySelectorAll("#state option")].map((o) => o.value));
+  must(states.length >= 2, `a two-speed offers its states (${states.join(", ")})`);
+  if (states.length >= 2) {
+    await page.selectOption("#state", states[0]);
+    const first = await frame();
+    await page.selectOption("#state", states[1]);
+    must(await frame() !== first, "changing state moves the driving ring");
+  }
+}
+
 must(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);
 
 await browser.close();

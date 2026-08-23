@@ -108,7 +108,7 @@ jobs:
       - name: Assemble
         run: |
           mkdir -p site/examples
-          cp web/index.html web/style.css web/app.js web/view.js web/worker.js \
+          cp web/index.html web/style.css web/app.js web/view.js web/animate.js web/worker.js \
              web/wasm_exec.js web/brickmesh.wasm site/
           cp examples/*.json site/examples/
 

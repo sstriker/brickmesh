@@ -72,6 +72,44 @@ func TestTheSameModelComesOutOfThePublishedFiles(t *testing.T) {
 				t.Fatalf("no model came out; ok=%v parts=%d",
 					fromFiles.OK, fromFiles.Parts)
 			}
+
+			// An animation was asked for, so it has to come back twice over:
+			// as Lua for LDCad, and as data for the page, which has no Lua.
+			if fromFiles.Lua == "" {
+				t.Error("an animation was asked for and no Lua came back")
+			}
+			if fromFiles.Anim == nil {
+				t.Fatal("an animation was asked for and no data came back; " +
+					"the page cannot render Lua")
+			}
+			if len(fromFiles.Anim.Animations) == 0 {
+				t.Error("the animation data has no animations in it")
+			}
+			if len(fromFiles.Groups) == 0 {
+				t.Error("no group order, so no transform can be matched to " +
+					"the vertices carrying its index")
+			}
+			// Every group the animation moves has to be one the buffer knows,
+			// or the page would compute a transform for vertices that carry a
+			// different index.
+			known := map[string]bool{}
+			for _, g := range fromFiles.Groups {
+				known[g] = true
+			}
+			for _, a := range fromFiles.Anim.Animations {
+				for _, tn := range a.Turning {
+					if !known[tn.Group] {
+						t.Errorf("%q turns and is not in the draw buffer's groups",
+							tn.Group)
+					}
+				}
+				for _, sl := range a.Sliding {
+					if !known[sl.Group] {
+						t.Errorf("%q slides and is not in the draw buffer's groups",
+							sl.Group)
+					}
+				}
+			}
 			// Compared as numbers, not as text. The published meshes store
 			// float32 where the parser hands out float64, so anything worked
 			// out from a vertex — the tooth phase, which is an angle read off

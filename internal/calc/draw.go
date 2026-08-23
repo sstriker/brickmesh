@@ -20,10 +20,25 @@ import (
 // and a buffer the page uploads once is less machinery than an instancing
 // scheme that would draw the same picture.
 //
-// Ten float32 a vertex: position, normal, colour, and whether a finding is
-// about this part. About six megabytes for a compound gearbox, handed over once
-// per build.
-const drawStride = 10
+// Eleven float32 a vertex: position, normal, colour, whether a finding is about
+// this part, and which animation group it belongs to. About six megabytes for a
+// compound gearbox, handed over once per build.
+//
+// The group is an index rather than a name because it is read by a shader: the
+// page uploads one transform per group and each vertex picks its own. That is
+// what lets the model move without re-uploading it every frame — a compound
+// gearbox is seventy thousand vertices, and rebuilding that buffer sixty times
+// a second is not a thing to do on the page's thread.
+const drawStride = 11
+
+// DrawGroups is the most groups a model may have for the page to animate it.
+//
+// A shader's uniform space is small and guaranteed smaller: WebGL 1 promises
+// only 128 vertex uniform vectors, and a mat4 costs four. Twenty-four leaves
+// room for the camera and covers what this engine builds — a four-speed
+// compound, its widest, uses eleven. Past that the model still draws, and the
+// parts beyond simply do not move.
+const DrawGroups = 24
 
 // Draw flattens a model for the page to render.
 //
@@ -46,6 +61,28 @@ func Draw(model *ldr.Model, shapes part.Shapes) []byte {
 // verdict is about. "60485.dat at {X:80 Y:0 Z:-40} is inside 32523.dat" is a
 // sentence the reader has to go and find. A part lit up is not.
 func DrawFlagging(model *ldr.Model, shapes part.Shapes, flagged map[int]bool) []byte {
+	return drawWith(model, shapes, flagged)
+}
+
+// GroupOrder is the group names in the order DrawFlagging numbers them, so the
+// page can match a transform to the index its vertices carry.
+func GroupOrder(model *ldr.Model) []string {
+	if model == nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range model.Parts {
+		if p.Group == "" || seen[p.Group] {
+			continue
+		}
+		seen[p.Group] = true
+		out = append(out, p.Group)
+	}
+	return out
+}
+
+func drawWith(model *ldr.Model, shapes part.Shapes, flagged map[int]bool) []byte {
 	if model == nil {
 		return nil
 	}
@@ -54,6 +91,18 @@ func DrawFlagging(model *ldr.Model, shapes part.Shapes, flagged map[int]bool) []
 	put := func(v float64) {
 		binary.LittleEndian.PutUint32(buf, math.Float32bits(float32(v)))
 		out = append(out, buf...)
+	}
+
+	// Group names in the order the model declares them, so a vertex can carry
+	// an index the shader understands.
+	group := map[string]int{}
+	for _, p := range model.Parts {
+		if p.Group == "" {
+			continue
+		}
+		if _, seen := group[p.Group]; !seen {
+			group[p.Group] = len(group) + 1 // 0 is "moves with nothing"
+		}
 	}
 
 	for i, p := range model.Parts {
@@ -65,6 +114,10 @@ func DrawFlagging(model *ldr.Model, shapes part.Shapes, flagged map[int]bool) []
 		mark := 0.0
 		if flagged[i] {
 			mark = 1
+		}
+		at := float64(group[p.Group])
+		if at >= DrawGroups {
+			at = 0 // past what the shader holds: drawn, but it will not move
 		}
 		for _, t := range g.Tris {
 			a := p.Rot.Apply(t[0]).Add(p.Pos)
@@ -87,6 +140,7 @@ func DrawFlagging(model *ldr.Model, shapes part.Shapes, flagged map[int]bool) []
 				put(gr)
 				put(b)
 				put(mark)
+				put(at)
 			}
 		}
 	}

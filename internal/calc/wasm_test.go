@@ -302,7 +302,8 @@ func TestThePageWorksInABrowser(t *testing.T) {
 
 	site := t.TempDir()
 	buildWASM(t, site)
-	for _, name := range []string{"index.html", "app.js", "view.js", "style.css", "worker.js"} {
+	for _, name := range []string{"index.html", "app.js", "view.js", "animate.js",
+		"style.css", "worker.js"} {
 		src, err := os.ReadFile(filepath.Join("..", "..", "web", name))
 		if err != nil {
 			t.Fatal(err)

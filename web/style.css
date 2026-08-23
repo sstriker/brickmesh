@@ -234,3 +234,17 @@ fieldset.envelope input { width: 4.5rem; }
 .install code {
   white-space: pre;
 }
+
+/* The state chooser sits in the view bar with the zoom buttons, and only
+   appears when a mechanism has more than one state to choose between. */
+.state-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.state-pick select {
+  font: inherit;
+  padding: 0.15rem 0.3rem;
+}

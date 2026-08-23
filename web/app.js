@@ -272,6 +272,7 @@ async function buildModel() {
       viewer.load(triangles);
       showView();
     }
+    setUpAnimation(built);
   } finally {
     buildEl.disabled = false;
   }
@@ -323,6 +324,14 @@ async function start() {
   on("zoom-in", () => viewer.zoomBy(1 / 1.3));
   on("zoom-out", () => viewer.zoomBy(1.3));
   on("zoom-reset", () => viewer.reset());
+  on("play", togglePlay);
+  const stateEl = document.getElementById("state");
+  if (stateEl) {
+    stateEl.addEventListener("change", () => {
+      state = stateEl.value;
+      if (!playing) showFrame(turns); // move the ring without having to play it
+    });
+  }
 
   statusEl.textContent = "";
   document.getElementById("wasm-note").textContent =
@@ -331,3 +340,90 @@ async function start() {
 }
 
 start();
+
+
+// The model, moving. What the engine solved is what runs here: the same
+// description the .lua is written from, rendered by transforms instead.
+//
+// The ratio is the thing worth seeing. A table saying 0.333 is a fact to be
+// taken on trust; two arms, one going round three times while the other goes
+// round once, is the same fact demonstrated.
+let animator = null;
+let playing = false;
+let state = "";
+let turns = 0;
+let lastTick = 0;
+
+// TURNS_PER_SECOND is how fast the INPUT turns, so every other shaft's speed
+// is its ratio and nothing on screen needs a scale beside it.
+const TURNS_PER_SECOND = 0.25;
+
+function setUpAnimation(built) {
+  stopPlaying();
+  animator = null;
+  turns = 0;
+  const playEl = document.getElementById("play");
+  const pickEl = document.getElementById("state-pick");
+  const stateEl = document.getElementById("state");
+  if (playEl) playEl.hidden = true;
+  if (pickEl) pickEl.hidden = true;
+  if (viewer) viewer.rest();
+
+  if (!built || !built.anim || !built.groups || typeof createAnimator !== "function") {
+    return;
+  }
+  animator = createAnimator(built.anim, built.groups);
+  if (!animator || !animator.states.length) {
+    animator = null;
+    return;
+  }
+  state = animator.states[0];
+  if (stateEl) {
+    stateEl.replaceChildren();
+    for (const name of animator.states) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      stateEl.append(opt);
+    }
+    stateEl.value = state;
+  }
+  if (playEl) playEl.hidden = false;
+  // More than one state is worth choosing between; one is not.
+  if (pickEl) pickEl.hidden = animator.states.length < 2;
+  showFrame(0);
+}
+
+function showFrame(atTurns) {
+  if (!animator || !viewer) return;
+  viewer.setGroups(animator.at(state, atTurns));
+}
+
+function togglePlay() {
+  if (playing) {
+    stopPlaying();
+    return;
+  }
+  if (!animator) return;
+  playing = true;
+  lastTick = 0;
+  const playEl = document.getElementById("play");
+  if (playEl) playEl.textContent = "pause";
+  requestAnimationFrame(tick);
+}
+
+function stopPlaying() {
+  playing = false;
+  const playEl = document.getElementById("play");
+  if (playEl) playEl.textContent = "play";
+}
+
+function tick(now) {
+  if (!playing || !animator) return;
+  // Elapsed time rather than a count of frames: a tab in the background gets
+  // fewer frames, and counting them would make it run slow rather than skip.
+  if (lastTick) turns += ((now - lastTick) / 1000) * TURNS_PER_SECOND;
+  lastTick = now;
+  showFrame(turns);
+  requestAnimationFrame(tick);
+}

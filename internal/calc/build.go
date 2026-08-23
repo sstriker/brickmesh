@@ -11,6 +11,7 @@ import (
 
 	"github.com/sstriker/brickmesh/internal/assets"
 	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/ldcad"
 	"github.com/sstriker/brickmesh/internal/ldr"
 	"github.com/sstriker/brickmesh/internal/pipeline"
 	"github.com/sstriker/brickmesh/internal/spec"
@@ -62,6 +63,13 @@ type Built struct {
 	LDR string `json:"ldr,omitempty"`
 	// Lua is the LDCad animation, when one was asked for.
 	Lua string `json:"lua,omitempty"`
+	// Anim is that same animation as data, for a renderer that is not LDCad.
+	Anim *ldcad.Script `json:"anim,omitempty"`
+	// Groups names the animation groups in the order the draw buffer numbers
+	// them, so a transform can be matched to the vertices carrying that index.
+	// The buffer's index is one MORE than the position here: zero means a part
+	// that moves with nothing.
+	Groups []string `json:"groups,omitempty"`
 	// Parts counts what went into it.
 	Parts int `json:"parts"`
 }
@@ -122,6 +130,11 @@ func (p *Parts) Build(ctx context.Context, description []byte, animate bool) Bui
 	p.flagged = nil
 	if res.Script != nil {
 		out.Lua = res.Script.Render()
+		// The same animation as data rather than as Lua, because the page has
+		// no Lua and the .lua is written for LDCad's API. One description, two
+		// renderings.
+		out.Anim = res.Script
+		out.Groups = GroupOrder(p.drawn)
 	}
 	return out
 }

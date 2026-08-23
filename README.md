@@ -208,8 +208,18 @@ engine runs in the browser, and the page fetches nothing outside its own
 directory. It ships no data derived from the LDraw or LDCad libraries, so
 nothing on it carries their terms.
 
-Placing the gears, finding a frame to hold them, and exporting a model still run
-on the command line. `docs/architecture.md` sets out where that is heading.
+Build one and it draws, and it moves. **Play** turns the input at a quarter of a
+turn a second, so every other shaft runs at its own ratio: two marker arms, one
+going round three times while the other goes round once, is the same fact the
+ratio table states and a good deal harder to misread. A gearbox offers its
+states, and choosing one slides the driving ring to the gear that state selects.
+
+The motion is the engine's own. It solves the animation once and renders it
+twice — as Lua for LDCad, and as data the page turns into transforms — so the
+page cannot drift from the file you open in LDCad. What it does not yet show is
+the shift itself: the ring travelling between gears with the shafts it feeds
+held still, which the `.lua` does animate and the page renders as a steady state
+at either end.
 
 ## Building
 

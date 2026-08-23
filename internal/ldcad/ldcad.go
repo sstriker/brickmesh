@@ -58,19 +58,19 @@ import (
 
 // Turning is a group that rotates, and how fast.
 type Turning struct {
-	Group string
+	Group string `json:"group"`
 	// Axis it turns about, in the model's coordinates.
-	Axis geom.Vec3
+	Axis geom.Vec3 `json:"axis"`
 	// Through is a point on that axis, in the model's coordinates.
 	//
 	// Needed because a group turns about the model's origin and not about the
 	// center its GROUP_DEF declares — which is the whole reason a model came
 	// out with one shaft spinning correctly and every other part orbiting it.
 	// The one that worked was the one whose axis ran through the origin.
-	Through geom.Vec3
+	Through geom.Vec3 `json:"through"`
 	// Speed in turns per turn of the input, signed: the ratio the functional
 	// layer solved for.
-	Speed float64
+	Speed float64 `json:"speed"`
 	// Holds says, per segment, whether the shift at the END of that segment
 	// cuts this group's drive. Nil means it never does.
 	//
@@ -78,7 +78,7 @@ type Turning struct {
 	// only the output's ring is moving, the shaft fed through the other ring is
 	// still driven and has to keep turning. Holding everything at every shift
 	// stopped half the box for no reason.
-	Holds []bool
+	Holds []bool `json:"holds,omitempty"`
 	// ThroughShift marks a shaft the inputs reach only through a shift.
 	//
 	// It matters during a shift and nowhere else. While a ring is sliding it is
@@ -90,7 +90,7 @@ type Turning struct {
 	// not about which shaft a ring happens to ride — in a compound gearbox the
 	// second stage's gears are driven by the first stage's output, so they stop
 	// when it does.
-	ThroughShift bool
+	ThroughShift bool `json:"throughShift,omitempty"`
 }
 
 // Sliding is a group that moves along its shaft as well as turning about it.
@@ -100,20 +100,21 @@ type Turning struct {
 // locked to. Showing it parked in one place is what makes a shift look like a
 // jump cut.
 type Sliding struct {
-	Group string
+	Group string `json:"group"`
 	// Axis it turns about, which is also the axis it slides along.
-	Axis  geom.Vec3
-	Speed float64
+	Axis  geom.Vec3 `json:"axis"`
+	Speed float64   `json:"speed"`
 	// Engaged and Disengaged are its two positions, in the model's coordinates.
-	Engaged, Disengaged geom.Vec3
+	Engaged    geom.Vec3 `json:"engaged"`
+	Disengaged geom.Vec3 `json:"disengaged"`
 	// At is where it sits: 0 engaged, 1 disengaged. A ring that serves two
 	// gears engages one at 0 and the other at 1, with neutral halfway.
-	At float64
+	At float64 `json:"at"`
 	// Holds is the shaft's, since a ring is splined to it. See Turning.Holds.
-	Holds []bool
+	Holds []bool `json:"holds,omitempty"`
 	// ThroughShift is whether the shaft this rides is itself reached only
 	// through a shift, in which case the ring holds along with it.
-	ThroughShift bool
+	ThroughShift bool `json:"throughShift,omitempty"`
 }
 
 // Position of a sliding group at a given fraction of its travel.
@@ -130,20 +131,22 @@ func (s Sliding) Position(at float64) geom.Vec3 {
 // common is that they turn about an axis that is not their own centre, so the
 // centre orbits the pivot and the position has to follow the orientation.
 type Swinging struct {
-	Group string
+	Group string `json:"group"`
 	// Axis it turns about and Pivot a point on that axis, both in the model's
 	// coordinates.
-	Axis, Pivot geom.Vec3
+	Axis  geom.Vec3 `json:"axis"`
+	Pivot geom.Vec3 `json:"pivot"`
 	// Rest is where the group's center sits at zero degrees.
-	Rest geom.Vec3
+	Rest geom.Vec3 `json:"rest"`
 	// Engaged and Clear are the two angles, in degrees.
-	Engaged, Clear float64
+	Engaged float64 `json:"engagedAngle"`
+	Clear   float64 `json:"clearAngle"`
 	// At is where it sits between them: 0 engaged, 1 clear. Same convention as
 	// Sliding, and for a shared ring 1 is the far gear rather than neutral.
-	At float64
+	At float64 `json:"at"`
 	// Assumed marks a swing whose angle was chosen rather than derived, so the
 	// report can say so.
-	Assumed bool
+	Assumed bool `json:"assumed,omitempty"`
 }
 
 // Angle of a swinging group at a given fraction of its travel.
@@ -153,35 +156,35 @@ func (s Swinging) Angle(at float64) float64 {
 
 // Segment is one state's worth of a walk through the states.
 type Segment struct {
-	State    string
-	Turning  []Turning
-	Sliding  []Sliding
-	Swinging []Swinging
+	State    string     `json:"state"`
+	Turning  []Turning  `json:"turning,omitempty"`
+	Sliding  []Sliding  `json:"sliding,omitempty"`
+	Swinging []Swinging `json:"swinging,omitempty"`
 	// Fraction of the animation this state is held for. Zero in every segment
 	// means share the time equally, which is all there is to go on for a box
 	// that is shifted by hand.
-	Fraction float64
+	Fraction float64 `json:"fraction"`
 }
 
 // Animation is one thing to watch — a gearbox has one per state, plus one that
 // walks through them.
 type Animation struct {
-	Name     string
-	Turning  []Turning
-	Sliding  []Sliding
-	Swinging []Swinging
+	Name     string     `json:"name"`
+	Turning  []Turning  `json:"turning,omitempty"`
+	Sliding  []Sliding  `json:"sliding,omitempty"`
+	Swinging []Swinging `json:"swinging,omitempty"`
 	// Segments, when set, make this a walk through the states rather than a
 	// single one held throughout. The groups are the same in every segment;
 	// only the speeds and the ring positions change.
-	Segments []Segment
+	Segments []Segment `json:"segments,omitempty"`
 }
 
 // Script is a whole file.
 type Script struct {
-	Model      string
-	Seconds    float64
-	InputTurns float64 // how many turns of the input the animation covers
-	Animations []Animation
+	Model      string      `json:"model"`
+	Seconds    float64     `json:"seconds"`
+	InputTurns float64     `json:"inputTurns"` // turns of the input covered
+	Animations []Animation `json:"animations,omitempty"`
 }
 
 // Render writes the Lua.

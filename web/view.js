@@ -15,21 +15,30 @@
 
 // A plain script, like the rest of the page: one global, loaded in order.
 
+// GROUPS has to match calc.DrawGroups. A mat4 costs four uniform vectors and
+// WebGL 1 promises only 128, so this is not a number to raise without counting.
+const GROUPS = 24;
+
 const VERTEX_SHADER = `
   attribute vec3 position;
   attribute vec3 normal;
   attribute vec3 colour;
   attribute float flagged;
+  attribute float group;
   uniform mat4 modelView;
   uniform mat4 projection;
+  uniform mat4 groupXf[${GROUPS}];
   varying vec3 vNormal;
   varying vec3 vColour;
   varying float vFlagged;
   void main() {
-    vNormal = mat3(modelView) * normal;
+    // Index 0 is the identity and never written, so a part in no group costs
+    // the same lookup as one in a group and needs no branch.
+    mat4 xf = groupXf[int(group)];
+    vNormal = mat3(modelView) * mat3(xf) * normal;
     vColour = colour;
     vFlagged = flagged;
-    gl_Position = projection * modelView * vec4(position, 1.0);
+    gl_Position = projection * modelView * xf * vec4(position, 1.0);
   }
 `;
 
@@ -64,10 +73,12 @@ function createViewer(canvas) {
     normal: gl.getAttribLocation(program, "normal"),
     colour: gl.getAttribLocation(program, "colour"),
     flagged: gl.getAttribLocation(program, "flagged"),
+    group: gl.getAttribLocation(program, "group"),
   };
   const uniform = {
     modelView: gl.getUniformLocation(program, "modelView"),
     projection: gl.getUniformLocation(program, "projection"),
+    groupXf: gl.getUniformLocation(program, "groupXf[0]"),
   };
   const buffer = gl.createBuffer();
 
@@ -81,13 +92,18 @@ function createViewer(canvas) {
     yaw: -0.6,
     pitch: -0.5,
     distance: 400,
+    // One transform per group, flat, as WebGL wants them. All identity until
+    // something animates: a model that is not moving still draws through the
+    // same path, which is one path to get right rather than two.
+    groupXf: identityGroups(),
   };
 
-  // load takes the buffer the worker sent: ten floats a vertex — position,
-  // normal, colour, and whether a finding is about this part.
+  // load takes the buffer the worker sent: eleven floats a vertex — position,
+  // normal, colour, whether a finding is about this part, and which animation
+  // group it belongs to.
   function load(bytes) {
     const data = new Float32Array(bytes);
-    const stride = 10;
+    const stride = 11;
     view.vertices = data.length / stride;
 
     let lo = [Infinity, Infinity, Infinity];
@@ -124,13 +140,16 @@ function createViewer(canvas) {
     if (!view.vertices) return;
 
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    const size = 10 * 4;
+    const size = 11 * 4;
     for (const [name, offset] of [["position", 0], ["normal", 12], ["colour", 24]]) {
       gl.enableVertexAttribArray(attr[name]);
       gl.vertexAttribPointer(attr[name], 3, gl.FLOAT, false, size, offset);
     }
     gl.enableVertexAttribArray(attr.flagged);
     gl.vertexAttribPointer(attr.flagged, 1, gl.FLOAT, false, size, 36);
+    gl.enableVertexAttribArray(attr.group);
+    gl.vertexAttribPointer(attr.group, 1, gl.FLOAT, false, size, 40);
+    gl.uniformMatrix4fv(uniform.groupXf, false, view.groupXf);
     gl.uniformMatrix4fv(uniform.projection, false,
       perspective(0.9, width / height, view.radius / 50, view.radius * 20));
     gl.uniformMatrix4fv(uniform.modelView, false, orbit(view));
@@ -231,7 +250,34 @@ function createViewer(canvas) {
 
   window.addEventListener("resize", draw);
 
-  return { load, draw, zoomBy, reset };
+  // setGroups takes one 16-float transform per group, in the order the build
+  // reported, and draws. Index 0 in the shader is the identity for parts in no
+  // group, so the first group given lands at 1.
+  function setGroups(transforms) {
+    const flat = identityGroups();
+    for (let g = 0; g < transforms.length && g + 1 < GROUPS; g++) {
+      flat.set(transforms[g], (g + 1) * 16);
+    }
+    view.groupXf = flat;
+    draw();
+  }
+
+  // rest puts every group back to the identity, for when an animation stops.
+  function rest() {
+    view.groupXf = identityGroups();
+    draw();
+  }
+
+  return { load, draw, zoomBy, reset, setGroups, rest };
+}
+
+// identityGroups is the transform table with nothing moved.
+function identityGroups() {
+  const flat = new Float32Array(GROUPS * 16);
+  for (let g = 0; g < GROUPS; g++) {
+    flat[g * 16] = flat[g * 16 + 5] = flat[g * 16 + 10] = flat[g * 16 + 15] = 1;
+  }
+  return flat;
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
