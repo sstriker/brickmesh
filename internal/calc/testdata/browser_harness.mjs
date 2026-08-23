@@ -123,13 +123,20 @@ if (clickable.length > 0) {
 must(await page.isVisible("#viewbar"), "the model's controls appear with it");
 
 const view = page.locator("#view");
-const box = await view.boundingBox();
+// Read fresh every time, never once. The canvas moves when the page's own
+// layout changes — the view bar appearing with the model, or a row of example
+// buttons wrapping to a second line — and a box read before that puts the
+// pointer somewhere the canvas no longer is. Adding four examples was enough
+// to make the wheel miss it.
+const boxNow = async () => await view.boundingBox();
+let box = await boxNow();
 const frame = async () => {
   await page.waitForTimeout(600); // SwiftShader is not instant
   return (await view.screenshot()).toString("base64");
 };
 
 const home = await frame();
+box = await boxNow();
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 await page.mouse.wheel(0, -400);
 must(await frame() !== home, "the wheel zooms");
@@ -144,6 +151,7 @@ must(await frame() !== was, "the zoom-out button works");
 // Two fingers, dispatched as pointer events because that is what a touchscreen
 // sends and what the viewer listens for.
 was = await frame();
+box = await boxNow();
 await page.evaluate(({ cx, cy }) => {
   const el = document.getElementById("view");
   const send = (type, pts) => pts.forEach((p) => el.dispatchEvent(new PointerEvent(type, {
@@ -167,6 +175,7 @@ must(await frame() !== was, "the + key zooms");
 // earlier frame also carries whatever else has changed on the page since.
 await page.click("#zoom-reset");
 const rested = await frame();
+box = await boxNow();
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 await page.mouse.wheel(0, -500);
 await page.mouse.move(box.x + 80, box.y + 80);

@@ -334,3 +334,23 @@ func TestThePageWorksInABrowser(t *testing.T) {
 		t.Fatalf("the page does not work in a browser: %v", err)
 	}
 }
+
+// Every example in the repository is offered on the page.
+//
+// The list lives in app.js and is written by hand, which is a thing that
+// drifts: it had fallen four behind, two of which had never been on the site at
+// all. Nothing said so, because a missing example is not an error anywhere —
+// the page works, it just does not offer the thing you came to see.
+func TestThePageOffersEveryExample(t *testing.T) {
+	app, err := os.ReadFile(filepath.Join("..", "..", "web", "app.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range examples(t) {
+		want := "examples/" + filepath.Base(path)
+		if !strings.Contains(string(app), `"`+want+`"`) {
+			t.Errorf("%s is not offered on the page; add it to EXAMPLES in "+
+				"web/app.js", want)
+		}
+	}
+}

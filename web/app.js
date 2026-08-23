@@ -11,13 +11,24 @@
 // TestThePageOnlyOffersExamplesThatExist checks it, because two of them did not
 // and the buttons simply 404'd — the sort of thing that is invisible until
 // somebody clicks, and was invisible until a browser did.
+// Every example in the repository, simplest first. A test keeps this list
+// level with the directory: it was hand-written and had fallen four behind,
+// including two that had never been offered at all.
 const EXAMPLES = [
   ["reduction", "examples/reduction.json"],
+  ["protected reduction", "examples/protected-reduction.json"],
   ["subtractor", "examples/subtractor.json"],
   ["2-speed gearbox", "examples/gearbox-2-speed.json"],
-  ["3-speed compound", "examples/gearbox-3-speed-compound.json"],
+  ["first system", "examples/gearbox-first-system.json"],
+  ["early system", "examples/gearbox-early-system.json"],
   ["auto-shifting", "examples/gearbox-2-speed-auto.json"],
+  ["3-speed compound", "examples/gearbox-3-speed-compound.json"],
+  ["4-speed compound", "examples/gearbox-4-speed-compound.json"],
 ];
+
+// What the page opens with: a gearbox, because it is the one that shows what
+// this is for — ratios, a shift, and something that moves.
+const START_WITH = "examples/gearbox-2-speed.json";
 
 const specEl = document.getElementById("spec");
 const buildEl = document.getElementById("build");
@@ -336,7 +347,9 @@ async function start() {
   statusEl.textContent = "";
   document.getElementById("wasm-note").textContent =
     "The engine runs in your browser; nothing is sent anywhere.";
-  await loadExample(EXAMPLES[2][1]);
+  // Named, not counted. This was EXAMPLES[2], which meant inserting an example
+  // above it silently changed what the page opens with.
+  await loadExample(START_WITH);
 }
 
 start();
