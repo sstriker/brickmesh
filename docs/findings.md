@@ -252,17 +252,44 @@ demand.
 
 Compounding has a trap of its own. Two identical stages give
 0.6, 0.6, 1.0, 0.36: four combinations, three speeds, because the middle two
-coincide. The stages have to differ, and the way to make them differ is to set
-them different distances apart:
+coincide. The stages have to differ.
 
-| stage | centres | ratios |
+The obvious way to make them differ is to set them different distances apart —
+one stage at 2 studs and the other at 2.5, giving 0.60, 0.90, 1.00 and 1.50.
+Four distinct speeds, and it does solve for them: the engine reports exactly
+those. It cannot be built. A beam's holes are a stud apart, so a stage 2.5 studs
+across has no beam that bears both its shafts, and with two stages in series the
+input and output end up 4.5 studs apart with nothing tying them together. The
+frame comes out in pieces and the load path check says the teeth have nowhere to
+put their separating force.
+
+So both stages have to be a whole number of studs, which means each summing to a
+multiple of 16. Enumerating what that leaves:
+
+| sum | studs | shiftable pairs |
 | --- | --- | --- |
-| one | 2 studs | 12+20 = 0.60, 16+16 = 1.00 |
-| two | 2.5 studs | 24+16 = 1.50, 20+20 = 1.00 |
+| 32 | 2 | 8+24 = 0.333, 12+20 = 0.600, 16+16 = 1.000 |
+| 48 | 3 | 24+24 = 1.000 |
+| 64 | 4 | 40+24 = 1.667 |
 
-which multiply out to 0.60, 0.90, 1.00 and 1.50 — four distinct speeds, and
-each gear a 16t or 20t so every one of them can be gripped.
-`examples/gearbox-4-speed-compound.json`.
+Only sum 32 offers more than one, so both stages sit two studs apart and both
+draw from the same three pairs. They must draw DIFFERENT pairs, or the trap
+above closes again. Taking 8+24 and 16+16 for one stage and 12+20 and 16+16 for
+the other:
+
+```text
+1/3 x 0.6 = 0.200    1/3 x 1.0 = 0.333
+1.0 x 0.6 = 0.600    1.0 x 1.0 = 1.000
+```
+
+Four distinct speeds on two whole-stud stages, which the engine builds with no
+framing warning. `examples/gearbox-4-speed-compound.json`.
+
+Worth noting what carries it: the 8+24. That pair is shiftable only because the
+24-tooth is, and the 24-tooth is shiftable only through the early hardware —
+2471 is the one clutch gear that size and 2473a the one ring that grips it.
+Before that system was measured there was no framable four-speed at all, and the
+design recorded here was one the engine would have solved and never built.
 
 ## The meshing sweep does not settle a bevel pair
 

@@ -44,23 +44,37 @@ Say this plainly rather than producing something that looks close.
   the ring is a fit, and the interference sweep that settles whether gears mesh
   cannot settle a fit, because in LDraw everything is nominal size and a spline
   that grips reads as a spline that collides. Measured, in `docs/shifting.md`.
-  Tell the builder which parts to add; the numbers are below.
-- **Two shifted ratios per pair of shafts, and no more.** Only 16t and 20t come
+  Tell the builder which parts to add; the numbers are below. The catch itself
+  IS placed, and for the early system it slides rather than swinging.
+- **Two shifted ratios per pair of shafts, and no more.** 16t, 20t and 24t come
   with dog clutches, every pair on one pair of shafts must sum to the same tooth
-  count, and that arithmetic leaves exactly two. The 24t cannot be dog-shifted
-  at all — the parts called "Gear 24 Tooth Clutch" are torque limiters with a
-  slipping centre, and read like a plain gear to both driving rings. Ask for
+  count, and that arithmetic still leaves two. Mind the 24t: it shifts only
+  through the early hardware, 2471 being the one clutch gear that size and 2473a
+  the one ring that takes it, and pairing it needs a sum that is a whole number
+  of studs — 8+24 works and 16+24 does not. `examples/gearbox-early-system.json`
+  is that box. Do not confuse 2471 with the parts called "Gear 24 Tooth Clutch",
+  which are torque limiters with a slipping centre and read like a plain gear to
+  every driving ring. Ask for
   more speeds than two and the answer is to compound: two stages of two in
-  series give four, as `examples/gearbox-4-speed-compound.json` does. Watch the
-  trap there — two identical stages give four combinations but only three
-  speeds, because the middle two coincide. Set the stages different distances
-  apart so their ratios differ. Worked through in `docs/findings.md`.
-- **Clutch gears, both systems.** Careful with the word, it means two things.
-  Both driving-ring systems are placed now, each with its own ring, ridged axle
-  joiner and clutch gears: the first for a 16t, the second for a 16t or 20t. A
-  gearbox may use both at once, and `examples/gearbox-2-speed.json` does. The
-  other meaning of clutch — the torque limiter that slips above a force — is not
-  modelled at all: there is no slip element anywhere.
+  series give four combinations. Watch the trap — two identical stages give four
+  combinations but only three speeds, because the middle two coincide, which is
+  why `examples/gearbox-3-speed-compound.json` is named for three and not four.
+  The stages must draw different pairs, and both must sit a whole number of
+  studs apart, which leaves only the three pairs summing to 32: 8+24, 12+20 and
+  16+16. `examples/gearbox-4-speed-compound.json` takes 8+24 and 16+16 for one
+  stage and 12+20 and 16+16 for the other, giving 0.200, 0.333, 0.600 and 1.000.
+  Setting the stages different DISTANCES apart also gives four speeds and cannot
+  be framed at all. Worked through in `docs/findings.md`.
+- **Clutch gears, all three systems.** Careful with the word, it means two
+  things. Every driving-ring system is placed now, each with its own ring,
+  ridged axle joiner, clutch gears and catch: the first for a 16t, the second
+  for a 16t or 20t, the early one for a 16t or 24t. A gearbox may use more than
+  one at once, and `examples/gearbox-2-speed.json` does — though a shared ring
+  between two gears has to settle on ONE system, since a ring of one does not
+  grip another's gears. The other meaning of clutch — the torque limiter that
+  slips above a force — is modelled too: `"slip_clutches": [{"shaft": "output"}]`
+  fits one, and it is refused on a shaft with no 24t station, since 76019 is the
+  only size it is made in.
 - **The structure does not always hold together.** Most runs come out rigid now,
   but a `rigidity` warning still turns up — the subtractor example hinges. The
   gears are right; the frame may need a joint adding.

@@ -54,6 +54,8 @@ var budgets = map[string]budget{
 	"gearbox-first-system.json":     {walks: 50, reads: 22000},
 	"gearbox-2-speed-auto.json":     {walks: 60, reads: 24000},
 	"gearbox-3-speed-compound.json": {walks: 80, reads: 24000},
+	"gearbox-early-system.json":     {walks: 50, reads: 22000},
+	"gearbox-4-speed-compound.json": {walks: 80, reads: 24000},
 }
 
 func TestBuildingAnExampleStaysCheap(t *testing.T) {

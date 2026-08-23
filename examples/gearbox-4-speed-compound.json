@@ -1,0 +1,113 @@
+{
+  "name": "4-speed compound",
+  "note": "Four distinct speeds, and the only shape that fits on beams. A shifted stage can only be framed if its gears sum to a multiple of 16, and of those sums only 32 offers more than one shiftable ratio -- 8+24, 12+20 and 16+16. So both stages sit two studs apart, and they have to pick DIFFERENT pairs from those three: two identical stages give four combinations but only three distinct speeds, which is what gearbox-3-speed-compound.json is. Stage one takes 8+24 and 16+16, stage two 12+20 and 16+16, giving 0.200, 0.333, 0.600 and 1.000. The 8+24 is what makes it possible and it needs the early hardware: 2471 is the one 24-tooth clutch gear and 2473a the one ring that grips it.",
+  "states": [
+    "1st",
+    "2nd",
+    "3rd",
+    "4th"
+  ],
+  "shafts": [
+    {
+      "id": "input",
+      "bearings": 2
+    },
+    {
+      "id": "mid",
+      "bearings": 2
+    },
+    {
+      "id": "output",
+      "bearings": 2
+    },
+    {
+      "id": "s1low",
+      "bearings": 2
+    },
+    {
+      "id": "s1high",
+      "bearings": 2
+    },
+    {
+      "id": "s2low",
+      "bearings": 2
+    },
+    {
+      "id": "s2high",
+      "bearings": 2
+    }
+  ],
+  "meshes": [
+    {
+      "a": "input",
+      "b": "s1low",
+      "teeth_a": 8,
+      "teeth_b": 24
+    },
+    {
+      "a": "input",
+      "b": "s1high",
+      "teeth_a": 16,
+      "teeth_b": 16
+    },
+    {
+      "a": "mid",
+      "b": "s2low",
+      "teeth_a": 12,
+      "teeth_b": 20
+    },
+    {
+      "a": "mid",
+      "b": "s2high",
+      "teeth_a": 16,
+      "teeth_b": 16
+    }
+  ],
+  "couplings": [
+    {
+      "a": "mid",
+      "b": "s1low",
+      "name": "ring 1 low",
+      "states": [
+        "1st",
+        "2nd"
+      ]
+    },
+    {
+      "a": "mid",
+      "b": "s1high",
+      "name": "ring 1 high",
+      "states": [
+        "3rd",
+        "4th"
+      ]
+    },
+    {
+      "a": "output",
+      "b": "s2low",
+      "name": "ring 2 low",
+      "states": [
+        "1st",
+        "3rd"
+      ]
+    },
+    {
+      "a": "output",
+      "b": "s2high",
+      "name": "ring 2 high",
+      "states": [
+        "2nd",
+        "4th"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "shaft": "input",
+      "speed": 1.0
+    }
+  ],
+  "outputs": [
+    "output"
+  ]
+}
