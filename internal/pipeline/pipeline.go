@@ -1871,7 +1871,7 @@ func clearOfOtherShafts(ctx context.Context, deps Deps, res *Result,
 			across = append(across, c)
 		}
 	}
-	shafts, model := 0, 0
+	shafts, model, gears := 0, 0, 0
 	for _, out := range across {
 		blocked := false
 		for _, other := range res.Layout.Place {
@@ -1899,17 +1899,20 @@ func clearOfOtherShafts(ctx context.Context, deps Deps, res *Result,
 	// Which of the two closed it off is worth saying: another shaft is the
 	// mechanism's own doing and can be laid out around, while the model is
 	// somebody else's and cannot.
-	switch {
-	case model > 0 && shafts > 0:
-		return geom.Vec3{}, false, fmt.Sprintf(
-			"%d way(s) out run into another shaft and %d into the model "+
-				"it was fitted to", shafts, model)
-	case model > 0:
-		return geom.Vec3{}, false, "every way out of the shaft is inside the " +
-			"model it was fitted to"
-	default:
+	var why []string
+	if shafts > 0 {
+		why = append(why, fmt.Sprintf("%d run into another shaft", shafts))
+	}
+	if gears > 0 {
+		why = append(why, fmt.Sprintf("%d into what is on one", gears))
+	}
+	if model > 0 {
+		why = append(why, fmt.Sprintf("%d into the model it was fitted to", model))
+	}
+	if len(why) == 0 {
 		return geom.Vec3{}, false, "every way out of the shaft runs into another one"
 	}
+	return geom.Vec3{}, false, "of the ways out, " + strings.Join(why, ", ")
 }
 
 // catchIsInTheModel reports whether a catch this way out would be inside the
@@ -1969,4 +1972,101 @@ func nearbyParts(deps Deps, into []ldr.Placed, at geom.Vec3, reach float64) []ld
 		}
 	}
 	return near
+}
+
+// catchFoulsTheGears reports whether a catch this way out would sit inside what
+// the mechanism already has on its other shafts.
+//
+// Knowing where the shaft LINES are is not enough for a catch with a body. A
+// fork reaches 40 LDU out on an arm wider than either of the other two catches,
+// and putting a 24-tooth shift together sent it clean through the axle joiner
+// on the next shaft along — down a side no shaft line was anywhere near.
+//
+// Its own ring and joiner are left out: wrapping those is the job.
+func catchFoulsTheGears(ctx context.Context, deps Deps, res *Result,
+	sys clutch.System, at, d, out geom.Vec3, mine layout.Placement) bool {
+
+	if deps.Lib == nil {
+		return false
+	}
+	rot := catchFrame(sys, d, out)
+	pos := at.Add(out.Scale(sys.CatchReach))
+	if sys.CatchSide != 0 {
+		pos = pos.Add(geom.Vec3{X: rot[0][0], Y: rot[1][0], Z: rot[2][0]}.
+			Scale(sys.CatchSide))
+	}
+	catch := ldr.Part{Name: sys.Catch, Rot: rot, Pos: pos}
+
+	var still turning
+	for _, other := range mechanismParts(res) {
+		if err := ctx.Err(); err != nil {
+			return false
+		}
+		if other.on.Key() == mine.Key() {
+			continue // its own shaft: the ring there is what it holds
+		}
+		if mayBeInside(catch, other.part) {
+			continue
+		}
+		if in, _, err := sharesSpace(ctx, deps, catch, other.part, still, -1, -2); err == nil && in {
+			return true
+		}
+	}
+	return false
+}
+
+// onShaft is a placed part and the shaft it rides, so a catch can be asked
+// about everything except its own.
+type onShaft struct {
+	part ldr.Part
+	on   layout.Placement
+}
+
+// mechanismParts is the gears, rings and joiners where the layout puts them,
+// worked out before the model is drawn because the catches are placed first.
+func mechanismParts(res *Result) []onShaft {
+	if res.Layout == nil {
+		return nil
+	}
+	var out []onShaft
+	for _, st := range res.Stations {
+		place, ok := res.Layout.Place[st.Shaft]
+		if !ok {
+			continue
+		}
+		name, ok := gearAt(st, res.ringSites, res.slip)
+		if !ok {
+			continue
+		}
+		mat, ok := alignZTo(place.Direction)
+		if !ok {
+			continue
+		}
+		out = append(out, onShaft{on: place, part: ldr.Part{Name: name, Rot: mat,
+			Pos: place.Point.Scale(synth.HalfStud).
+				Add(place.Direction.Unit().Scale(st.Axial * synth.HalfStud))}})
+	}
+	for _, site := range res.ringSites {
+		place, ok := res.Layout.Place[site.station.Shaft]
+		if !ok {
+			continue
+		}
+		mat, ok := alignZTo(place.Direction)
+		if !ok {
+			continue
+		}
+		origin := place.Point.Scale(synth.HalfStud)
+		for _, at := range []struct {
+			name string
+			half float64
+		}{{site.system.Ring, site.engaged}, {site.system.Joiner, site.joiner}} {
+			if at.name == "" {
+				continue
+			}
+			out = append(out, onShaft{on: place, part: ldr.Part{Name: at.name,
+				Rot: mat, Pos: origin.Add(place.Direction.Unit().
+					Scale(at.half * synth.HalfStud))}})
+		}
+	}
+	return out
 }

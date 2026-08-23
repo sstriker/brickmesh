@@ -197,7 +197,16 @@ func sweep(ctx context.Context, a *collide.Mesh, ta collide.Transform,
 			for k := range step {
 				ang := float64(k) * 360 / float64(opts.Steps)
 				turned := collide.Transform{
-					Rot: tb.Rot.Mul(Rot(opts.SpinAxis, ang)),
+					// Pre-multiplied, so the part turns about that axis in the
+					// WORLD and stays where it is. Post-multiplying turns it
+					// about the same-named axis of its own frame, which is a
+					// different line whenever the part is not square to the
+					// world — and parts on a shaft rarely are, since alignZTo
+					// puts their local z along it. An axle joiner lying along x
+					// reaches 9.5 LDU off its axis at rest and 31.1 when it is
+					// turned the wrong way, so it was being swept through space
+					// it never visits and reported as fouling what stood there.
+					Rot: Rot(opts.SpinAxis, ang).Mul(tb.Rot),
 					Pos: tb.Pos,
 				}
 				if !collide.Intersects(a, ta, b, turned) {

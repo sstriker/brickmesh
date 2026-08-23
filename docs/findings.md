@@ -1881,3 +1881,40 @@ reports: move the fork and the driving ring goes with it.
 Still missing before this can be a System: the gears 2473a's eight dogs engage,
 and the engaged distance from a gear's centre. The ring and its catch are
 settled; what it shifts INTO is not.
+
+## The sweep was tumbling parts instead of spinning them
+
+Placing the early system's fork produced a clearance failure against the axle
+joiner under its own ring. The two do not touch: at the placement the model
+gives them, `collide.Intersects` says false, and the fork comes no closer than
+12.40 LDU to a joiner that reaches 9.50. The failure came from the sweep.
+
+`MeshLock` turns one part through a full revolution and asks whether the other
+blocks it. The turn was applied as `tb.Rot.Mul(Rot(axis, ang))` — post
+multiplied, which turns the part about the named axis **of its own frame**. The
+axis handed in is a world axis, from `principal()`. Those are the same line only
+when the part is square to the world, and a part on a shaft almost never is:
+`alignZTo` puts its local z along the shaft, so a shaft running along x leaves
+the part's local x pointing somewhere else entirely.
+
+An axle joiner lying along x, measured:
+
+| | reaches along x | reaches off its axis |
+| --- | --- | --- |
+| at rest | 30.0 | 9.5 |
+| turned 45 degrees the wrong way | 27.1 | 27.2 |
+| turned 90 degrees the wrong way | 8.8 | 31.1 |
+
+At 90 degrees it has been laid end over end. It sweeps a 31 LDU ball instead of
+a 9.5 LDU cylinder, and everything standing in that ball reads as fouling it.
+
+Pre-multiplying — `Rot(axis, ang).Mul(tb.Rot)` — turns the part about that axis
+in the world while its position is added afterwards, so it spins where it
+stands. Off-axis reach stays 9.5 at every angle.
+
+What makes this worth writing down is which way the error ran. A sweep that
+covers too much space does not let anything through that should not be; it stops
+things that should be allowed. So it never produced a wrong model — it produced
+refusals, and refusals get read as "there is no room here" rather than as a bug.
+The failing case had to be tracked back to `collide.Intersects` disagreeing with
+the sweep about the same two parts before the sweep itself came under suspicion.

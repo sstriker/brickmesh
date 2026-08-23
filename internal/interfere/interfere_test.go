@@ -227,3 +227,23 @@ func lock(t *testing.T, a *collide.Mesh, ta collide.Transform,
 	}
 	return got
 }
+
+func TestASweptPartStaysOnItsOwnAxis(t *testing.T) {
+	// The sweep turns one part and asks whether the other blocks it. If the
+	// turn is applied in the part's own frame rather than the world's, a part
+	// lying along x is tumbled end over end instead of spun, and sweeps a
+	// volume it never occupies. An axle joiner reaches 9.5 LDU off its axis at
+	// rest and 31.1 turned the wrong way.
+	rot := geom.Mat3{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}} // local z along world x
+	corner := geom.Vec3{X: 0, Y: 0, Z: 30}            // 30 along its own length
+	if got := rot.Apply(corner); math.Abs(got.X-30) > 1e-9 {
+		t.Fatalf("the fixture is wrong: %v should lie along x", got)
+	}
+	for _, ang := range []float64{45, 90, 180} {
+		w := Rot('x', ang).Mul(rot).Apply(corner)
+		if off := math.Hypot(w.Y, w.Z); off > 1e-9 {
+			t.Errorf("turned %g degrees about world x, a point on the axis moved "+
+				"%.2f LDU off it; the sweep must spin the part in place", ang, off)
+		}
+	}
+}
