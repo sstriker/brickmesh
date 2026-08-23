@@ -595,12 +595,18 @@ third kind of motion. See docs/findings.md.
       The whole chain is measured now — ring, fork, towball, drum. See
       docs/shifting.md.
 
-- [ ] placing the fork is not as safe as placing the other two catches. It
-      reaches 40 LDU out with an arm wider than either, and clearOfOtherShafts
-      knows only where the shaft LINES are, not what the catch's own body
-      sweeps. Fitting a 24-tooth shift puts it through the joiner on a
-      neighbouring shaft. The clearance check says so rather than the model
-      going out quietly, but the placement should not need telling.
+- [x] placing the fork. clearOfOtherShafts knew only where the shaft LINES
+      were, so a catch with a body could be sent down a side nothing warned it
+      about; it now tests the catch itself against the gears, rings and joiners
+      the layout has already settled, and says which of the three kinds of
+      obstacle closed each way out.
+
+      The failure that started it was not that, though. The fork read as inside
+      the joiner under its own ring while collide.Intersects said the two were
+      clear at the very same transforms, and the disagreement was the sweep
+      turning parts about their own axes rather than the world's. See
+      docs/findings.md — it had been refusing placements everywhere, quietly,
+      because that error only ever refuses.
 
 ## What code cannot settle
 
