@@ -1894,11 +1894,16 @@ func clearOfOtherShafts(ctx context.Context, deps Deps, res *Result,
 			model++
 			continue
 		}
+		if catchFoulsTheGears(ctx, deps, res, sys, at, d, out, place) {
+			gears++
+			continue
+		}
 		return out, true, ""
 	}
-	// Which of the two closed it off is worth saying: another shaft is the
-	// mechanism's own doing and can be laid out around, while the model is
-	// somebody else's and cannot.
+	// Which of the three closed it off is worth saying, since they are not the
+	// same news: another shaft is the mechanism's own doing and can be laid out
+	// around, what stands on one might be moved along it, and the model it was
+	// fitted to is somebody else's and cannot be touched at all.
 	var why []string
 	if shafts > 0 {
 		why = append(why, fmt.Sprintf("%d run into another shaft", shafts))
