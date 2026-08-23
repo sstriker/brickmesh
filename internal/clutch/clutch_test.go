@@ -5,6 +5,7 @@ package clutch
 
 import (
 	"context"
+	"math"
 	"os"
 	"testing"
 
@@ -198,10 +199,24 @@ func TestNeitherRingEngagesAPlainGear(t *testing.T) {
 // A 24-tooth gear cannot be dog-shifted, and the parts named "Gear 24 Tooth
 // Clutch" do not change that: they are torque limiters with a slipping centre,
 // and they read exactly like a plain gear to both rings.
-func TestNothingShiftsATwentyFourToothGear(t *testing.T) {
+// A 24-tooth gear shifts, and only in the early system.
+//
+// This asserted the opposite until 2471 was measured against 2473a: eight
+// windows, one per dog, over the same band the 16-tooth engages on. It is the
+// only clutch gear at that size, and 2473a is the only ring that takes it.
+//
+// What has not changed is the other 24-tooth parts that look like clutches and
+// are not: 76019 and 76244 are slip clutches, whose centre gives way above a
+// force, and they engage no ring anywhere.
+func TestOnlyTheEarlySystemShiftsATwentyFourToothGear(t *testing.T) {
 	lib := requireLibraries(t)
-	if Shiftable(24) {
-		t.Error("24 is listed as shiftable; no driving ring has a clutch gear that size")
+	if !Shiftable(24) {
+		t.Error("24 reads as unshiftable, but 2471 is a 24-tooth clutch gear " +
+			"and 2473a engages it")
+	}
+	if got, ok := For(24); !ok || got.Name != "early" {
+		t.Errorf("a 24-tooth shift picked %q; only the early system has that gear",
+			got.Name)
 	}
 	for _, system := range Systems {
 		for _, socalled := range []string{"76019.dat", "76244.dat"} {
@@ -294,6 +309,14 @@ func TestTheCatchReachesTheGrooveAndLetsTheRingTurn(t *testing.T) {
 			return got, reaches
 		}
 
+		if s.CatchSlides {
+			// A fork that wraps cannot be judged by the sweep: it is in contact
+			// the whole way round, so TOO DEEP is what it reads however much is
+			// forgiven. What says the placement is right is that its prong goes
+			// round the shaft — a lever reaches in from one side and stops.
+			checkItWraps(t, s, shape, rot)
+			continue
+		}
 		got, reaches := at(s.CatchReach)
 		if !reaches {
 			t.Errorf("%s: %s at %g LDU does not reach the groove at all",
@@ -341,5 +364,58 @@ func frameFor(t *testing.T, s System) geom.Mat3 {
 		{col[0].X, col[1].X, col[2].X},
 		{col[0].Y, col[1].Y, col[2].Y},
 		{col[0].Z, col[1].Z, col[2].Z},
+	}
+}
+
+// checkItWraps is the test for a catch that goes round the shaft rather than
+// reaching in at it.
+//
+// Placed where the system says, its material in the groove band should be
+// spread most of the way round the axis and should sit at the groove's radius.
+// Both are things a sweep cannot tell you about a part in continuous contact.
+func checkItWraps(t *testing.T, s System, shape *ldraw.Geometry, rot geom.Mat3) {
+	t.Helper()
+	// The frame's third axis, which is where CatchSide is measured.
+	third := geom.Vec3{X: rot[0][0], Y: rot[1][0], Z: rot[2][0]}
+	pos := geom.Vec3{Y: s.CatchReach}.Add(third.Scale(s.CatchSide))
+
+	var sectors [12]bool
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, v := range shape.Verts {
+		w := rot.Apply(v).Add(pos)
+		if math.Abs(w.Z) > 5 {
+			continue // outside the groove along the shaft
+		}
+		r := math.Hypot(w.X, w.Y)
+		if r > 20 {
+			continue // out beyond the ring altogether
+		}
+		lo, hi = math.Min(lo, r), math.Max(hi, r)
+		k := int((math.Atan2(w.Y, w.X) + math.Pi) / (math.Pi / 6))
+		if k > 11 {
+			k = 11
+		}
+		sectors[k] = true
+	}
+	n := 0
+	for _, ok := range sectors {
+		if ok {
+			n++
+		}
+	}
+	if n < 7 {
+		t.Errorf("%s: %s covers %d of 12 sectors round the shaft; a fork that "+
+			"moves a ring has to go round it, not reach in at it", s.Name, s.Catch, n)
+	}
+	// 2473a's groove floor is 11.88 and its shoulders are 17.50, so the prong
+	// has to come to rest between the two: any closer and it is inside the
+	// ring, any further and it never reaches the groove. Only the nearest
+	// material is the prong — the fork's own arm runs on outwards past the
+	// ring, which is not a fault.
+	_ = hi
+	if lo < 11.5 || lo > 17.5 {
+		t.Errorf("%s: %s comes no closer than radius %.2f in the groove band; "+
+			"the floor is 11.88 and the shoulder 17.50, so it is not seated",
+			s.Name, s.Catch, lo)
 	}
 }

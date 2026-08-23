@@ -198,3 +198,50 @@ merely carried out.
 What they share is the part brickmesh does model: whatever decides, the shift
 itself is a ring sliding into a clutch gear, and the ratios and shift points
 either settle or they hunt.
+
+## The early system, whole: ring, fork, towball, drum
+
+The 1980s changeover, measured from a model built in Stud.io — which snapped
+each part to the next, and so recorded relationships no sweep of this library
+can find.
+
+```text
+  shaft ──── 2473a driving ring
+               │  prong wraps its groove
+             4159 catch fork
+               │  pin hole at the fork's origin, 40 LDU out and 20 across
+             6628 towball pin
+               │  ball reaches in to radius 22.00
+             4158 changeover cylinder, on an axis parallel to the shaft
+```
+
+Every join in that chain is a number:
+
+| join | measured |
+| --- | --- |
+| prong to the ring's axis | 0.587 LDU — the snap's rounding |
+| fork origin from the shaft | 40 out, 20 across |
+| towball to the fork's origin | 0.007 LDU |
+| towball to the cylinder's axis | 40.000 LDU |
+| ball's nearest reach | 22.00, against the cylinder's groove floor at 22.11 |
+| cylinder's axis | parallel to the shaft, 82.9 LDU away |
+
+So the drum turns, its groove walks the ball along the shaft, the ball carries
+the fork, and the fork carries the ring into one clutch gear or the other. The
+catch neither swings like 6641 nor turns like 35188: it is threaded on a
+shaft-parallel axle and pushed, which is a third kind of motion and the plainest
+of the three.
+
+Two things this cost, both worth remembering:
+
+**Stud.io writes part names LDraw has not got.** The towball came through as
+`6628b.dat`; the library's part is `6628.dat`. The geometry lookup failed, the
+error was swallowed by a `continue`, and the measurement of the ball simply did
+not appear in the output — a blank where a number should have been. Nothing said
+anything was wrong.
+
+**A vertex sample cannot see the middle of an extrusion.** Asked for the
+joiner's radius per slice, the answer was 9.50 at each end and 0.00 everywhere
+between, because a cylinder that long has vertices only where it stops. Read as
+"no material there", it says two parts are clear when they are not. Take the
+radius over the whole part, or over triangles, never over vertices per slice.

@@ -1820,6 +1820,14 @@ func settleCatches(ctx context.Context, deps Deps, res *Result) {
 		}
 		site.catchRot = catchFrame(site.system, d, out)
 		site.catchAt = out.Scale(site.system.CatchReach)
+		if side := site.system.CatchSide; side != 0 {
+			// Some catches grip at a point their origin is not on. A fork whose
+			// prong wraps the shaft has its origin off to one side, and placing
+			// the origin where the prong belongs puts the prong somewhere else.
+			third := geom.Vec3{X: site.catchRot[0][0], Y: site.catchRot[1][0],
+				Z: site.catchRot[2][0]}
+			site.catchAt = site.catchAt.Add(third.Scale(side))
+		}
 	}
 }
 

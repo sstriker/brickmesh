@@ -200,6 +200,8 @@ type ringGroup struct {
 	// catchGroup names its group. Empty when no catch was placed.
 	catchAt    geom.Vec3
 	catchGroup string
+	// catchSlides is a catch that travels with its ring instead of turning.
+	catchSlides bool
 	// How the catch moves: about swingAxis through swingPivot, by swingHalf
 	// degrees either side of square. swingAssumed marks an angle that was
 	// chosen rather than derived.
@@ -238,7 +240,7 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 		var swingAxis, swingPivot geom.Vec3
 		var swingHalf float64
 		swingAssumed := false
-		if catchGroup != "" {
+		if catchGroup != "" && sys.CatchTurnAxis != 0 {
 			swingAxis = col(sys.CatchTurnAxis)
 			catchWorld := base.
 				Add(place.Direction.Scale(site.engaged * synth.HalfStud)).
@@ -265,6 +267,7 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 		}
 		out = append(out, ringGroup{
 			group:        fmt.Sprintf("ring_%d", i+1),
+			catchSlides:  sys.CatchSlides,
 			swingAxis:    swingAxis,
 			swingPivot:   swingPivot,
 			swingHalf:    swingHalf,
@@ -324,19 +327,33 @@ func slidingIn(rings []ringGroup, speeds map[string]float64,
 			ThroughShift: r.throughShift,
 			Engaged:      r.engaged, Disengaged: r.disengaged, At: at,
 		})
+		if r.catchSlides && r.catchGroup != "" {
+			// A fork on a shaft-parallel axle travels with the ring it holds,
+			// and does not turn: it is threaded on its axle, not splined to
+			// the shaft. Same two positions, offset to where the catch sits.
+			out = append(out, ldcad.Sliding{
+				Group: r.catchGroup, Axis: r.axis, Speed: 0,
+				ThroughShift: r.throughShift,
+				Engaged:      r.engaged.Add(r.catchAt),
+				Disengaged:   r.disengaged.Add(r.catchAt), At: at,
+			})
+		}
 	}
 	return out
 }
 
-// swingingIn turns every catch to match where it has pushed its ring.
+// swingingIn turns every catch that turns, to match where it has pushed its
+// ring.
 //
-// Not a slide. A catch sits on an axle that runs across the shaft, never along
-// it, so it cannot travel with its ring at all — which is what the model
-// showed: a rotary catch gliding sideways down a shaft it is not on.
+// Which is not all of them, though it was when this was written. A lever's axle
+// runs across the shaft and a cam's along it, and neither can travel — showing
+// one gliding sideways down a shaft it is not mounted on is what gave the game
+// away. But 4159 is threaded on a shaft-parallel axle and pushed along it, so
+// for that one a slide is exactly right; slidingIn has it.
 func swingingIn(rings []ringGroup, state string) []ldcad.Swinging {
 	var out []ldcad.Swinging
 	for _, r := range rings {
-		if r.catchGroup == "" {
+		if r.catchGroup == "" || r.catchSlides {
 			continue
 		}
 		out = append(out, ldcad.Swinging{

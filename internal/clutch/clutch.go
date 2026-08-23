@@ -61,6 +61,19 @@ type System struct {
 	// which is where both of them put it, whatever else differs.
 	CatchTurnAxis byte
 	CatchPivot    float64
+	// CatchSlides says the catch is threaded on a shaft-parallel axle and
+	// pushed along it, rather than swinging or turning on one. A third kind of
+	// motion, and the plainest: what moves the ring is the catch's own travel.
+	CatchSlides bool
+	// CatchSide is how far the catch's origin sits from the point where it
+	// grips, along the third axis of its own frame — square to both the shaft
+	// and the way out — in LDU. Zero for a catch whose origin is on that line,
+	// which the first two are.
+	//
+	// Signed, and the sign came from the model rather than from a sweep: with
+	// the frame CatchAlong and CatchOut build, the fork's origin lands 20 LDU
+	// back along that axis from the ring's centre.
+	CatchSide float64
 	// CatchArm is the distance from that pivot to the end that sits in the
 	// groove, in LDU. Set for a lever, whose swing follows from it: turning by
 	// asin(travel/arm) moves the tip along the shaft by the ring's travel.
@@ -208,7 +221,62 @@ var Second = System{
 
 // Systems in the order they are preferred. The first generation is smaller —
 // two studs of shaft against three — so it wins where either would do.
-var Systems = []System{First, Second}
+// Early is the 1980s system: a two-stud driving ring with eight dogs, moved by
+// a fork that slides rather than swings.
+//
+// Older than First despite coming last here, and it shares First's gears — a
+// 6542a engages either ring. What it adds is a 24-tooth shift, which neither of
+// the others can do: 2471 is the only clutch gear at that size.
+//
+// Measured against the two systems already settled, all three swept the same
+// way with nothing forgiven:
+//
+//	6539  + 6542a   engaged at exactly 30, deep at 29, free at 31
+//	18947 + 18946   engaged 30.5 to 34.5
+//	2473a + 6542a   engaged 20.5 to 25.5, eight windows, one per dog
+//	2473a + 2471    the same band, the same eight windows
+//
+// So 2.0 half studs, with 20.0 itself reading as interference for the reason
+// every exact fit does — LDraw models nominal surfaces. Clear at 3.0 leaves the
+// one-stud travel the other two have.
+var Early = System{
+	Name: "early",
+	Ring: "2473a.dat",
+	// 18948 rather than First's 6538a, which was the guess and does not fit:
+	// 2473a's bore is radius 9.5, nineteen LDU across, and 6538a is twenty.
+	// 18948 is 17.6 and goes in. Measured, not assumed the second time.
+	Joiner: "18948.dat",
+	Gears:  map[int]string{16: "6542a.dat", 24: "2471.dat"},
+
+	Engaged: 2.0, Clear: 3.0,
+	RingHalf: 1.8, JoinerHalf: 3.0, JoinerReach: 2.0,
+	// The band is five LDU wide and its floor is an exact fit, so half an LDU
+	// is what it takes to ask the question from inside the band.
+	EngageFit: 0.5,
+
+	// From a model built in Stud.io, which snapped the fork into the ring's
+	// groove: a cylinder of radius 11.88 running from z = -5 to +5, ten LDU
+	// wide and central. The fork's prong is an arc of inner radius 12.40 with
+	// walls at its own z = +/-5 — half an LDU of clearance, and the width
+	// exactly. Its arc centre lands 0.587 LDU off the ring's axis, which is
+	// the rounding.
+	Catch: "4159.dat", CatchReach: 40, CatchSide: -20,
+	CatchAlong: 'z', CatchOut: 'y',
+	// It slides. Its axle holes run parallel to the shaft, so turning it would
+	// carry the prong off the axis and let the ring go; only travel along the
+	// axle moves anything.
+	//
+	// No sweep confirms this placement and none can. A fork that wraps a groove
+	// is in contact the whole way round, so the interference test reads TOO
+	// DEEP at every tolerance — the model built in Stud.io reads that way too,
+	// and it is a model that snapped together and works. This is the same wall
+	// the first system hit, which is why its reach came from 8448 rather than
+	// from a search. What can be checked is that the prong wraps the axis, and
+	// the tests check that.
+	CatchSlides: true,
+}
+
+var Systems = []System{First, Second, Early}
 
 // For picks the system that can shift a gear of this many teeth.
 func For(teeth int) (System, bool) {

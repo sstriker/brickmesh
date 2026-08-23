@@ -92,9 +92,13 @@ func TestASlipClutchWithNowhereToSitIsRefused(t *testing.T) {
 // The two clutches must not be confused: 24 teeth cannot be dog-shifted, and
 // the slipping gear is not a thing a driving ring can grip.
 func TestTheTwoKindsOfClutchStaySeparate(t *testing.T) {
-	if clutch.Shiftable(24) {
-		t.Error("24 teeth reads as shiftable; the 24t clutch gears are torque " +
-			"limiters with no dogs on them")
+	// Both kinds exist at 24 teeth, which is the whole reason to check. 2471
+	// has eight dogs and 2473a engages them; 76019 and 76244 are torque
+	// limiters whose centre gives way, and they engage nothing. A 24-tooth
+	// station has to get whichever one the mechanism asked for.
+	if !clutch.Shiftable(24) {
+		t.Error("24 teeth reads as unshiftable, but 2471 has dogs and 2473a " +
+			"engages them")
 	}
 	for _, s := range clutch.Systems {
 		for teeth, name := range s.Gears {

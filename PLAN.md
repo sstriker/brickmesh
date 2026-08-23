@@ -580,10 +580,27 @@ the width exactly. The catch reaches 40 LDU to its axle, sits level with the
 ring, and SLIDES on a shaft-parallel axle rather than swinging or turning — a
 third kind of motion. See docs/findings.md.
 
-- [ ] the gears its eight dogs engage, and the engaged distance from a gear's
-      centre. What shifts is settled; what it shifts INTO is not, and one model
-      with 2473a beside the gear it locks would give both — the way 8448's rings
-      sitting 30 LDU from their clutch gears gave the first system's.
+- [x] the gears its eight dogs engage, and the engaged distance. Swept against
+      the two systems already settled: 2473a engages 6542a and 2471, eight
+      windows apiece — one per dog — over 20.5 to 25.5 from the gear's centre,
+      where 6539 engages at exactly 30 and 18947 from 30.5 to 34.5. So 2.0 half
+      studs engaged and 3.0 clear, the same one-stud travel the others have.
+
+      2471 is the only 24-tooth clutch gear there is, and 2473a the only ring
+      that takes it, so the early system is the only one that can shift a 24t.
+      Two tests asserted the opposite and had to be rewritten: what they were
+      really protecting is that the 24t SLIP clutches, 76019 and 76244, engage
+      no ring anywhere, and that still holds.
+
+      The whole chain is measured now — ring, fork, towball, drum. See
+      docs/shifting.md.
+
+- [ ] placing the fork is not as safe as placing the other two catches. It
+      reaches 40 LDU out with an arm wider than either, and clearOfOtherShafts
+      knows only where the shaft LINES are, not what the catch's own body
+      sweeps. Fitting a 24-tooth shift puts it through the joiner on a
+      neighbouring shaft. The clearance check says so rather than the model
+      going out quietly, but the placement should not need telling.
 
 ## What code cannot settle
 
