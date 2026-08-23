@@ -162,7 +162,7 @@ func InspectWith(parts []ldr.Placed, ask ToothSource) *Reading {
 		r.Lines[k] = append(r.Lines[k], i)
 	}
 	r.findMeshes()
-	r.report()
+	r.report(ask)
 	return r
 }
 
@@ -232,7 +232,7 @@ func bevelMeets(a, b Found) bool {
 		math.Abs(db-float64(a.Teeth)*1.25) < readTolerance
 }
 
-func (r *Reading) report() {
+func (r *Reading) report(ask ToothSource) {
 	gears := 0
 	for _, f := range r.Parts {
 		if f.Teeth > 0 {
@@ -258,6 +258,32 @@ func (r *Reading) report() {
 		Level: "WARN", Check: "read", Detail: fmt.Sprintf(
 			"%d part(s) of %d kind(s) are not anything this knows: %v. Whatever "+
 				"they do is not in what follows", countOf(r.Unknown), len(r.Unknown), names)})
+
+	// And of those, the ones the library has never heard of are a different
+	// problem with a different fix.
+	if k, ok := ask.(interface{ Known(string) bool }); ok {
+		var missing []string
+		for n := range r.Unknown {
+			if !k.Known(n) {
+				missing = append(missing, n)
+			}
+		}
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			is, them, take := "is", "it", "takes"
+			if len(missing) > 1 {
+				is, them, take = "are", "them", "take"
+			}
+			r.Findings = append(r.Findings, mech.Finding{
+				Level: "WARN", Check: "read", Detail: fmt.Sprintf(
+					"%d of those %s not in the LDraw library at all: %v. Nothing "+
+						"can be looked up about %s, and %s %s no part in any "+
+						"check below. Stud.io writes names the library does not "+
+						"have — 6628b.dat for the towball it calls 6628.dat — so a "+
+						"file saved from there may need its part names corrected",
+					len(missing), is, missing, them, them, take)})
+		}
+	}
 }
 
 func countOf(m map[string]int) int {

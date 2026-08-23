@@ -12,6 +12,7 @@ import (
 
 	"github.com/sstriker/brickmesh/internal/geom"
 	"github.com/sstriker/brickmesh/internal/ldr"
+	"github.com/sstriker/brickmesh/internal/ldraw"
 	"github.com/sstriker/brickmesh/internal/mech"
 )
 
@@ -195,4 +196,45 @@ func lineNamed(t *testing.T, res *Result, read *Reading, m *mech.Mechanism, id s
 	}
 	t.Fatalf("the line %q sits on was not found in the reading", id)
 	return ""
+}
+
+func TestAPartTheLibraryHasNotGotIsSaidSoSeparately(t *testing.T) {
+	// "Not anything this knows" covers two different problems. A part the
+	// library has is one the engine does not model, and there is nothing the
+	// reader can do about it. A part the library has NOT is a name that cannot
+	// be looked up at all — Stud.io writes 6628b.dat for the towball LDraw
+	// calls 6628.dat — and correcting the file fixes it.
+	requireLibraries(t)
+	id := geom.Mat3{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
+	parts := []ldr.Placed{
+		{Name: "6628b.dat", Rot: id}, // no such part
+		{Name: "4158.dat", Rot: id},  // real, just not modelled
+	}
+	r := InspectWith(parts, &LibraryTeeth{From: ldraw.New("")})
+
+	var both, missing string
+	for _, f := range r.Findings {
+		if f.Check != "read" {
+			continue
+		}
+		if strings.Contains(f.Detail, "not anything this knows") {
+			both = f.Detail
+		}
+		if strings.Contains(f.Detail, "not in the LDraw library at all") {
+			missing = f.Detail
+		}
+	}
+	if !strings.Contains(both, "4158.dat") || !strings.Contains(both, "6628b.dat") {
+		t.Errorf("both unknown parts should be listed once, got %q", both)
+	}
+	if missing == "" {
+		t.Fatal("nothing said 6628b.dat is not in the library")
+	}
+	if !strings.Contains(missing, "6628b.dat") {
+		t.Errorf("the missing-part finding does not name it: %q", missing)
+	}
+	if strings.Contains(missing, "4158.dat") {
+		t.Errorf("4158.dat is in the library and should not be listed as absent: %q",
+			missing)
+	}
 }

@@ -29,6 +29,21 @@ type LibraryTeeth struct {
 	seen map[string]int
 }
 
+// Known reports whether the library has this part at all.
+//
+// Different from "not recognised", and worth telling apart. A part the library
+// has is one this engine simply does not model; a part it has not is a name
+// nothing can look up, and the reader can do something about that — Stud.io
+// writes 6628b.dat for a towball the library calls 6628.dat, and a file full of
+// those reads as a file full of nothing.
+func (l *LibraryTeeth) Known(part string) bool {
+	if l == nil || l.From == nil {
+		return true // nothing to ask, so nothing to report
+	}
+	_, err := l.From.Title(part)
+	return err == nil
+}
+
 // Teeth is how many a part has, and whether its title said so at all.
 func (l *LibraryTeeth) Teeth(part string) (int, bool) {
 	if l == nil || l.From == nil {
