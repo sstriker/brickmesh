@@ -67,17 +67,82 @@ function mat4Move(d) {
 function createAnimator(anim, groups) {
   if (!anim || !anim.animations || !groups || !groups.length) return null;
 
-  // A steady state only, for now: the gears turn at their solved ratios and
-  // each ring sits where that state puts it. The engine also describes the
-  // SHIFT — the ring travelling between gears, with the shafts it feeds held
-  // still while it is in neither — and that is the more interesting picture.
-  // It is segmented rather than steady, so it needs its own path through here.
   const states = anim.animations
     .filter((a) => a.turning || a.sliding || a.swinging)
     .map((a) => a.name);
 
+  // SHIFT is the share of a segment a ring spends moving, at the end of it. The
+  // same quarter the .lua uses, and for the same reason: a ring that jumps
+  // between gears between two frames has not been shown shifting at all.
+  const SHIFT = 0.25;
+
   function at(name, turns) {
     const a = anim.animations.find((x) => x.name === name) || anim.animations[0];
+    if (a.segments && a.segments.length) return walk(a, turns);
+    return steady(a, turns);
+  }
+
+  // walk is the shift: a run through the states, one after another, with each
+  // ring travelling near the end of its segment and every shaft it feeds
+  // holding still while it is in neither gear.
+  function walk(a, turns) {
+    const segs = a.segments;
+    const total = anim.inputTurns || 1;
+    const t = ((turns / total) % 1 + 1) % 1;
+
+    // Which segment, and how far into it. Equal shares unless it says
+    // otherwise, which is all there is to go on for a box shifted by hand.
+    const frac = segs.map((s) => s.fraction || 1 / segs.length);
+    let seg = segs.length - 1, acc = 0;
+    for (let k = 0; k < segs.length; k++) {
+      if (t < acc + frac[k]) { seg = k; break; }
+      acc += frac[k];
+    }
+    const u = clamp01((t - acc) / (frac[seg] || 1));
+    const f = u > 1 - SHIFT ? (u - (1 - SHIFT)) / SHIFT : 0;
+    const nxt = Math.min(seg + 1, segs.length - 1);
+
+    const out = groups.map(() => mat4Identity());
+    const put = (group, m) => {
+      const i = groups.indexOf(group);
+      if (i >= 0) out[i] = m;
+    };
+
+    // How far a group has turned by now, skipping the part of each segment its
+    // drive was cut. Every completed segment in full, then this one so far.
+    const angleHolding = (per, holds) => {
+      let a2 = 0;
+      for (let k = 0; k < seg; k++) {
+        const part = holds && holds[k] ? 1 - SHIFT : 1;
+        a2 += per[k] * part * frac[k] * total;
+      }
+      let held = u;
+      if (holds && holds[seg] && held > 1 - SHIFT) held = 1 - SHIFT;
+      return a2 + per[seg] * held * frac[seg] * total;
+    };
+
+    (a.turning || []).forEach((t0, i) => {
+      const per = segs.map((s) => (s.turning[i] || t0).speed);
+      const gone = angleHolding(per, t0.holds);
+      put(t0.group, mat4Turn(toView(t0.axis), -gone * 2 * Math.PI,
+        toView(t0.through)));
+    });
+    (a.sliding || []).forEach((s0, i) => {
+      const per = segs.map((s) => (s.sliding[i] || s0).speed);
+      const here = (segs[seg].sliding[i] || s0).at || 0;
+      const there = (segs[nxt].sliding[i] || s0).at || 0;
+      const where = here + (there - here) * f;
+      put(s0.group, slide(s0, where, angleHolding(per, s0.holds)));
+    });
+    (a.swinging || []).forEach((w0, i) => {
+      const here = (segs[seg].swinging[i] || w0).at || 0;
+      const there = (segs[nxt].swinging[i] || w0).at || 0;
+      put(w0.group, swing(w0, here + (there - here) * f));
+    });
+    return out;
+  }
+
+  function steady(a, turns) {
     const out = groups.map(() => mat4Identity());
     const put = (group, m) => {
       const i = groups.indexOf(group);
@@ -91,29 +156,38 @@ function createAnimator(anim, groups) {
         toView(t.through)));
     }
     for (const s of a.sliding || []) {
-      // Where it sits, against where the model was built: the parts are baked
-      // at the engaged end, so at 0 there is nothing to do.
-      const e = toView(s.engaged), d = toView(s.disengaged);
-      const f = s.at || 0;
-      const move = mat4Move([(d[0] - e[0]) * f, (d[1] - e[1]) * f, (d[2] - e[2]) * f]);
-      // A ring turns with its shaft as well as sliding along it. A catch on a
-      // shaft-parallel axle does not, and says so with a speed of zero.
-      if (s.speed) {
-        const spin = mat4Turn(toView(s.axis), -turns * s.speed * 2 * Math.PI, e);
-        spin[12] += move[12]; spin[13] += move[13]; spin[14] += move[14];
-        put(s.group, spin);
-      } else {
-        put(s.group, move);
-      }
+      put(s.group, slide(s, s.at || 0, turns * s.speed));
     }
     for (const w of a.swinging || []) {
-      // Half either side of rest, and `at` says how far across.
-      const half = (w.clearAngle - w.engagedAngle) || 0;
-      const angle = (w.engagedAngle + half * (w.at || 0)) * Math.PI / 180;
-      put(w.group, mat4Turn(toView(w.axis), -angle, toView(w.pivot)));
+      put(w.group, swing(w, w.at || 0));
     }
     return out;
   }
 
   return { states, at };
 }
+
+// slide places a ring: along its shaft by `where` of its travel, and turned by
+// `gone` turns about that same shaft.
+//
+// The parts are baked at the engaged end, so where = 0 is no movement at all. A
+// ring turns with its shaft as well as sliding along it; a catch on a
+// shaft-parallel axle does not, and says so with a speed of zero.
+function slide(s, where, gone) {
+  const e = toView(s.engaged), d = toView(s.disengaged);
+  const move = [(d[0] - e[0]) * where, (d[1] - e[1]) * where, (d[2] - e[2]) * where];
+  if (!s.speed) return mat4Move(move);
+  const m = mat4Turn(toView(s.axis), -gone * 2 * Math.PI, e);
+  m[12] += move[0]; m[13] += move[1]; m[14] += move[2];
+  return m;
+}
+
+// swing turns a catch to match where it has pushed its ring: between its two
+// angles, `where` of the way across.
+function swing(w, where) {
+  const half = (w.clearAngle - w.engagedAngle) || 0;
+  const angle = (w.engagedAngle + half * where) * Math.PI / 180;
+  return mat4Turn(toView(w.axis), -angle, toView(w.pivot));
+}
+
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }

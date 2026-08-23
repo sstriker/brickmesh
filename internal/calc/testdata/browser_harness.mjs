@@ -238,6 +238,21 @@ if (canPlay) {
     await page.selectOption("#state", states[1]);
     must(await frame() !== first, "changing state moves the driving ring");
   }
+
+  // The shift walks the states rather than holding one, so the ring is in a
+  // different place at different points of it — which a steady state, however
+  // it turns, never is. Sampled with the animation paused, so what moves is the
+  // walk and not the clock.
+  if (states.includes("shift")) {
+    await page.selectOption("#state", "shift");
+    const seen = new Set();
+    for (const at of [0, 0.3, 0.62, 0.95]) {
+      await page.evaluate((t) => showFrame(t * 4), at); // 4 input turns across
+      seen.add(await frame());
+    }
+    must(seen.size >= 3,
+      `the shift walks its states (${seen.size} distinct pictures of 4)`);
+  }
 }
 
 must(errors.length === 0, `no page errors${errors.length ? ": " + errors.join(" | ") : ""}`);

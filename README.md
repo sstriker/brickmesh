@@ -214,12 +214,16 @@ going round three times while the other goes round once, is the same fact the
 ratio table states and a good deal harder to misread. A gearbox offers its
 states, and choosing one slides the driving ring to the gear that state selects.
 
+Pick **shift** and it walks the states instead of holding one: each ring waits
+out most of its segment and travels near the end of it, and every shaft fed
+through a ring that is between gears holds still while it passes. That last part
+is the one worth watching — a gearbox in neutral drives nothing, and a page that
+kept the output turning through the change would be drawing a shift that works
+better than the mechanism does.
+
 The motion is the engine's own. It solves the animation once and renders it
 twice — as Lua for LDCad, and as data the page turns into transforms — so the
-page cannot drift from the file you open in LDCad. What it does not yet show is
-the shift itself: the ring travelling between gears with the shafts it feeds
-held still, which the `.lua` does animate and the page renders as a steady state
-at either end.
+page cannot drift from the file you open in LDCad.
 
 ## Building
 
