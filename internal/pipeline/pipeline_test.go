@@ -584,3 +584,35 @@ func TestNoAnimationUnlessAsked(t *testing.T) {
 		t.Error("the model should stay plain LDraw unless an animation was asked for")
 	}
 }
+
+// A catch's axle is held by the frame and does not turn with anything.
+//
+// It was grouped with the shaft whose ring the catch moves, because its label
+// names that shaft — and it sits a couple of studs off that shaft's line, so
+// turning the shaft swung the axle right round the model. The report that found
+// it: "the axle through the cylinder selector is rotating around the structure
+// rather than turning in place."
+func TestACatchesAxleTurnsWithNothing(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(context.Background(), build(t, gearboxSpec), deps, Options{
+		Restarts: 4, Seed: 1, Animate: true, ScriptName: "gb.lua",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	for _, p := range res.Model.Parts {
+		if !strings.HasPrefix(p.Label, "control axle ") {
+			continue
+		}
+		found++
+		if p.Group != "" {
+			t.Errorf("%s (%s) is in group %q; a catch's axle is fixed in the "+
+				"frame, and a group that turns would carry it round with it",
+				p.Name, p.Label, p.Group)
+		}
+	}
+	if found == 0 {
+		t.Skip("this gearbox placed no control axle")
+	}
+}

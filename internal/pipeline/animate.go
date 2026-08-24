@@ -114,6 +114,15 @@ func shaftGroups(res *Result) map[string]string {
 func tagParts(res *Result, groupOf map[string]string) {
 	for i := range res.Model.Parts {
 		p := &res.Model.Parts[i]
+		if isControlAxle(p.Label) {
+			// It names a shaft and does not turn with it. A catch's axle is
+			// held by the frame — the catch turns or slides ON it — and it
+			// sits a couple of studs off that shaft's line, so carrying it
+			// round with the shaft swings it about the model at the length of
+			// the catch's reach. Which is what it did: the axle through the
+			// selector orbited the structure instead of standing still.
+			continue
+		}
 		shaft, ok := shaftFromLabel(p.Label)
 		if !ok {
 			continue
@@ -122,6 +131,12 @@ func tagParts(res *Result, groupOf map[string]string) {
 			p.Group = name
 		}
 	}
+}
+
+// isControlAxle reads a label written by placeControlAxles. The shaft it names
+// is the one whose ring the catch moves, not one it turns with.
+func isControlAxle(label string) bool {
+	return strings.HasPrefix(label, "control axle ")
 }
 
 // shaftFromLabel reads the shaft out of a label like "24t on shaft 'first'" or
