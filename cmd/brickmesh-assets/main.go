@@ -89,7 +89,9 @@ func run() error {
 	// here. Tier grades how common a part is; it does not know what this engine
 	// puts in a model, and when the two were allowed to disagree the site
 	// shipped tier 1 and got no gears. See pipeline.Placeable.
-	records, added := assets.WithPlaceable(records, pipeline.Placeable())
+	titles := ldraw.New("")
+	records, added := assets.WithPlaceable(records, pipeline.Placeable(),
+		titles.Title)
 	if len(added) > 0 {
 		logf(fmt.Sprintf("added %d parts the engine places that tier %d left out: %s",
 			len(added), *tier, strings.Join(added, " ")))

@@ -30,7 +30,9 @@ import (
 //
 // The list is passed in rather than imported so this package stays underneath
 // the engine rather than beside it.
-func WithPlaceable(records []extract.Record, placeable []string) ([]extract.Record, []string) {
+func WithPlaceable(records []extract.Record, placeable []string,
+	titles func(string) (string, error)) ([]extract.Record, []string) {
+
 	have := make(map[string]int, len(records))
 	for i, r := range records {
 		have[r.ID] = i
@@ -44,8 +46,18 @@ func WithPlaceable(records []extract.Record, placeable []string) ([]extract.Reco
 			}
 			continue
 		}
+		// Its real name if the library will give one. The stub was costing
+		// more than tidiness: tooth counts are read out of titles, and five of
+		// the parts arriving this way are gears — a 24-tooth gear published as
+		// "Technic (placed by brickmesh)" reads as having no teeth at all.
+		title := "Technic (placed by brickmesh)"
+		if titles != nil {
+			if got, err := titles(name); err == nil && got != "" {
+				title = got
+			}
+		}
 		records = append(records, extract.Record{
-			ID: id, Title: "Technic (placed by brickmesh)", Tier: 1,
+			ID: id, Title: title, Tier: 1,
 			Holes: []extract.Port{}, Pins: []extract.Port{},
 		})
 		added = append(added, id)
