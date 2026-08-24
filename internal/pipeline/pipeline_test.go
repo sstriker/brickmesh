@@ -616,3 +616,61 @@ func TestACatchesAxleTurnsWithNothing(t *testing.T) {
 		t.Skip("this gearbox placed no control axle")
 	}
 }
+
+// The barrel selector lands where the model built by hand puts it.
+//
+// Every number here came from a Stud.io model that snapped the parts together,
+// and none of them from a sweep: the drum on an axis parallel to the shaft, the
+// ball in the catch's own pin hole 40 LDU from that axis, reaching in to 22
+// against a groove floor of 22.11. Reproducing all three is what says the
+// placement is the same one.
+func TestTheBarrelSelectorLandsWhereTheModelPutsIt(t *testing.T) {
+	deps := requireLibraries(t)
+	doc, err := os.ReadFile(filepath.Join("..", "..", "examples",
+		"gearbox-early-system.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Run(context.Background(), build(t, string(doc)), deps,
+		Options{Restarts: 8, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ball, drum ldr.Part
+	for _, p := range res.Model.Parts {
+		switch p.Name {
+		case clutch.Early.Ball:
+			ball = p
+		case clutch.Early.Drum:
+			drum = p
+		}
+	}
+	if drum.Name == "" || ball.Name == "" {
+		t.Fatal("the early system placed no barrel selector")
+	}
+	// The drum's axis is its own z, and it has to run along the shaft.
+	axis := geom.Vec3{X: drum.Rot[0][2], Y: drum.Rot[1][2], Z: drum.Rot[2][2]}.Unit()
+	from := func(p geom.Vec3) float64 {
+		d := p.Sub(drum.Pos)
+		return d.Sub(axis.Scale(d.Dot(axis))).Len()
+	}
+	if got := from(ball.Pos); math.Abs(got-40) > 0.5 {
+		t.Errorf("the ball's origin is %.2f from the drum's axis, and the model "+
+			"has it at 40.000", got)
+	}
+	shape, err := deps.Lib.Geometry(ball.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	near := math.Inf(1)
+	for _, tri := range shape.Tris {
+		for _, v := range tri {
+			near = math.Min(near, from(ball.Rot.Apply(v).Add(ball.Pos)))
+		}
+	}
+	if math.Abs(near-22) > 1 {
+		t.Errorf("the ball reaches no closer than %.2f to the drum's axis; the "+
+			"groove floor is 22.11 and the model reaches 22.00. Pointing the "+
+			"wrong way puts it outside the groove entirely", near)
+	}
+}

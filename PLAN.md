@@ -608,6 +608,17 @@ third kind of motion. See docs/findings.md.
       docs/findings.md — it had been refusing placements everywhere, quietly,
       because that error only ever refuses.
 
+## The barrel selector — placed, not animated
+
+- [ ] how far one step of the drum carries the fork. 4158 is catalogued as
+      "Gear Shifter with Groove, 8 Steps, Letter Markings" and the letters A to
+      H are moulded beside the track, so the step is 45 degrees and that much is
+      known. The travel is not: the track is raw triangles with no primitive to
+      read a law from, and four attempts at reading it out of the mesh produced
+      nothing worth keeping. Two models with the drum at two lettered positions
+      settle it in one measurement — travel against angle, the letters naming
+      the positions. See docs/shifting.md.
+
 ## What code cannot settle
 
 Bevel engagement was here, on the grounds that the documented rule and the

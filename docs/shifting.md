@@ -245,3 +245,56 @@ joiner's radius per slice, the answer was 9.50 at each end and 0.00 everywhere
 between, because a cylinder that long has vertices only where it stops. Read as
 "no material there", it says two parts are clear when they are not. Take the
 radius over the whole part, or over triangles, never over vertices per slice.
+
+That one came back. Reading 4158's track the same way gave a scatter of marks
+with gaps between them, and the gaps were taken for places the track was not —
+four attempts at a cam law, each of them nonsense, before the instrument came
+under suspicion rather than the part.
+
+The fix, and it generalises: **walk across each triangle rather than sampling
+its corners.** Barycentric steps fine enough that the largest face still lands
+in every cell, keeping the nearest surface per cell. The drum that read as a
+scatter reads as a continuous groove, and the depth prints as a number:
+
+```text
+        z: -20        -10          0         +10        +20
+  -140   399999999999555555555
+   -40   444446899989998655555
+   +90   444444444999999999996
+```
+
+Depth below the skin, in LDU, every five degrees. The track is the run of 9s,
+and it plainly walks along the axis as the drum turns. Nothing about the part
+changed; only the question did.
+
+## The barrel selector is placed, and not animated
+
+The drum a hand turns is in the model now. Every number that puts it there came
+from a model built in Stud.io, which snapped the parts together, and none of
+them from a sweep:
+
+| | measured | reproduced |
+| --- | --- | --- |
+| drum axis | parallel to the shaft | yes |
+| ball's origin from that axis | 40.000 | 40.00 |
+| ball's nearest reach | 22.00, against a groove floor of 22.11 | 22.00 |
+| ball's furthest | 60.35 | 60.35 |
+
+The last two are what say the ball is IN the groove rather than beside it. 6628
+runs from -18 to +20 of its own origin along its own x, so which way round it
+goes decides whether it reaches 22 or 32 — and at 32 it is resting on the drum's
+skin, holding nothing. The first attempt did exactly that.
+
+**What is not known is how far one step carries the fork.** 4158 is catalogued
+as "Gear Shifter with Groove, 8 Steps, Letter Markings", and the letters A to H
+are moulded beside the track, so the drum indexes eight times in a turn: 45
+degrees a step, from the catalogue rather than from any reading here. But the
+track itself is raw triangles — the part's only primitives are cylinders, rings
+and an axle hole — so there is nothing to read a law off the way 2473a's groove
+could be read straight out of a `4-4cylo`.
+
+Four attempts at reading it from the mesh produced nothing worth keeping. The
+drum is placed, its step count is recorded, and the report says plainly that
+turning it is not animated. Two models with the drum at two lettered positions
+would settle it in one measurement: travel against angle, with the letters
+naming the positions.

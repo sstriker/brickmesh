@@ -45,7 +45,11 @@ Say this plainly rather than producing something that looks close.
   cannot settle a fit, because in LDraw everything is nominal size and a spline
   that grips reads as a spline that collides. Measured, in `docs/shifting.md`.
   Tell the builder which parts to add; the numbers are below. The catch itself
-  IS placed, and for the early system it slides rather than swinging.
+  IS placed, and for the early system it slides rather than swinging — and so is
+  the barrel selector that moves it, a 4158 drum on an axis parallel to the
+  shaft with a 6628 towball in the catch's pin hole riding its groove. How far
+  one step of that drum carries the fork is not known, so it is placed and not
+  animated, and the report says so.
 - **Two shifted ratios per pair of shafts, and no more.** 16t, 20t and 24t come
   with dog clutches, every pair on one pair of shafts must sum to the same tooth
   count, and that arithmetic still leaves two. Mind the 24t: it shifts only

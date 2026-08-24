@@ -97,6 +97,12 @@ func isSelector(name string) bool {
 		if s.Catch != "" && s.Catch == name {
 			return true
 		}
+		// The barrel a hand turns is part of the same mechanism: it moves the
+		// catch, the catch moves the ring, and reading a model back has to be
+		// able to say what it is looking at.
+		if s.Drum != "" && s.Drum == name {
+			return true
+		}
 	}
 	return false
 }
@@ -1629,6 +1635,10 @@ func Placeable() []string {
 	add(SlipPart)
 	for _, sys := range clutch.Systems {
 		add(sys.Catch)
+		// And what turns the catch. Forgotten once already in this very
+		// function, which is why the note above is there.
+		add(sys.Drum)
+		add(sys.Ball)
 	}
 	sort.Strings(out)
 	return out
@@ -1786,7 +1796,71 @@ func placeSelector(res *Result, model *ldr.Model, site ringSite,
 	}
 	model.Add(site.system.Catch, ldr.ColorBlack, site.catchRot,
 		at.Add(site.catchAt), "catch for "+label)
+	placeBarrel(res, model, site, at, place.Direction.Unit(), label)
 	return site.catchAt, site.catchRot, true
+}
+
+// placeBarrel puts the drum a hand turns beside the catch, with the ball that
+// rides its groove in the catch's own pin hole.
+//
+// Only the early system has one. It goes on an axis parallel to the shaft, out
+// past the catch along the same perpendicular the catch went out on, which is
+// where the model built in Stud.io put it: the ball ends up exactly 40 LDU from
+// the drum's axis and reaches into the groove.
+func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
+	label string) {
+
+	sys := site.system
+	if sys.Drum == "" || sys.DrumReach == 0 {
+		return
+	}
+	// The way out is the direction the catch already took, which catchAt is
+	// along once the sideways part is taken off it.
+	out := site.catchAt
+	if sys.CatchSide != 0 {
+		third := geom.Vec3{X: site.catchRot[0][0], Y: site.catchRot[1][0],
+			Z: site.catchRot[2][0]}
+		out = out.Sub(third.Scale(sys.CatchSide))
+	}
+	if out.Len() < 1e-9 {
+		return
+	}
+	out = out.Unit()
+
+	// The ball first: it sits in the catch's pin hole, which is the catch's own
+	// origin, and has to point AT the drum. 6628 runs along its own x, from -18
+	// to +20 of its origin, and it is the short end that reaches the groove —
+	// 40 out less 18 is the 22 the model reaches to. So local x points back the
+	// way the drum is not. Given the catch's frame it is otherwise free, the
+	// part being round about that axis.
+	ball := at.Add(site.catchAt)
+	cx := out.Scale(-1)
+	cy := d
+	if math.Abs(cx.Dot(cy)) > 0.9 {
+		cy = geom.Vec3{X: 1}
+		if math.Abs(cx.Dot(cy)) > 0.9 {
+			cy = geom.Vec3{Y: 1}
+		}
+	}
+	cy = cy.Sub(cx.Scale(cy.Dot(cx))).Unit()
+	cz := cx.Cross(cy)
+	model.Add(sys.Ball, ldr.ColorBlack, geom.Mat3{
+		{cx.X, cy.X, cz.X}, {cx.Y, cy.Y, cz.Y}, {cx.Z, cy.Z, cz.Z},
+	}, ball, "ball on the catch for "+label+", riding the drum's groove")
+
+	// Then the drum, its axis along the shaft, DrumReach further out.
+	drum := ball.Add(out.Scale(sys.DrumReach))
+	model.Add(sys.Drum, ldr.ColorBlack, site.catchRot, drum, fmt.Sprintf(
+		"barrel selector for %s, %d steps; which step is which gear is not "+
+			"worked out, only that turning it moves the catch", label,
+		sys.DrumSteps))
+	res.Findings = append(res.Findings, mech.Finding{
+		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
+			"a %d-step barrel selector is placed for %s, with the ball on the "+
+				"catch riding its groove. How far one step carries the fork is "+
+				"NOT measured — the track is raw triangles with no primitive to "+
+				"read a law from — so the drum is placed and not animated",
+			sys.DrumSteps, label)})
 }
 
 // settleCatches works out where every catch goes, before anything is drawn.

@@ -65,6 +65,18 @@ type System struct {
 	// pushed along it, rather than swinging or turning on one. A third kind of
 	// motion, and the plainest: what moves the ring is the catch's own travel.
 	CatchSlides bool
+	// Drum is the barrel selector a hand turns, Ball the pin on the catch that
+	// rides its groove, and DrumReach how far the drum's axis sits beyond the
+	// catch's origin — along the same way out, on an axis parallel to the
+	// shaft.
+	//
+	// DrumSteps is how many detented positions it has round its turn. Not
+	// measured from the part: 4158 is catalogued as "Gear Shifter with Groove,
+	// 8 Steps, Letter Markings", and the letters A to H are moulded beside the
+	// track.
+	Drum, Ball string
+	DrumReach  float64
+	DrumSteps  int
 	// CatchSide is how far the catch's origin sits from the point where it
 	// grips, along the third axis of its own frame — square to both the shaft
 	// and the way out — in LDU. Zero for a catch whose origin is on that line,
@@ -274,6 +286,18 @@ var Early = System{
 	// from a search. What can be checked is that the prong wraps the axis, and
 	// the tests check that.
 	CatchSlides: true,
+
+	// The barrel selector, from the second model built in Stud.io: the drum on
+	// an axis parallel to the shaft, 40 LDU beyond the fork's own origin and so
+	// 80 from the shaft, with a towball in the fork's pin hole exactly 40.000
+	// from that axis and reaching in to 22.00 against a groove floor of 22.11.
+	//
+	// What is NOT measured is how far one step carries the fork. The track is
+	// raw triangles with no primitive to read a law off, and four goes at
+	// reading it from the mesh produced nothing worth keeping. Eight steps is
+	// the catalogue's, and one step per shift is an assumption — labelled as
+	// one wherever it shows.
+	Drum: "4158.dat", Ball: "6628.dat", DrumReach: 40, DrumSteps: 8,
 }
 
 var Systems = []System{First, Second, Early}

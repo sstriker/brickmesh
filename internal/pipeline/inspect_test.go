@@ -204,11 +204,14 @@ func TestAPartTheLibraryHasNotGotIsSaidSoSeparately(t *testing.T) {
 	// reader can do about it. A part the library has NOT is a name that cannot
 	// be looked up at all — Stud.io writes 6628b.dat for the towball LDraw
 	// calls 6628.dat — and correcting the file fixes it.
+	//
+	// The stand-in for the first kind was 4158, until the engine learned to
+	// place it. A 2x4 brick will not be modelled here in a hurry.
 	requireLibraries(t)
 	id := geom.Mat3{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
 	parts := []ldr.Placed{
 		{Name: "6628b.dat", Rot: id}, // no such part
-		{Name: "4158.dat", Rot: id},  // real, just not modelled
+		{Name: "3001.dat", Rot: id},  // real, just not modelled: a 2x4 brick
 	}
 	r := InspectWith(parts, &LibraryTeeth{From: ldraw.New("")})
 
@@ -224,7 +227,7 @@ func TestAPartTheLibraryHasNotGotIsSaidSoSeparately(t *testing.T) {
 			missing = f.Detail
 		}
 	}
-	if !strings.Contains(both, "4158.dat") || !strings.Contains(both, "6628b.dat") {
+	if !strings.Contains(both, "3001.dat") || !strings.Contains(both, "6628b.dat") {
 		t.Errorf("both unknown parts should be listed once, got %q", both)
 	}
 	if missing == "" {
@@ -233,8 +236,8 @@ func TestAPartTheLibraryHasNotGotIsSaidSoSeparately(t *testing.T) {
 	if !strings.Contains(missing, "6628b.dat") {
 		t.Errorf("the missing-part finding does not name it: %q", missing)
 	}
-	if strings.Contains(missing, "4158.dat") {
-		t.Errorf("4158.dat is in the library and should not be listed as absent: %q",
+	if strings.Contains(missing, "3001.dat") {
+		t.Errorf("3001.dat is in the library and should not be listed as absent: %q",
 			missing)
 	}
 }

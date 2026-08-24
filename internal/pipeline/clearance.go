@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sstriker/brickmesh/internal/clutch"
 	"github.com/sstriker/brickmesh/internal/collide"
 	"github.com/sstriker/brickmesh/internal/geom"
 	"github.com/sstriker/brickmesh/internal/interfere"
@@ -269,7 +270,18 @@ func isMarker(p ldr.Part) bool {
 // isPin is the fasteners the engine places. Named rather than inferred, the
 // same way the axles are: a part is a pin here because this put it there.
 func isPin(name string) bool {
-	return name == PinPart || name == AxlePinPart || name == LongPinPart
+	if name == PinPart || name == AxlePinPart || name == LongPinPart {
+		return true
+	}
+	// The towball that rides a barrel selector's groove is a pin at the end
+	// this cares about: it lives in the catch's own hole, which is the same
+	// fit as any other pin and reads as the same collision.
+	for _, s := range clutch.Systems {
+		if s.Ball != "" && name == s.Ball {
+			return true
+		}
+	}
+	return false
 }
 
 func isAxle(name string) bool {
