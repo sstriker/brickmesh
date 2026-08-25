@@ -149,10 +149,26 @@ func whatTurns(res *Result, deps Deps) turning {
 }
 
 // shaftAxes is every line a shaft runs along.
+// shaftAxes is the lines a shaft turns about — the ones something spins on.
+//
+// Not every axle in the model. A catch's axle and a barrel's are in res.Axles
+// too, because the frame has to hold them, and counting those as shafts made
+// the barrel a turning part: keyed to its own axle through its own cross hole,
+// and therefore swept through a whole revolution. It does not turn through a
+// revolution. It indexes through 135 degrees and stops, and the ball sits in
+// the groove that brings it there — so sweeping it tested positions the drum
+// never occupies and reported the ball inside it. The same mistake as sweeping
+// a part about an axis it is not held to, one level along.
+//
+// Where the drum DOES turn is checked, at the positions it turns to, by the
+// state pass.
 func shaftAxes(res *Result) []axis {
 	var out []axis
 	seen := map[[6]float64]bool{}
-	for _, a := range res.Axles {
+	for i, a := range res.Axles {
+		if res.controlAxle[i] {
+			continue
+		}
 		key := [6]float64{a.Point.X, a.Point.Y, a.Point.Z, a.Dir.X, a.Dir.Y, a.Dir.Z}
 		if seen[key] {
 			continue

@@ -252,6 +252,10 @@ type Result struct {
 	// slip is the shafts a torque limiter is fitted to, so the gear chosen at a
 	// 24-tooth station on one is the slipping variant.
 	slip map[string]bool
+	// controlAxle marks, by index into Axles, the ones that hold a shift rather
+	// than carry a drive. The frame must bear them the same; nothing spins on
+	// them, so nothing is swept about them.
+	controlAxle map[int]bool
 	// intoOccupied and intoRast are the model this was fitted into, kept so
 	// that what is placed after the fit — the catches above all — can be kept
 	// out of it too.
@@ -1314,6 +1318,11 @@ func turningCells(res *Result, deps Deps) map[geom.Cell]bool {
 		for c := range erode(fill(one, across(place.Direction))) {
 			out[c] = true
 		}
+
+		// And what moves the ring.
+		for c := range shiftCells(res, deps, site, at) {
+			out[c] = true
+		}
 	}
 	return out
 }
@@ -2301,4 +2310,98 @@ func facingItsRing(rot geom.Mat3, name string, st layout.Station,
 		return rot
 	}
 	return rot
+}
+
+// shiftCells is the room the mechanism that moves a ring needs kept clear.
+//
+// Split out of turningCells, which had grown past what one function should ask
+// anyone to hold at once.
+//
+// The catch, the ball and the barrel were left out of what the structural
+// search keeps clear, so it was free to run a beam through the shift mechanism
+// and did: asked to hold the shift as well as the gears, it put a nine-hole
+// beam through the fork, the ball and a clutch gear at once.
+//
+// Split out of turningCells, which had grown past what one function should ask
+// anybody to hold at once.
+func shiftCells(res *Result, deps Deps, site ringSite,
+	at func(float64) geom.Vec3) map[geom.Cell]bool {
+
+	if site.catchRot == (geom.Mat3{}) {
+		return nil
+	}
+	crot, ok := rotationIndex(site.catchRot, true)
+	if !ok {
+		return nil
+	}
+	col := func(c int) geom.Vec3 {
+		return geom.Vec3{X: site.catchRot[0][c], Y: site.catchRot[1][c],
+			Z: site.catchRot[2][c]}
+	}
+	mover := map[geom.Cell]bool{}
+
+	// Where the catch goes over a shift. A fork travels with its ring and wants
+	// the whole of that travel; a cam turns in place and wants one position.
+	// Reserving the travel for a cam as well claimed room it never enters, and
+	// that phantom volume left a two-speed with no frame at all.
+	rest := (site.engaged + site.disengaged) / 2
+	halves := []float64{rest}
+	if site.system.CatchSlides {
+		halves = []float64{site.engaged, rest, site.disengaged}
+	}
+	for _, half := range halves {
+		catchAt := at(half).Add(site.catchAt)
+		markCells(mover, deps, site.system.Catch, crot, catchAt)
+		if site.system.Ball != "" {
+			markCells(mover, deps, site.system.Ball, crot, catchAt)
+		}
+	}
+
+	// A cam does not stay still either: it turns in place through its whole
+	// swing, and a frame built where it swings TO is one it strikes on the
+	// first shift. Reserved at each end of the arc as well as at rest.
+	if !site.system.CatchSlides && site.system.CatchTurnAxis != 0 {
+		catchAt := at(rest).Add(site.catchAt)
+		axis := col(int(site.system.CatchTurnAxis - 'x'))
+		for _, deg := range []float64{-catchSwing(site), catchSwing(site)} {
+			turned, ok := rotationIndex(
+				interfere.RotAbout(axis, deg).Mul(site.catchRot), true)
+			if !ok {
+				continue // not a lattice orientation; at rest still counts
+			}
+			markCells(mover, deps, site.system.Catch, turned, catchAt)
+		}
+	}
+
+	// And the barrel, which stands beside the catch and turns in place.
+	if site.system.Drum != "" && site.system.DrumReach != 0 {
+		outward := site.catchAt
+		if side := site.system.CatchSide; side != 0 {
+			outward = outward.Sub(col(0).Scale(side))
+		}
+		if outward.Len() > 1e-9 {
+			markCells(mover, deps, site.system.Drum, crot,
+				at(rest).Add(site.catchAt).
+					Add(outward.Unit().Scale(site.system.DrumReach)))
+		}
+	}
+
+	// Not eroded, unlike the gears. Erosion forgives a layer so a bearing may
+	// sit against a gear's face, which is ordinary; a frame part resting
+	// against a catch is one the catch runs into the moment it moves, and
+	// forgiving four LDU there put a connector through a two-speed's cam.
+	return mover
+}
+
+// catchSwing is how far a catch turns to move its ring, in degrees.
+func catchSwing(site ringSite) float64 {
+	travel := math.Abs(site.disengaged-site.engaged) * synth.HalfStud
+	if site.system.CatchArm > 0 {
+		sin := travel / (2 * site.system.CatchArm)
+		if sin > 1 {
+			sin = 1
+		}
+		return math.Asin(sin) * 180 / math.Pi
+	}
+	return travel / 2 * site.system.CatchPerLDU
 }

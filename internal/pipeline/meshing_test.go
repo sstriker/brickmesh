@@ -354,25 +354,39 @@ func catchPos(t *testing.T, res *Result) geom.Vec3 {
 // against about 142 on the two-speed — so it is the caller's to make.
 func TestHoldShiftIsATradeTheCallerMakes(t *testing.T) {
 	deps := requireLibraries(t)
-	at := filepath.Join("..", "..", "examples", "gearbox-2-speed.json")
 
-	loose := runSpecWith(t, deps, at, false)
-	held := runSpecWith(t, deps, at, true)
-
+	// The two-speed's catch is a cam that turns in place, and the space it
+	// turns through is reserved now, so no frame reaches its axle without
+	// striking it. Asked to hold the shift, the answer for this box is that it
+	// cannot — which it used to answer by building a connector through the cam
+	// and calling the axle held.
+	loose := runSpecWith(t, deps, filepath.Join("..", "..", "examples",
+		"gearbox-2-speed.json"), false)
+	held := runSpecWith(t, deps, filepath.Join("..", "..", "examples",
+		"gearbox-2-speed.json"), true)
 	if borneBy(loose) {
 		t.Error("without -hold-shift the frame is not asked to bear the control " +
 			"axle, and should not happen to")
 	}
-	if !borneBy(held) {
-		t.Error("with -hold-shift the frame should bear the control axle")
+	for _, c := range []struct {
+		name string
+		res  *Result
+	}{{"without", loose}, {"with", held}} {
+		for _, f := range c.res.Findings {
+			if f.Level == "FAIL" {
+				t.Errorf("%s -hold-shift: %s: %s", c.name, f.Check, f.Detail)
+			}
+		}
 	}
-	if loose.Structure == nil || held.Structure == nil {
-		t.Fatal("both should find a structure")
-	}
-	if held.Structure.BBoxStud3 <= loose.Structure.BBoxStud3 {
-		t.Errorf("holding the shift should cost room: %.1f against %.1f cubic "+
-			"studs. If it were free there would be nothing to choose",
-			held.Structure.BBoxStud3, loose.Structure.BBoxStud3)
+
+	// Where a frame CAN reach the shift, holding it is what the flag buys. The
+	// early system's fork slides on an axle along the shaft, which a wall in
+	// the plane of the shafts can reach.
+	early := runSpecWith(t, deps, filepath.Join("..", "..", "examples",
+		"gearbox-early-system.json"), true)
+	if !borneBy(early) {
+		t.Error("with -hold-shift the early system's frame should bear the axle " +
+			"its fork slides on; nothing else holds the fork up")
 	}
 }
 

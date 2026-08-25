@@ -39,7 +39,18 @@ type controlAxle struct {
 func controlAxles(res *Result) []controlAxle {
 	var out []controlAxle
 	for _, site := range res.ringSites {
-		if site.catchRot == (geom.Mat3{}) || site.system.CatchTurnAxis == 0 {
+		if site.catchRot == (geom.Mat3{}) {
+			continue
+		}
+		if site.system.CatchTurnAxis == 0 {
+			// A catch that SLIDES has an axle too, and had none: it is
+			// threaded on one and pushed along it, so without it the fork
+			// hangs beside the ring holding it up by nothing. The barrel that
+			// moves the fork hangs likewise. Neither was placed and neither
+			// was missed, because the bearings check reads the gear shafts and
+			// says "every shaft borne at both ends" while the whole shift
+			// mechanism floats beside them.
+			out = append(out, slidingCatchAxles(res, site)...)
 			continue
 		}
 		place, ok := res.Layout.Place[site.station.Shaft]
@@ -129,6 +140,10 @@ func placeControlAxles(res *Result, deps Deps, model *ldr.Model) {
 			fmt.Sprintf("control axle %d for the catch on '%s'", studs, c.ring))
 		placed++
 		// The structure has to know it is there, the same as any other shaft.
+		if res.controlAxle == nil {
+			res.controlAxle = map[int]bool{}
+		}
+		res.controlAxle[len(res.Axles)] = true
 		res.Axles = append(res.Axles, rigidity.Axle{
 			Point: centre, Dir: c.dir,
 			From: -length / 2, To: length / 2,
@@ -227,6 +242,63 @@ func controlRequirements(res *Result) []synth.Requirement {
 			out = append(out, synth.Requirement{
 				Shaft: name, Point: r.Point.Add(across), Direction: c.dir,
 			})
+		}
+	}
+	return out
+}
+
+// slidingCatchAxles is what holds a fork that slides, and the barrel that moves
+// it: an axle through the fork's own hole and another through the drum, both
+// running the way the shaft does.
+//
+// The fork's hole is at (20, 0, 10) of its own origin — the one 40 LDU from the
+// prong, which is the reach the model measured. The drum turns about its own
+// centre.
+func slidingCatchAxles(res *Result, site ringSite) []controlAxle {
+	sys := site.system
+	if !sys.CatchSlides {
+		return nil
+	}
+	place, ok := res.Layout.Place[site.station.Shaft]
+	if !ok {
+		return nil
+	}
+	dir := place.Direction.Unit()
+	col := func(c int) geom.Vec3 {
+		return geom.Vec3{X: site.catchRot[0][c], Y: site.catchRot[1][c],
+			Z: site.catchRot[2][c]}
+	}
+	rest := site.engaged
+	if site.mate != nil {
+		rest = (site.engaged + site.disengaged) / 2
+	}
+	ringAt := place.Point.Scale(synth.HalfStud).Add(dir.Scale(rest * synth.HalfStud))
+	catchAt := ringAt.Add(site.catchAt)
+
+	var out []controlAxle
+	add := func(at geom.Vec3) {
+		c := controlAxle{ring: site.rides, at: at, dir: dir, alongShaft: true}
+		if lo, hi, ok := bearingSpan(res, c); ok {
+			c.from, c.to = lo-geom.Stud, hi+geom.Stud
+		}
+		if c.from == 0 && c.to == 0 {
+			// Long enough to carry the fork across its travel and reach a
+			// stud past either end of it.
+			travel := math.Abs(site.disengaged-site.engaged) * synth.HalfStud
+			c.from, c.to = -travel/2-geom.Stud, travel/2+geom.Stud
+		}
+		out = append(out, c)
+	}
+	// The fork's own hole.
+	add(catchAt.Add(col(0).Scale(20)).Add(col(2).Scale(10)))
+	// And the drum, if there is one, about its own axis.
+	if sys.Drum != "" && sys.DrumReach != 0 {
+		outward := site.catchAt
+		if sys.CatchSide != 0 {
+			outward = outward.Sub(col(0).Scale(sys.CatchSide))
+		}
+		if outward.Len() > 1e-9 {
+			add(catchAt.Add(outward.Unit().Scale(sys.DrumReach)))
 		}
 	}
 	return out

@@ -427,3 +427,40 @@ The test for it asks the question that matters. Not which way the part points,
 which is arithmetic, but whether the ring can engage it where it stands: slide
 the ring along and count windows. Before the fix, a 6542a in a four-speed's
 early stage never engaged at any distance.
+
+## What holds the shift up
+
+A fork that slides is threaded on an axle and pushed along it; a barrel turns on
+one. Neither axle was placed. The bearings check read the gear shafts, said
+"every shaft borne at both ends", and the whole shift mechanism hung in the air
+beside them — which is a true answer to a question nobody wanted asked.
+
+Both are placed now, and `--hold-shift` asks the frame to bear them. Two things
+had to change before that meant anything.
+
+**A control axle is not a shaft.** They go into `res.Axles` so the frame holds
+them, and the turning classification read that list as "lines something spins
+on" — so the barrel, keyed to its own axle through its own cross hole, became a
+turning part and was swept through a whole revolution. It does not turn through
+a revolution. It indexes through 135 degrees and stops, with the ball sitting in
+the groove that brings it there, so the sweep tested positions the drum never
+occupies and reported the ball inside it. Where it does turn is checked, at the
+positions it turns to, by the state pass.
+
+**The search has to know the shift is there.** Asked to hold it, and told
+nothing about the parts, it put a nine-hole beam through the fork, the ball and
+a clutch gear at once. The catch, ball and barrel are reserved now — over the
+travel for a fork, which moves, and over the arc for a cam, which turns in
+place. Reserving the travel for a cam as well claimed room it never enters, and
+that phantom volume left a two-speed with no frame at all.
+
+And unlike the gears, the reservation is not eroded. Erosion forgives a layer so
+a bearing may sit against a gear's face, which is ordinary; a frame part resting
+against a catch is one the catch runs into the moment it moves, and forgiving
+four LDU there put a connector through a two-speed's cam.
+
+What that leaves is an honest split. The early system's fork slides on an axle
+along the shaft, which a wall in the plane of the shafts can reach, and
+`--hold-shift` holds it. A cam sits a couple of studs off that plane, and for
+those boxes the flag now reports that the shift cannot be held rather than
+holding it by building through the cam.
