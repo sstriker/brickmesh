@@ -678,10 +678,15 @@ func TestTheBarrelSelectorLandsWhereTheModelPutsIt(t *testing.T) {
 // The barrel turns to move its ring, and refuses what it cannot reach.
 //
 // 11 degrees a LDU, from a model with the drum at two positions. A single shift
-// of 10 LDU is 110 degrees of drum, which it can do. A ring shared between two
-// gears travels four times that, and 440 degrees is more than once round — a
-// track that goes out and comes back within a turn has no way to deliver it, so
-// the drum is placed beside that ring rather than made to drive it.
+// of 10 LDU is 110 degrees of drum and a shared ring's 20 is 220, both of which
+// it can deliver. Past a full turn it cannot, and then no barrel goes in at all
+// — placed beside a ring it cannot move, it stood still while the ball pinned
+// to the catch left it entirely.
+//
+// That used to be this example. Its ring travelled 40 LDU because the layout
+// reserved room for the greediest system rather than the one being fitted, and
+// the gap between the gears IS the travel. With that fixed the case is the
+// other way round, and the guard is a guard rather than the usual outcome.
 func TestTheBarrelTurnsOnlyAsFarAsItsTrackReaches(t *testing.T) {
 	deps := requireLibraries(t)
 	for _, c := range []struct {
@@ -689,7 +694,7 @@ func TestTheBarrelTurnsOnlyAsFarAsItsTrackReaches(t *testing.T) {
 		spec    string
 		animate bool
 	}{
-		{"a shared ring travels too far", "gearbox-early-system.json", false},
+		{"a shared ring fits its throw", "gearbox-early-system.json", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			doc, err := os.ReadFile(filepath.Join("..", "..", "examples", c.spec))

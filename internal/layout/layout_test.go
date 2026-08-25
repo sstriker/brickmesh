@@ -409,10 +409,25 @@ func TestAShiftedGearGetsRoomForItsRing(t *testing.T) {
 		t.Fatalf("got %d ratio gears, want 2", len(axials))
 	}
 	gap := math.Abs(axials[0] - axials[1])
-	// Two gears two half studs thick, plus a ring's two between them.
-	if gap < 2+RingRoomHalfStuds {
-		t.Errorf("gears %v apart; a ring needs %v of room between them",
-			gap, RingRoomHalfStuds)
+	// Room for the ring that will actually be fitted, not for the greediest of
+	// the three systems. A 24-tooth and a 16-tooth sharing a ring is the early
+	// system, which engages a stud closer than the others and wants its gears
+	// that much nearer — and the gap IS the ring's travel, so reserving the
+	// worst case gave the early system's ring twice the travel it wants.
+	room := roomFor(m, "a", 24)
+	if gap < 2+room {
+		t.Errorf("gears %v apart; this ring needs %v of room between them",
+			gap, room)
+	}
+	if room >= RingRoomHalfStuds {
+		t.Errorf("reserved %v for an early-system pair, which is the worst case "+
+			"over all systems (%v); the point is to reserve what this shift needs",
+			room, RingRoomHalfStuds)
+	}
+	// And not so near that the ring has nowhere to go.
+	if gap > 2+RingRoomHalfStuds {
+		t.Errorf("gears %v apart, which is more than even the greediest system "+
+			"asks for (%v)", gap, 2+RingRoomHalfStuds)
 	}
 }
 

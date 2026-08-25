@@ -1861,6 +1861,28 @@ func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
 	}
 	out = out.Unit()
 
+	// Can it be the thing that moves this ring at all? Its track goes out and
+	// comes back within one turn, so its throw is bounded, and a ring that
+	// needs more than a revolution's worth is a ring this drum cannot shift.
+	//
+	// Then it does not go in the model. Placed anyway, it stood still while the
+	// ball pinned to the catch travelled the ring's whole travel and left the
+	// drum entirely — a mechanism drawn as though it worked.
+	turn := math.Abs(site.disengaged-site.engaged) * synth.HalfStud * sys.DrumPerLDU
+	if sys.DrumPerLDU > 0 && turn > 360 {
+		res.Findings = append(res.Findings, mech.Finding{
+			Level: "WARN", Check: "parts", Detail: fmt.Sprintf(
+				"no barrel selector for %s: moving this ring its whole %.0f LDU "+
+					"would turn a %s more than once round, at the %.0f degrees "+
+					"per LDU its track gives, and the track comes back within "+
+					"one turn. A ring shared between two gears asks four times "+
+					"what a single shift does. The catch is placed; what turns "+
+					"it is not", label,
+				math.Abs(site.disengaged-site.engaged)*synth.HalfStud,
+				sys.Drum, sys.DrumPerLDU)})
+		return
+	}
+
 	// The ball first: it sits in the catch's pin hole, which is the catch's own
 	// origin, and has to point AT the drum. 6628 runs along its own x, from -18
 	// to +20 of its origin, and it is the short end that reaches the groove —
@@ -1889,31 +1911,19 @@ func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
 			"worked out, only that turning it moves the catch", label,
 		sys.DrumSteps))
 
-	// Whether it can be the thing that moves this ring, or only sit beside it.
-	turn := math.Abs(site.disengaged-site.engaged) * synth.HalfStud * sys.DrumPerLDU
 	detail := fmt.Sprintf("a %d-step barrel selector is placed for %s, with the "+
 		"ball on the catch riding its groove", sys.DrumSteps, label)
-	level := "OK"
-	switch {
-	case sys.DrumPerLDU <= 0:
+	if sys.DrumPerLDU <= 0 {
 		detail += ". How far one step carries the fork is not measured, so it " +
 			"is placed and not turned"
-	case turn > 360:
-		level = "WARN"
-		detail += fmt.Sprintf(". Moving this ring its whole %0.f LDU would turn "+
-			"the drum %.0f degrees, more than once round, and a track that goes "+
-			"out and comes back within one turn cannot do that. It is placed "+
-			"and not turned: a ring shared between two gears asks four times "+
-			"what a single shift does",
-			math.Abs(site.disengaged-site.engaged)*synth.HalfStud, turn)
-	default:
+	} else {
 		detail += fmt.Sprintf(", and turns %.0f degrees to move it. That rate is "+
-			"11 degrees per LDU, from a model with the drum at two positions — "+
+			"%.0f degrees per LDU, from a model with the drum at two positions — "+
 			"and the ball is not properly seated in the second, so it is near "+
-			"enough rather than exact", turn)
+			"enough rather than exact", turn, sys.DrumPerLDU)
 	}
 	res.Findings = append(res.Findings, mech.Finding{
-		Level: level, Check: "parts", Detail: detail})
+		Level: "OK", Check: "parts", Detail: detail})
 }
 
 // settleCatches works out where every catch goes, before anything is drawn.

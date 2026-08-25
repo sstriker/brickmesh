@@ -214,6 +214,14 @@ func mayBeInside(a, b ldr.Part) bool {
 		return true // meshing
 	case ka == classRing && kb == classJoiner:
 		return true // the ring is splined to it
+	case ka == classGear && kb == classJoiner:
+		// A gear's bore is round and a joiner passes through it, exactly as an
+		// axle does — the joiner IS the shaft where a ring has to slide, and
+		// the gears either side of that ring sit over its ends. Allowed for an
+		// axle since the beginning and never for a joiner, which only showed
+		// when a shift's gears were brought close enough together for the
+		// joiner between them to reach both.
+		return true
 	case ka == classRing && kb == classSelector:
 		// A catch's fork straddles the ring's groove. It is a loose fit — the
 		// ring turns inside it — but LDraw models nominal surfaces, so the two

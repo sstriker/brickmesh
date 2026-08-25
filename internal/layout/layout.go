@@ -725,6 +725,86 @@ func mostRoom() float64 {
 	return most
 }
 
+// roomFor is the space to keep beside a shifted gear, in half studs.
+//
+// Per shift rather than the worst case over all of them. Reserving the most any
+// system could want is safe, and puts every shifted pair the same distance
+// apart — but the distance IS the travel, since a ring engages a fixed distance
+// from each gear and has to cross whatever is left between. The early system
+// engages a stud closer than the other two, so spacing its gears for the second
+// system gave its ring twice the travel it wants: 40 LDU where 20 was right,
+// with the catch and the ball travelling that far and the ball leaving the drum
+// altogether.
+//
+// Which system a gear gets is settled by the pair it belongs to and not by the
+// gear alone: a 16-tooth can be shifted by any of the three, and what shares
+// its ring decides which. Worked out here from the tooth counts, the same way
+// the parts layer works it out later.
+func roomFor(m *mech.Mechanism, shaft string, teeth int) float64 {
+	if s, ok := clutch.ForBoth(teeth, sharesARingWith(m, shaft)); ok {
+		return s.Room()
+	}
+	if s, ok := clutch.For(teeth); ok {
+		return s.Room()
+	}
+	return RingRoomHalfStuds
+}
+
+// sharesARingWith is the tooth count of the gear on the far side of a shared
+// ring, or zero when this gear has one to itself.
+//
+// Two couplings naming the same shaft on one side are two gears that one ring
+// serves, which is what makes them a pair.
+func sharesARingWith(m *mech.Mechanism, shaft string) int {
+	for i, l := range m.Links {
+		c, ok := l.(mech.Coupling)
+		if !ok || len(c.States) == 0 {
+			continue
+		}
+		held := c.A
+		if held == shaft {
+			held = c.B
+		} else if c.B != shaft {
+			continue
+		}
+		// held is the shaft the ring rides. Anything else it couples to is the
+		// other gear that ring serves.
+		for j, l2 := range m.Links {
+			c2, ok := l2.(mech.Coupling)
+			if !ok || i == j || len(c2.States) == 0 {
+				continue
+			}
+			far := ""
+			if c2.A == held {
+				far = c2.B
+			} else if c2.B == held {
+				far = c2.A
+			}
+			if far != "" && far != shaft {
+				return teethOn(m, far)
+			}
+		}
+	}
+	return 0
+}
+
+// teethOn is the tooth count of the gear a shift engages on a shaft.
+func teethOn(m *mech.Mechanism, shaft string) int {
+	for _, l := range m.Links {
+		mesh, ok := l.(mech.Mesh)
+		if !ok {
+			continue
+		}
+		if mesh.A == shaft {
+			return mesh.TeethA
+		}
+		if mesh.B == shaft {
+			return mesh.TeethB
+		}
+	}
+	return 0
+}
+
 // shiftedShafts are those a shift engages, which need room beside their gear
 // for the ring that does the engaging.
 func shiftedShafts(m *mech.Mechanism) map[string]bool {
@@ -780,10 +860,10 @@ func propagateSpurPairs(m *mech.Mechanism, l *Layout, stations *stationSet,
 		}
 
 		lineA, lineB := lineOf(l, mesh.A), lineOf(l, mesh.B)
-		used[lineA] = append(used[lineA],
-			reserve(base, thicknessOf(mesh.TeethA), shifted[mesh.A]))
-		used[lineB] = append(used[lineB],
-			reserve(base, thicknessOf(mesh.TeethB), shifted[mesh.B]))
+		used[lineA] = append(used[lineA], reserve(base, thicknessOf(mesh.TeethA),
+			shifted[mesh.A], roomFor(m, mesh.A, mesh.TeethA)))
+		used[lineB] = append(used[lineB], reserve(base, thicknessOf(mesh.TeethB),
+			shifted[mesh.B], roomFor(m, mesh.B, mesh.TeethB)))
 
 		for _, side := range []struct {
 			shaft string
@@ -803,10 +883,10 @@ func propagateSpurPairs(m *mech.Mechanism, l *Layout, stations *stationSet,
 // reserve is the space a gear takes, plus room for a driving ring when the gear
 // is one a shift engages. Without it three gears pack tight against each other
 // and the ring for the middle one has nowhere to go.
-func reserve(center, thickness float64, shifted bool) [2]float64 {
+func reserve(center, thickness float64, shifted bool, room float64) [2]float64 {
 	span := spanAt(center, thickness)
 	if shifted {
-		span[1] += RingRoomHalfStuds
+		span[1] += room
 	}
 	return span
 }
