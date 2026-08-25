@@ -246,6 +246,7 @@ const (
 	classPin
 	classSelector
 	classBall
+	classDrum
 	classStructure
 	// A marker is a liftarm on the end of a shaft, put there to be looked at.
 	// It turns with its shaft, so it is not structure — and the frame checks
@@ -265,6 +266,12 @@ func classOf(p ldr.Part) int {
 		return classPin
 	case isBall(p.Name):
 		return classBall
+	case isDrum(p.Name):
+		// Its own class, and not a selector's. Sharing one with the catch made
+		// the ball's licence to sit in the catch's hole a licence to sit inside
+		// the DRUM as well, so a ball driven into the barrel it rides read as
+		// an ordinary fit and nothing said a word.
+		return classDrum
 	case isSelector(p.Name):
 		return classSelector
 	case isMarker(p):

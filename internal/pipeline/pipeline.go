@@ -396,6 +396,12 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	if err := checkClearance(ctx, res, deps); err != nil {
 		return res, err
 	}
+	// And again with the shift thrown: the parts that move are the parts a
+	// gearbox is about, and checking them only where they are parked is how
+	// five faults in a row got past.
+	if err := checkClearanceInEveryState(ctx, res, deps, m); err != nil {
+		return res, err
+	}
 	if opts.Animate {
 		opts.Progress.Report(progress.Report{Stage: progress.StageAnimation})
 		animate(m, res, opts)

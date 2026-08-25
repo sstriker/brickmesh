@@ -1945,3 +1945,43 @@ things that should be allowed. So it never produced a wrong model — it produce
 refusals, and refusals get read as "there is no room here" rather than as a bug.
 The failing case had to be tracked back to `collide.Intersects` disagreeing with
 the sweep about the same two parts before the sweep itself came under suspicion.
+
+## A gearbox is not in one state, and the checks only looked at one
+
+Five faults in a row were reported by a reader and none of them by the engine.
+A ring travelling twice as far as it should; a ball leaving the drum it rides; a
+drum turned to a phase that put the ball inside it; a catch walking out of the
+groove it holds; a clutch gear presenting its closed face to the ring. Every one
+of them visible the moment somebody selected a gear and looked.
+
+They share a cause. The geometry checks read `res.Model` — the model as drawn,
+in one arrangement — and a gearbox has as many arrangements as it has gears.
+The parts that move between them are the rings, the catches, the balls and the
+barrels: which is to say, exactly the parts a shift is about, checked only where
+they happened to be parked.
+
+So the moving parts are now put where each state puts them and checked there.
+Only the moving ones against everything: the rest are where they were when the
+drawn model was checked and their pairs have not changed, which keeps the cost
+to a few hundred comparisons rather than squaring the model per state.
+
+```text
+gearbox-2-speed            26 pair(s) over 2 states
+gearbox-3-speed-compound  114 pair(s) over 3
+gearbox-4-speed-compound  292 pair(s) over 4
+```
+
+Two things went wrong writing it, both worth keeping.
+
+The first attempt found the moving parts by their animation group, and animation
+groups are only attached when an animation was asked for. Run without one it
+found nothing to move, checked nothing, and said nothing — a check that quietly
+does nothing, which is the fault it was written to catch, one level up. It finds
+the parts by what they are and where they stand now.
+
+And with that fixed it still passed a model whose ball was driven eight LDU into
+its drum. The drum had been given the selector's class, so that `mayBeInside`
+could be told a ball may sit in its catch — and the drum, being a selector too,
+was covered by the same permission. An exemption written for one pair had
+quietly licensed another. The drum has a class of its own now, and the case is
+in a test: a ball inside its catch is a fit, a ball inside a barrel is not.
