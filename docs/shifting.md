@@ -321,7 +321,22 @@ than one fork travelling 40. The refusal above and the two tracks are the same
 fact seen from either end: this drum is built to move several forks a little,
 not one fork a long way.
 
-**What is still not known is which lettered step is which gear.** 4158 is catalogued as "Gear Shifter with
+**The phase is what stops it turning.** The rate is measured; which way round
+the drum starts is not, and nothing places it from the track — it takes whatever
+orientation the catch has. Turned from an arbitrary phase the ball leaves the
+groove and drives into the drum, which is what a reader saw in second gear. So
+the barrel is placed and not turned, and the report says so.
+
+Reading the track has been tried four ways and has not settled it. Following the
+deepest point — where the middle of the ball would end up — gives a floor at
+radius 21.3 that traces flat at z = 0 wherever there is data, with four angular
+gaps of about forty degrees each. A track that does not move along the axis
+cannot drive a fork, so that reading is wrong somewhere and the part is not
+being asked the right question yet. An earlier attempt reported a floor at
+exactly 18.01 at every angle, which was the radius band clipping the floor and
+then reporting the clip.
+
+**And which lettered step is which gear is still not known.** 4158 is catalogued as "Gear Shifter with
 Groove, 8 Steps, Letter Markings", and the letters A to H are moulded beside the
 track, so it indexes eight times in a turn — 45 degrees a step. 110 degrees is
 not a multiple of 45, so the two positions measured are not two detents, or the

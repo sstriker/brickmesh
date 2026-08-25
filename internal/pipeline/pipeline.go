@@ -1914,17 +1914,13 @@ func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
 
 	detail := fmt.Sprintf("a %d-step barrel selector is placed for %s, with the "+
 		"ball on the catch riding its groove", sys.DrumSteps, label)
-	if sys.DrumPerLDU <= 0 {
-		detail += ". How far one step carries the fork is not measured, so it " +
-			"is placed and not turned"
-	} else {
-		detail += fmt.Sprintf(", and turns %.0f degrees to move it. That rate is "+
-			"%.0f degrees per LDU, from a model with the drum at two positions — "+
-			"and the ball is not properly seated in the second, so it is near "+
-			"enough rather than exact", turn, sys.DrumPerLDU)
-	}
+	detail += fmt.Sprintf(". It is placed and NOT turned: moving this ring would "+
+		"take %.0f degrees at the %.0f degrees per LDU its track gives, but which "+
+		"way round the drum starts is not known, and turned from the wrong phase "+
+		"the ball leaves the groove and drives into the drum. The rate is "+
+		"measured; the phase is not", turn, sys.DrumPerLDU)
 	res.Findings = append(res.Findings, mech.Finding{
-		Level: "OK", Check: "parts", Detail: detail})
+		Level: "WARN", Check: "parts", Detail: detail})
 }
 
 // settleCatches works out where every catch goes, before anything is drawn.

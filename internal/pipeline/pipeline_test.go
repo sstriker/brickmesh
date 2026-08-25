@@ -675,63 +675,61 @@ func TestTheBarrelSelectorLandsWhereTheModelPutsIt(t *testing.T) {
 	}
 }
 
-// The barrel turns to move its ring, and refuses what it cannot reach.
+// The barrel is placed and never turned, and its group is never named.
 //
-// 11 degrees a LDU, from a model with the drum at two positions. A single shift
-// of 10 LDU is 110 degrees of drum and a shared ring's 20 is 220, both of which
-// it can deliver. Past a full turn it cannot, and then no barrel goes in at all
-// — placed beside a ring it cannot move, it stood still while the ball pinned
-// to the catch left it entirely.
+// The rate at which it would turn is measured — 11 degrees a LDU, from a model
+// with the drum at two positions. The PHASE is not: which way round the drum
+// starts decides where its track is, and nothing here knows. Turned from an
+// arbitrary phase the ball leaves the groove and drives into the drum, which is
+// what a reader saw in second gear.
 //
-// That used to be this example. Its ring travelled 40 LDU because the layout
-// reserved room for the greediest system rather than the one being fitted, and
-// the gap between the gears IS the travel. With that fixed the case is the
-// other way round, and the guard is a guard rather than the usual outcome.
-func TestTheBarrelTurnsOnlyAsFarAsItsTrackReaches(t *testing.T) {
+// So no animation names it. A group turned without a phase is a mechanism drawn
+// as though it worked.
+func TestTheBarrelIsPlacedAndNotTurned(t *testing.T) {
 	deps := requireLibraries(t)
-	for _, c := range []struct {
-		name    string
-		spec    string
-		animate bool
-	}{
-		{"a shared ring fits its throw", "gearbox-early-system.json", true},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			doc, err := os.ReadFile(filepath.Join("..", "..", "examples", c.spec))
-			if err != nil {
-				t.Fatal(err)
+	doc, err := os.ReadFile(filepath.Join("..", "..", "examples",
+		"gearbox-early-system.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Run(context.Background(), build(t, string(doc)), deps,
+		Options{Restarts: 8, Seed: 1, Animate: true, ScriptName: "x.lua"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var drum bool
+	for _, p := range res.Model.Parts {
+		if p.Name == clutch.Early.Drum {
+			drum = true
+			if p.Group != "" {
+				t.Errorf("the drum is in group %q; nothing should move it until "+
+					"its phase is known", p.Group)
 			}
-			res, err := Run(context.Background(), build(t, string(doc)), deps,
-				Options{Restarts: 8, Seed: 1, Animate: true, ScriptName: "x.lua"})
-			if err != nil {
-				t.Fatal(err)
+		}
+	}
+	if !drum {
+		t.Fatal("no barrel selector was placed at all")
+	}
+	for _, a := range res.Script.Animations {
+		for _, w := range a.Swinging {
+			if strings.HasPrefix(w.Group, "drum_") {
+				t.Errorf("%q is turned by the %q animation", w.Group, a.Name)
 			}
-			turned := false
-			for _, a := range res.Script.Animations {
-				for _, w := range a.Swinging {
-					if strings.HasPrefix(w.Group, "drum_") {
-						turned = true
-					}
-				}
+		}
+	}
+	// Whatever a script does name, the model has to declare — LDCad looks a
+	// group up and finds nothing otherwise.
+	declared := map[string]bool{}
+	for _, g := range res.Model.Groups {
+		declared[g.Name] = true
+	}
+	for _, a := range res.Script.Animations {
+		for _, w := range a.Swinging {
+			if !declared[w.Group] {
+				t.Errorf("the script turns %q and the model never declares it",
+					w.Group)
 			}
-			if turned != c.animate {
-				t.Errorf("the drum is turned=%v, want %v", turned, c.animate)
-			}
-			// Whether it turns or not, a group the script names has to be one
-			// the model declares, or LDCad looks for it and finds nothing.
-			declared := map[string]bool{}
-			for _, g := range res.Model.Groups {
-				declared[g.Name] = true
-			}
-			for _, a := range res.Script.Animations {
-				for _, w := range a.Swinging {
-					if !declared[w.Group] {
-						t.Errorf("the script turns %q and the model never "+
-							"declares it", w.Group)
-					}
-				}
-			}
-		})
+		}
 	}
 }
 

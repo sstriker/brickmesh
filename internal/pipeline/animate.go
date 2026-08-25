@@ -263,9 +263,21 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 		catchGroup, drumGroup := "", ""
 		if site.catchAt != (geom.Vec3{}) {
 			catchGroup = fmt.Sprintf("catch_%d", i+1)
-			if site.system.Drum != "" && site.system.DrumPerLDU > 0 {
-				drumGroup = fmt.Sprintf("drum_%d", i+1)
-			}
+			// The barrel is NOT turned, and the missing number is not the
+			// rate — that is measured — but the phase.
+			//
+			// Which way round the drum starts decides where its track is, and
+			// nothing here knows: it is placed at whatever orientation the
+			// catch happens to have. Turned from an arbitrary phase, the ball
+			// leaves the groove and drives into the drum's body at one end or
+			// the other, which is what a reader saw in second gear.
+			//
+			// The track would settle it, and it is legible now — floor at
+			// radius 18, sitting at z = 0 for most of the turn with excursions
+			// to -19 near -140 degrees and +12 near +90. But that is a branched
+			// track rather than a helix, and no single phase and rate carries
+			// the ball along it. A model with the drum at two LETTERED steps
+			// would give the phase directly. See docs/shifting.md.
 		}
 		// Where the catch's own axle points and sits, once placed: the column
 		// of its orientation for the axis the part's hole runs along, and the

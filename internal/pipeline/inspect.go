@@ -135,6 +135,8 @@ func InspectWith(parts []ldr.Placed, ask ToothSource) *Reading {
 			f.Class = classAxle
 		case isPin(p.Name):
 			f.Class = classPin
+		case isBall(p.Name):
+			f.Class = classBall
 		case isSelector(p.Name):
 			f.Class = classSelector
 		case p.Name == DiffPart:

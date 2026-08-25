@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sstriker/brickmesh/internal/clutch"
 	"github.com/sstriker/brickmesh/internal/collide"
 	"github.com/sstriker/brickmesh/internal/geom"
 	"github.com/sstriker/brickmesh/internal/interfere"
@@ -214,6 +213,12 @@ func mayBeInside(a, b ldr.Part) bool {
 		return true // meshing
 	case ka == classRing && kb == classJoiner:
 		return true // the ring is splined to it
+	case ka == classSelector && kb == classBall:
+		// The towball lives in the catch's own hole. That and only that: it
+		// was made a pin outright, which excused it from every collision
+		// there is — including riding through the drum it is supposed to sit
+		// in the groove of, which is exactly the fault a reader spotted.
+		return true
 	case ka == classGear && kb == classJoiner:
 		// A gear's bore is round and a joiner passes through it, exactly as an
 		// axle does — the joiner IS the shaft where a ring has to slide, and
@@ -240,6 +245,7 @@ const (
 	classAxle
 	classPin
 	classSelector
+	classBall
 	classStructure
 	// A marker is a liftarm on the end of a shaft, put there to be looked at.
 	// It turns with its shaft, so it is not structure — and the frame checks
@@ -257,6 +263,8 @@ func classOf(p ldr.Part) int {
 		return classAxle
 	case isPin(p.Name):
 		return classPin
+	case isBall(p.Name):
+		return classBall
 	case isSelector(p.Name):
 		return classSelector
 	case isMarker(p):
@@ -278,18 +286,7 @@ func isMarker(p ldr.Part) bool {
 // isPin is the fasteners the engine places. Named rather than inferred, the
 // same way the axles are: a part is a pin here because this put it there.
 func isPin(name string) bool {
-	if name == PinPart || name == AxlePinPart || name == LongPinPart {
-		return true
-	}
-	// The towball that rides a barrel selector's groove is a pin at the end
-	// this cares about: it lives in the catch's own hole, which is the same
-	// fit as any other pin and reads as the same collision.
-	for _, s := range clutch.Systems {
-		if s.Ball != "" && name == s.Ball {
-			return true
-		}
-	}
-	return false
+	return name == PinPart || name == AxlePinPart || name == LongPinPart
 }
 
 func isAxle(name string) bool {
