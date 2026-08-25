@@ -1915,10 +1915,11 @@ func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
 	detail := fmt.Sprintf("a %d-step barrel selector is placed for %s, with the "+
 		"ball on the catch riding its groove", sys.DrumSteps, label)
 	detail += fmt.Sprintf(". It is placed and NOT turned: moving this ring would "+
-		"take %.0f degrees at the %.0f degrees per LDU its track gives, but which "+
-		"way round the drum starts is not known, and turned from the wrong phase "+
-		"the ball leaves the groove and drives into the drum. The rate is "+
-		"measured; the phase is not", turn, sys.DrumPerLDU)
+		"take %.0f degrees, which is %.4g of its %d steps at %g degrees per LDU. "+
+		"Which way round the drum starts is not known, though, and turned from "+
+		"the wrong phase the ball leaves the groove and drives into the drum. "+
+		"The rate is measured; the phase is not",
+		turn, turn/(360/float64(sys.DrumSteps)), sys.DrumSteps, sys.DrumPerLDU)
 	res.Findings = append(res.Findings, mech.Finding{
 		Level: "WARN", Check: "parts", Detail: detail})
 }

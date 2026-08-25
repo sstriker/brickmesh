@@ -178,6 +178,8 @@ func colourOf(code int) (r, g, b float64) {
 		return 0.63, 0.65, 0.66
 	case 72: // dark bluish grey
 		return 0.42, 0.43, 0.41
+	case 322: // medium azure
+		return 0.42, 0.77, 0.87
 	}
 	return 0.45, 0.47, 0.50
 }

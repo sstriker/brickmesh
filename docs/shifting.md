@@ -321,6 +321,28 @@ than one fork travelling 40. The refusal above and the two tracks are the same
 fact seen from either end: this drum is built to move several forks a little,
 not one fork a long way.
 
+### How far it turns, from the letters
+
+The builder: the drum at D puts a four-speed compound in 1st, and at A in 3rd.
+Those are the two positions of one shared ring, whose travel is 20 LDU, and A to
+D is three of the eight steps. So 135 degrees for 20 LDU — **6.75 degrees a
+LDU**, detent to detent.
+
+That supersedes the 11 degrees a LDU measured earlier from a model with the drum
+turned by hand: 110 degrees for 10.01 LDU. The builder warned at the time that
+the ball might not sit properly in the groove, and it does not — its tip stands
+4.33 LDU clear of any surface of the drum, against 1.77 in the other position. A
+hand-turned angle beats nothing and loses to a detent.
+
+And it is corroborated from the part, which is the first time the track has been
+confirmed by anything outside itself. Reading the drum's surface, the two places
+the groove leaves its flat run are about **130 degrees** apart, against the
+letters' 135, with 5-degree bins. Those two places are the two gear positions.
+
+The engine agrees with itself too: the four-speed's early stage has a ring
+travelling 20 LDU, and the report now says that moving it would take 135 degrees,
+"3 of its 8 steps". Nobody told it about A and D.
+
 **The phase is what stops it turning.** The rate is measured; which way round
 the drum starts is not, and nothing places it from the track — it takes whatever
 orientation the catch has. Turned from an arbitrary phase the ball leaves the

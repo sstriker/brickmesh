@@ -631,7 +631,11 @@ third kind of motion. See docs/findings.md.
       z = 0 with four angular gaps, and a track that does not move cannot drive
       a fork, so the part is not being asked the right question yet.
 
-- [ ] which lettered step is which gear. 110 degrees is not a multiple of the
+- [x] which lettered step is which gear, for two of them: the drum at D puts a
+      four-speed compound in 1st and at A in 3rd, so A to D is the 20 LDU
+      travel of one shared ring and the rate is 6.75 degrees a LDU. Corroborated
+      from the part — the two places its groove leaves the flat run are 130
+      degrees apart against the letters' 135, with 5-degree bins. 110 degrees is not a multiple of the
       45 that eight steps implies, so the two positions measured are not two
       detents, or the detents are not evenly spaced, or the drum was turned to
       where the fork had to be rather than to a letter. One pair cannot tell

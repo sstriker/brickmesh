@@ -295,19 +295,28 @@ var Early = System{
 	// 80 from the shaft, with a towball in the fork's pin hole exactly 40.000
 	// from that axis and reaching in to 22.00 against a groove floor of 22.11.
 	//
-	// How far it turns comes from a second model with the drum at two
-	// positions: the fork sits 10.01 LDU further along the shaft in one than
-	// the other, and the drum is turned 110.00 degrees between them — the same
-	// angle whichever of its own axes it is measured from. So 11 degrees a
-	// LDU, and the 10.01 is corroborated by being the ring's own travel.
+	// How far it turns comes from the letters, which is better evidence than
+	// the model that was measured first.
 	//
-	// APPROXIMATE, and the builder said so before it was measured: the ball is
-	// not properly seated in the second position, sitting 4.33 LDU clear of any
-	// surface of the drum rather than down in the groove. The angle carries
-	// however much that is worth. Eight steps is the catalogue's; which of them
-	// these two are is not known.
+	// The builder: the drum at D puts a four-speed compound in 1st and at A in
+	// 3rd. Those are the two positions of one shared ring, whose travel is 20
+	// LDU, and A to D is three of the eight steps — 135 degrees. So 6.75
+	// degrees a LDU, detent to detent.
+	//
+	// It supersedes 11 degrees a LDU, taken from a model with the drum turned
+	// by hand to 110 degrees for 10.01 LDU. The builder said at the time that
+	// the ball might not sit properly in the groove, and measured it did not:
+	// its tip stood 4.33 LDU clear of any surface of the drum against 1.77 in
+	// the other position. A hand-turned angle beats nothing and loses to a
+	// detent.
+	//
+	// Corroborated from the part, which is the first time the track has been
+	// confirmed by anything outside itself: reading its surface, the two places
+	// the groove leaves its flat run are about 130 degrees apart, against the
+	// letters' 135, and the angular bins that measurement uses are 5 degrees
+	// wide.
 	Drum: "4158.dat", Ball: "6628.dat", DrumReach: 40, DrumSteps: 8,
-	DrumPerLDU: 11,
+	DrumPerLDU: 6.75,
 }
 
 var Systems = []System{First, Second, Early}
