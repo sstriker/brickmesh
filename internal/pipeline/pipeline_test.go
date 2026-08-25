@@ -675,20 +675,18 @@ func TestTheBarrelSelectorLandsWhereTheModelPutsIt(t *testing.T) {
 	}
 }
 
-// The barrel is placed and never turned, and its group is never named.
+// The barrel turns, by three of its eight steps, and its group is declared.
 //
-// The rate at which it would turn is measured — 11 degrees a LDU, from a model
-// with the drum at two positions. The PHASE is not: which way round the drum
-// starts decides where its track is, and nothing here knows. Turned from an
-// arbitrary phase the ball leaves the groove and drives into the drum, which is
-// what a reader saw in second gear.
-//
-// So no animation names it. A group turned without a phase is a mechanism drawn
-// as though it worked.
-func TestTheBarrelIsPlacedAndNotTurned(t *testing.T) {
+// Both numbers come from the part. Sweeping the drum through a turn and asking
+// where the ball MAY sit gives a cam profile: a seat at one phase holding it 10
+// LDU one way, a long flat, and a second seat 135 degrees round holding it 10
+// the other. That is 6.75 degrees a LDU over three of the eight steps — which
+// is what the builder read off the letters moulded beside the track, A to D,
+// neither reading having seen the other.
+func TestTheBarrelTurnsByWhatItsCamProfileSays(t *testing.T) {
 	deps := requireLibraries(t)
 	doc, err := os.ReadFile(filepath.Join("..", "..", "examples",
-		"gearbox-early-system.json"))
+		"gearbox-4-speed-compound.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -697,28 +695,23 @@ func TestTheBarrelIsPlacedAndNotTurned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var drum bool
-	for _, p := range res.Model.Parts {
-		if p.Name == clutch.Early.Drum {
-			drum = true
-			if p.Group != "" {
-				t.Errorf("the drum is in group %q; nothing should move it until "+
-					"its phase is known", p.Group)
-			}
-		}
-	}
-	if !drum {
-		t.Fatal("no barrel selector was placed at all")
-	}
+	turned := 0
 	for _, a := range res.Script.Animations {
 		for _, w := range a.Swinging {
-			if strings.HasPrefix(w.Group, "drum_") {
-				t.Errorf("%q is turned by the %q animation", w.Group, a.Name)
+			if !strings.HasPrefix(w.Group, "drum_") {
+				continue
+			}
+			turned++
+			if got := w.Clear - w.Engaged; math.Abs(got-135) > 1 {
+				t.Errorf("the drum swings %.1f degrees; a shared ring's 20 LDU "+
+					"is 135, which is three of its eight steps", got)
 			}
 		}
 	}
-	// Whatever a script does name, the model has to declare — LDCad looks a
-	// group up and finds nothing otherwise.
+	if turned == 0 {
+		t.Error("nothing turns the barrel, and its phase is known now")
+	}
+	// Whatever a script names, the model has to declare.
 	declared := map[string]bool{}
 	for _, g := range res.Model.Groups {
 		declared[g.Name] = true
@@ -796,3 +789,67 @@ const dogClutch24t = `{
   "inputs": [{"shaft": "input", "speed": 1.0}],
   "outputs": ["output"]
 }`
+
+// The ball stays in the drum's track through the whole shift.
+//
+// This is the fault a reader saw in second gear: the ball inside the drum
+// rather than in its groove, because the drum was placed at whatever
+// orientation the catch happened to have. The phase comes from the part now —
+// sweeping the drum and asking where the ball MAY sit gives a cam profile with
+// two seats 135 degrees apart holding it 10 LDU either way — so the test is
+// that the ball is clear at rest and at both seats.
+func TestTheBallStaysInTheDrumsTrackThroughAShift(t *testing.T) {
+	deps := requireLibraries(t)
+	doc, err := os.ReadFile(filepath.Join("..", "..", "examples",
+		"gearbox-4-speed-compound.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Run(context.Background(), build(t, string(doc)), deps,
+		Options{Restarts: 8, Seed: 1, Animate: true, ScriptName: "x.lua"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var drum, ball ldr.Part
+	for _, p := range res.Model.Parts {
+		switch p.Name {
+		case clutch.Early.Drum:
+			drum = p
+		case clutch.Early.Ball:
+			ball = p
+		}
+	}
+	if drum.Name == "" || ball.Name == "" {
+		t.Skip("this box placed no barrel selector")
+	}
+	dm, err := interfere.MeshFor(deps.Lib, drum.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bm, err := interfere.MeshFor(deps.Lib, ball.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	axis := geom.Vec3{X: drum.Rot[0][2], Y: drum.Rot[1][2], Z: drum.Rot[2][2]}.Unit()
+
+	// At rest, and at each seat: the drum turned half its swing and the ball
+	// carried the same way along the shaft.
+	const half = 67.5
+	for _, c := range []struct {
+		name  string
+		turn  float64
+		along float64
+	}{
+		{"at rest, in neutral", 0, 0},
+		{"one gear", half, 10},
+		{"the other", -half, -10},
+	} {
+		rot := drum.Rot.Mul(interfere.RotAbout(geom.Vec3{Z: 1}, c.turn))
+		at := ball.Pos.Add(axis.Scale(c.along))
+		if collide.Intersects(dm, collide.Transform{Rot: rot, Pos: drum.Pos},
+			bm, collide.Transform{Rot: ball.Rot, Pos: at}) {
+			t.Errorf("%s: the ball is inside the drum rather than in its track",
+				c.name)
+		}
+	}
+}

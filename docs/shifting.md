@@ -343,20 +343,32 @@ The engine agrees with itself too: the four-speed's early stage has a ring
 travelling 20 LDU, and the report now says that moving it would take 135 degrees,
 "3 of its 8 steps". Nobody told it about A and D.
 
-**The phase is what stops it turning.** The rate is measured; which way round
-the drum starts is not, and nothing places it from the track — it takes whatever
-orientation the catch has. Turned from an arbitrary phase the ball leaves the
-groove and drives into the drum, which is what a reader saw in second gear. So
-the barrel is placed and not turned, and the report says so.
+### The phase, from the part
 
-Reading the track has been tried four ways and has not settled it. Following the
-deepest point — where the middle of the ball would end up — gives a floor at
-radius 21.3 that traces flat at z = 0 wherever there is data, with four angular
-gaps of about forty degrees each. A track that does not move along the axis
-cannot drive a fork, so that reading is wrong somewhere and the part is not
-being asked the right question yet. An earlier attempt reported a floor at
-exactly 18.01 at every angle, which was the radius band clipping the floor and
-then reporting the clip.
+The last thing missing, and the part settles it. Sweep the drum through a turn
+and ask, at each phase, where the ball MAY sit without being inside it. The
+answer is a cam profile:
+
+```text
+phase   ball sits at
+ -135      -10.0     a seat, dwelling either side
+  -90       +0.0
+  -45       -0.2     a long flat
+    0      +10.0     the other seat
+  +90       -0.2
+ +135       +0.2
+```
+
+Two seats, 135 degrees apart, holding the ball 10 LDU either way: twenty LDU of
+travel over three of the eight steps, 6.75 degrees a LDU. Which is what the
+letters say, arrived at without them.
+
+So the drum is built with its own y toward the ball and turned back half the
+swing, which puts it in the middle of the flat at rest with a seat half a swing
+either side. The ball is clear of the drum at rest and at both seats, and a test
+says so — that being the fault it fixes: a reader saw the ball inside the drum
+in second gear, because the drum had been placed at whatever orientation the
+catch happened to have.
 
 **And which lettered step is which gear is still not known.** 4158 is catalogued as "Gear Shifter with
 Groove, 8 Steps, Letter Markings", and the letters A to H are moulded beside the

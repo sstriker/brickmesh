@@ -622,14 +622,12 @@ third kind of motion. See docs/findings.md.
       comes back within a turn cannot deliver that, so for a shared ring the
       drum is placed and not turned, and the report says so.
 
-- [ ] the drum's PHASE, which is what stops it turning. The rate is measured
-      at 11 degrees a LDU; which way round the drum starts is not, so it takes
-      whatever orientation the catch has, and turned from there the ball leaves
-      the groove and drives into the drum. Placed and not turned until that is
-      known. Reading the track has been tried four ways without settling it —
-      following the deepest point gives a floor at radius 21.3 tracing flat at
-      z = 0 with four angular gaps, and a track that does not move cannot drive
-      a fork, so the part is not being asked the right question yet.
+- [x] the drum's phase, from the part. Sweeping it through a turn and asking
+      where the ball may sit gives a cam profile: two seats 135 degrees apart
+      holding the ball 10 LDU either way, so 6.75 degrees a LDU over three of
+      the eight steps. The same figure the letters give, arrived at without
+      them. The drum is placed on that phase and turns on it, and the ball is
+      clear of it at rest and at both seats.
 
 - [x] which lettered step is which gear, for two of them: the drum at D puts a
       four-speed compound in 1st and at A in 3rd, so A to D is the 20 LDU

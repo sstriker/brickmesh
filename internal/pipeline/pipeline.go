@@ -23,6 +23,7 @@ import (
 
 	"github.com/sstriker/brickmesh/internal/clutch"
 	"github.com/sstriker/brickmesh/internal/geom"
+	"github.com/sstriker/brickmesh/internal/interfere"
 	"github.com/sstriker/brickmesh/internal/layout"
 	"github.com/sstriker/brickmesh/internal/ldcad"
 	"github.com/sstriker/brickmesh/internal/ldr"
@@ -1905,23 +1906,48 @@ func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
 		{cx.X, cy.X, cz.X}, {cx.Y, cy.Y, cz.Y}, {cx.Z, cy.Z, cz.Z},
 	}, ball, "ball on the catch for "+label+", riding the drum's groove")
 
-	// Then the drum, its axis along the shaft, DrumReach further out.
+	// Then the drum, its axis along the shaft, DrumReach further out — and
+	// turned to the phase that puts the ball in its track.
+	//
+	// The phase was the last thing missing and the part settles it. Sweeping
+	// the drum through a turn and asking, at each phase, where the ball MAY sit
+	// without being inside the drum, the answer is a cam profile: one seat at
+	// phase 0 holding the ball 10 LDU one way, a long flat at nought, and a
+	// second seat 135 degrees round holding it 10 the other. Twenty LDU of
+	// travel over 135 degrees, which is the 6.75 degrees a LDU the letters give
+	// and three of the eight steps — measured from the part, and agreeing with
+	// what a builder read off the letters, neither having seen the other.
+	//
+	// So the drum is built with its own y toward the ball and turned back half
+	// the swing, which puts the rest position in the middle of the flat and
+	// each seat half a swing away.
 	drum := ball.Add(out.Scale(sys.DrumReach))
-	model.Add(sys.Drum, colour(sys.Drum), site.catchRot, drum, fmt.Sprintf(
+	toBall := out.Scale(-1)
+	dz := d
+	dy := toBall.Sub(dz.Scale(toBall.Dot(dz)))
+	if dy.Len() < 1e-9 {
+		return
+	}
+	dy = dy.Unit()
+	dx := dy.Cross(dz)
+	drumRot := geom.Mat3{
+		{dx.X, dy.X, dz.X}, {dx.Y, dy.Y, dz.Y}, {dx.Z, dy.Z, dz.Z},
+	}
+	half := math.Abs(site.disengaged-site.engaged) * synth.HalfStud / 2 * sys.DrumPerLDU
+	drumRot = drumRot.Mul(interfere.RotAbout(geom.Vec3{Z: 1}, -half))
+	model.Add(sys.Drum, colour(sys.Drum), drumRot, drum, fmt.Sprintf(
 		"barrel selector for %s, %d steps; which step is which gear is not "+
 			"worked out, only that turning it moves the catch", label,
 		sys.DrumSteps))
 
 	detail := fmt.Sprintf("a %d-step barrel selector is placed for %s, with the "+
 		"ball on the catch riding its groove", sys.DrumSteps, label)
-	detail += fmt.Sprintf(". It is placed and NOT turned: moving this ring would "+
-		"take %.0f degrees, which is %.4g of its %d steps at %g degrees per LDU. "+
-		"Which way round the drum starts is not known, though, and turned from "+
-		"the wrong phase the ball leaves the groove and drives into the drum. "+
-		"The rate is measured; the phase is not",
+	detail += fmt.Sprintf(", and turns %.0f degrees to move it — %.4g of its %d "+
+		"steps, at %g degrees per LDU. Both numbers come from the part's own "+
+		"cam profile and agree with the letters moulded beside its track",
 		turn, turn/(360/float64(sys.DrumSteps)), sys.DrumSteps, sys.DrumPerLDU)
 	res.Findings = append(res.Findings, mech.Finding{
-		Level: "WARN", Check: "parts", Detail: detail})
+		Level: "OK", Check: "parts", Detail: detail})
 }
 
 // settleCatches works out where every catch goes, before anything is drawn.
