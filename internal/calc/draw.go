@@ -147,16 +147,37 @@ func drawWith(model *ldr.Model, shapes part.Shapes, flagged map[int]bool) []byte
 	return out
 }
 
-// colourOf maps the LDraw colours this engine places. Anything else comes out
-// grey, which is what an unrecognised part should look like.
+// colourOf maps the LDraw colours this engine places, at LDraw's own values.
+// Anything else comes out grey, which is what an unrecognised part should look
+// like.
+//
+// The list grew when parts started being placed in the colours they are
+// actually made in rather than in whatever was convenient. Three entries
+// covered black axles, red rings and grey gears; a white joiner and an orange
+// catch both came out the same anonymous grey until they were added, which is
+// worse than the wrong colour because it looks deliberate.
 func colourOf(code int) (r, g, b float64) {
 	switch code {
-	case 0: // black: the axles
-		return 0.13, 0.13, 0.15
-	case 4: // red: the driving rings
-		return 0.78, 0.16, 0.14
-	case 71: // light bluish grey: the gears
+	case 0: // black
+		return 0.02, 0.07, 0.11
+	case 1: // blue: the long pins
+		return 0.00, 0.33, 0.75
+	case 4: // red
+		return 0.79, 0.10, 0.04
+	case 7: // light grey, the older one
+		return 0.61, 0.63, 0.62
+	case 8: // dark grey, the older one
+		return 0.43, 0.43, 0.36
+	case 14: // yellow
+		return 0.95, 0.80, 0.22
+	case 15: // white
+		return 1.00, 1.00, 1.00
+	case 25: // orange
+		return 1.00, 0.54, 0.09
+	case 71: // light bluish grey
 		return 0.63, 0.65, 0.66
+	case 72: // dark bluish grey
+		return 0.42, 0.43, 0.41
 	}
 	return 0.45, 0.47, 0.50
 }

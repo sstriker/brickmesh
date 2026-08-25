@@ -125,7 +125,7 @@ func placeControlAxles(res *Result, deps Deps, model *ldr.Model) {
 			continue
 		}
 		centre := c.at.Add(c.dir.Scale((c.from + c.to) / 2))
-		model.Add(name, ldr.ColorBlack, rot, centre,
+		model.Add(name, colour(name), rot, centre,
 			fmt.Sprintf("control axle %d for the catch on '%s'", studs, c.ring))
 		placed++
 		// The structure has to know it is there, the same as any other shaft.

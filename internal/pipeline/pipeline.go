@@ -391,6 +391,7 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	checkLoadPaths(res, deps, m)
 
 	opts.Progress.Report(progress.Report{Stage: progress.StageClearance})
+	reportStandIns(res)
 	if err := checkClearance(ctx, res, deps); err != nil {
 		return res, err
 	}
@@ -664,18 +665,18 @@ func buildModel(m *mech.Mechanism, res *Result, deps Deps) (*ldr.Model, error) {
 		// Shaft points are in half studs; stations are along the shaft.
 		pos := place.Point.Scale(synth.HalfStud).
 			Add(place.Direction.Scale(st.Axial * synth.HalfStud))
-		model.Add(name, ldr.ColorLightGray, rot, pos,
+		model.Add(name, colour(name), rot, pos,
 			fmt.Sprintf("%dt on shaft '%s'", st.Teeth, st.Shaft))
 	}
 
 	placeDrivingRings(res, model, sites)
 	for _, a := range res.axles {
-		model.Add(a.name, ldr.ColorBlack, a.rot, a.center,
+		model.Add(a.name, colour(a.name), a.rot, a.center,
 			a.label)
 	}
 	if res.Structure != nil {
 		for _, p := range res.Structure.Parts {
-			if err := model.AddLattice(p.Part, ldr.ColorBlack, p.Rot, p.Origin, ""); err != nil {
+			if err := model.AddLattice(p.Part, colour(p.Part), p.Rot, p.Origin, ""); err != nil {
 				return nil, err
 			}
 		}
@@ -982,7 +983,7 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 		if label == "" {
 			label = fmt.Sprintf("driving ring for %v", site.coupling.States)
 		}
-		model.Add(site.system.Ring, ldr.ColorRed, rot, pos, label)
+		model.Add(site.system.Ring, colour(site.system.Ring), rot, pos, label)
 		if at, rot, ok := placeSelector(res, model, site, place, pos, label); ok {
 			back(i, at, rot)
 			catches++
@@ -1828,7 +1829,7 @@ func placeSelector(res *Result, model *ldr.Model, site ringSite,
 	if site.catchRot == (geom.Mat3{}) {
 		return geom.Vec3{}, geom.Mat3{}, false // settleCatches found nowhere for it
 	}
-	model.Add(site.system.Catch, ldr.ColorBlack, site.catchRot,
+	model.Add(site.system.Catch, colour(site.system.Catch), site.catchRot,
 		at.Add(site.catchAt), "catch for "+label)
 	placeBarrel(res, model, site, at, place.Direction.Unit(), label)
 	return site.catchAt, site.catchRot, true
@@ -1900,13 +1901,13 @@ func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
 	}
 	cy = cy.Sub(cx.Scale(cy.Dot(cx))).Unit()
 	cz := cx.Cross(cy)
-	model.Add(sys.Ball, ldr.ColorBlack, geom.Mat3{
+	model.Add(sys.Ball, colour(sys.Ball), geom.Mat3{
 		{cx.X, cy.X, cz.X}, {cx.Y, cy.Y, cz.Y}, {cx.Z, cy.Z, cz.Z},
 	}, ball, "ball on the catch for "+label+", riding the drum's groove")
 
 	// Then the drum, its axis along the shaft, DrumReach further out.
 	drum := ball.Add(out.Scale(sys.DrumReach))
-	model.Add(sys.Drum, ldr.ColorBlack, site.catchRot, drum, fmt.Sprintf(
+	model.Add(sys.Drum, colour(sys.Drum), site.catchRot, drum, fmt.Sprintf(
 		"barrel selector for %s, %d steps; which step is which gear is not "+
 			"worked out, only that turning it moves the catch", label,
 		sys.DrumSteps))

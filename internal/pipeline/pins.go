@@ -84,7 +84,7 @@ func placePins(res *Result, deps Deps, model *ldr.Model) error {
 			skipped++
 			continue
 		}
-		model.Add(name, ldr.ColorBlack, geom.Rotations[rot], run.at,
+		model.Add(name, colour(name), geom.Rotations[rot], run.at,
 			fmt.Sprintf("pin joining the frame at %v", run.at.Round(1)))
 		placed++
 	}

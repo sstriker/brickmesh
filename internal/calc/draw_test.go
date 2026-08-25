@@ -12,6 +12,7 @@ import (
 
 	"github.com/sstriker/brickmesh/internal/extract"
 	"github.com/sstriker/brickmesh/internal/ldraw"
+	"github.com/sstriker/brickmesh/internal/pipeline"
 	"github.com/sstriker/brickmesh/internal/shadow"
 )
 
@@ -175,4 +176,20 @@ func markedVertices(t *testing.T, raw []byte) int {
 		}
 	}
 	return n
+}
+
+// Every colour the engine places is one the renderer knows.
+//
+// A part in an unmapped colour comes out the same anonymous grey as a part in
+// no colour at all, which reads as deliberate. The two lists drifted apart the
+// moment parts started being placed in the colours they are really made in.
+func TestTheRendererKnowsEveryColourThatIsPlaced(t *testing.T) {
+	fallbackR, fallbackG, fallbackB := colourOf(-1)
+	for _, code := range pipeline.PlacedColours() {
+		r, g, b := colourOf(code)
+		if r == fallbackR && g == fallbackG && b == fallbackB {
+			t.Errorf("colour %d is placed and the renderer has no entry for it, "+
+				"so it draws as the same grey as an unknown part", code)
+		}
+	}
 }
