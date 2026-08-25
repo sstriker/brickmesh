@@ -359,6 +359,7 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 func tagRings(m *mech.Mechanism, res *Result) {
 	rings := ringGroups(m, res)
 	k, c, dr := 0, 0, 0
+	lastCatch := ""
 	for i := range res.Model.Parts {
 		p := &res.Model.Parts[i]
 		switch {
@@ -375,18 +376,27 @@ func tagRings(m *mech.Mechanism, res *Result) {
 				p.Group = rings[dr].drumGroup
 				dr++
 			}
-		case isSelector(p.Name) || isBall(p.Name):
+		case isSelector(p.Name):
 			// Its own group: it moves with its ring and does not turn with it.
-			// The ball goes with it, being in its hole.
 			for c < len(rings) && rings[c].catchGroup == "" {
 				c++
 			}
 			if c < len(rings) {
 				p.Group = rings[c].catchGroup
-				if !isBall(p.Name) {
-					c++
-				}
+				lastCatch = rings[c].catchGroup
+				c++
 			}
+		case isBall(p.Name):
+			// The ball is a pin in the catch's own hole, so it goes wherever
+			// the catch goes — which for this system is a slide along the
+			// shaft and no turn at all.
+			//
+			// It has to take the catch's group rather than find its own,
+			// because it is placed straight after that catch and the counter
+			// has already moved past it. Sharing the case with the selector
+			// looked tidier and left the ball in no group whatever, standing
+			// still while the fork it is pinned into slid out from under it.
+			p.Group = lastCatch
 		}
 	}
 }

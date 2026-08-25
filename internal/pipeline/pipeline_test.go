@@ -729,3 +729,67 @@ func TestTheBarrelTurnsOnlyAsFarAsItsTrackReaches(t *testing.T) {
 		})
 	}
 }
+
+// The ball goes where its catch goes, and its catch does not turn.
+//
+// It is a pin in the fork's own hole, so it travels with the fork: a lateral
+// move back and forth along the shaft, which is what carries the ring. What it
+// must not do is stand still — it was left in no group at all, and the fork slid
+// out from under it while it hung in the air beside the drum.
+func TestTheBallTravelsWithItsCatchAndDoesNotTurn(t *testing.T) {
+	deps := requireLibraries(t)
+	res, err := Run(context.Background(), build(t, dogClutch24t), deps,
+		Options{Restarts: 8, Seed: 1, Animate: true, ScriptName: "x.lua"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ballGroup, catchGroup string
+	for _, p := range res.Model.Parts {
+		switch {
+		case p.Name == clutch.Early.Ball:
+			ballGroup = p.Group
+		case p.Name == clutch.Early.Catch:
+			catchGroup = p.Group
+		}
+	}
+	if catchGroup == "" {
+		t.Fatal("the catch is in no group, so there is nothing to compare")
+	}
+	if ballGroup != catchGroup {
+		t.Errorf("the ball is in group %q and its catch in %q; a pin in the "+
+			"catch's hole travels with it", ballGroup, catchGroup)
+	}
+	// And that group slides rather than turning: speed zero, two positions.
+	for _, a := range res.Script.Animations {
+		for _, s := range a.Sliding {
+			if s.Group != catchGroup {
+				continue
+			}
+			if s.Speed != 0 {
+				t.Errorf("the catch turns at %v; it is threaded on a fixed axle "+
+					"and only slides along it", s.Speed)
+			}
+		}
+		for _, w := range a.Swinging {
+			if w.Group == catchGroup {
+				t.Errorf("the catch is given a swing; this one slides")
+			}
+		}
+	}
+}
+
+const dogClutch24t = `{
+  "name": "24-tooth dog clutch",
+  "states": ["engaged", "free"],
+  "shafts": [
+    {"id": "input", "bearings": 2},
+    {"id": "output", "bearings": 2},
+    {"id": "driven", "bearings": 2}
+  ],
+  "meshes": [{"a": "input", "b": "driven", "teeth_a": 24, "teeth_b": 24}],
+  "couplings": [
+    {"a": "output", "b": "driven", "name": "driving ring", "states": ["engaged"]}
+  ],
+  "inputs": [{"shaft": "input", "speed": 1.0}],
+  "outputs": ["output"]
+}`
