@@ -962,8 +962,22 @@ func placeDrivingRings(res *Result, model *ldr.Model, sites []ringSite) {
 		if !ok {
 			continue
 		}
+		// Drawn where it rests, which for a ring serving two gears is neutral
+		// and not one of them.
+		//
+		// It was drawn engaged with the first, and that is three faults at
+		// once: the ring sits a shift's worth towards the low gears, the model
+		// as built is in gear rather than in neutral, and the catch — drawn
+		// with it, at nought degrees on its cam — is then turned to plus or
+		// minus ninety and walks 10 LDU out of the groove it is supposed to be
+		// holding. The official models agree: across 42110, 42083 and 42056 a
+		// shared ring sits 40 LDU from each of two gears 80 apart.
+		rest := site.engaged
+		if site.mate != nil {
+			rest = (site.engaged + site.disengaged) / 2
+		}
 		pos := place.Point.Scale(synth.HalfStud).
-			Add(place.Direction.Scale(site.engaged * synth.HalfStud))
+			Add(place.Direction.Scale(rest * synth.HalfStud))
 		label := site.coupling.Name
 		if label == "" {
 			label = fmt.Sprintf("driving ring for %v", site.coupling.States)

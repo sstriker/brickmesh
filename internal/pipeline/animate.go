@@ -224,6 +224,9 @@ type ringGroup struct {
 	// catchGroup names its group. Empty when no catch was placed.
 	catchAt    geom.Vec3
 	catchGroup string
+	// rest is where the ring is actually drawn, which is neutral when it serves
+	// two gears and its engaged position when it serves one.
+	rest geom.Vec3
 	// drumGroup names the barrel selector's group, empty when there is none.
 	// It turns in place while the ring and the catch slide, so it needs a group
 	// of its own and a rotation rather than a translation.
@@ -349,6 +352,7 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 			axis:         place.Direction,
 			engaged:      base.Add(place.Direction.Scale(site.engaged * synth.HalfStud)),
 			disengaged:   base.Add(place.Direction.Scale(site.disengaged * synth.HalfStud)),
+			rest:         base.Add(place.Direction.Scale(restAt(site) * synth.HalfStud)),
 		})
 	}
 	return out
@@ -417,6 +421,7 @@ func slidingIn(rings []ringGroup, speeds map[string]float64,
 			// A ring is splined to its shaft, so it holds when that shaft does.
 			ThroughShift: r.throughShift,
 			Engaged:      r.engaged, Disengaged: r.disengaged, At: at,
+			Rest: r.rest,
 		})
 		if r.catchSlides && r.catchGroup != "" {
 			// A fork on a shaft-parallel axle travels with the ring it holds,
@@ -427,6 +432,7 @@ func slidingIn(rings []ringGroup, speeds map[string]float64,
 				ThroughShift: r.throughShift,
 				Engaged:      r.engaged.Add(r.catchAt),
 				Disengaged:   r.disengaged.Add(r.catchAt), At: at,
+				Rest: r.rest.Add(r.catchAt),
 			})
 		}
 	}
@@ -689,4 +695,15 @@ func drivenWith(m *mech.Mechanism, engaged func(mech.Coupling) bool) map[string]
 		}
 	}
 	return driven
+}
+
+// restAt is where a ring is drawn: neutral when it serves two gears, engaged
+// when it serves one. The same choice placeDrivingRings makes, and the two have
+// to agree or a renderer that moves parts by transforms starts from the wrong
+// place.
+func restAt(site ringSite) float64 {
+	if site.mate != nil {
+		return (site.engaged + site.disengaged) / 2
+	}
+	return site.engaged
 }

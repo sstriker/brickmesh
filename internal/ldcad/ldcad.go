@@ -107,6 +107,12 @@ type Sliding struct {
 	// Engaged and Disengaged are its two positions, in the model's coordinates.
 	Engaged    geom.Vec3 `json:"engaged"`
 	Disengaged geom.Vec3 `json:"disengaged"`
+	// Rest is where the part is actually drawn, which a renderer that moves the
+	// model by transforms has to subtract: it moves parts from where they are,
+	// not to where they should be. LDCad sets an absolute position and does not
+	// care. A ring serving two gears is drawn in neutral, halfway between the
+	// two, so assuming it starts engaged puts it out by half its travel.
+	Rest geom.Vec3 `json:"rest"`
 	// At is where it sits: 0 engaged, 1 disengaged. A ring that serves two
 	// gears engages one at 0 and the other at 1, with neutral halfway.
 	At float64 `json:"at"`

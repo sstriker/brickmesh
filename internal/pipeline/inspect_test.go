@@ -137,12 +137,15 @@ func TestEveryPlaceablePartIsRecognised(t *testing.T) {
 // and nothing about the reading is told it.
 func TestARatioSurvivesBeingWrittenAndReadBack(t *testing.T) {
 	deps := requireLibraries(t)
+	// A gearbox is not in this list any more, and the reason is the point of
+	// the next test down: it is written in NEUTRAL, so there is no ratio in it
+	// to survive anything. A fixed train has one whatever happens.
 	for _, c := range []struct {
 		name  string
 		state string
 	}{
 		{"reduction", ""},
-		{"gearbox-2-speed", "low"},
+		{"protected-reduction", ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			res := runSpec(t, deps, filepath.Join("..", "..", "examples", c.name+".json"))
@@ -239,5 +242,59 @@ func TestAPartTheLibraryHasNotGotIsSaidSoSeparately(t *testing.T) {
 	if strings.Contains(missing, "3001.dat") {
 		t.Errorf("3001.dat is in the library and should not be listed as absent: %q",
 			missing)
+	}
+}
+
+// A gearbox is written in neutral, so reading it back finds no gear engaged.
+//
+// That is the honest answer rather than a gap. A driving ring shows the gear it
+// is IN, and a ring serving two gears rests between them driving neither —
+// which is how the official sets are built, 40 LDU from each of two gears 80
+// apart. Writing it engaged with the first of them instead put the model in
+// gear, sat the ring a shift's worth towards the low gears, and left the catch
+// ten LDU out of the groove once its cam turned to a seat.
+func TestAGearboxIsWrittenInNeutral(t *testing.T) {
+	deps := requireLibraries(t)
+	res := runSpec(t, deps, filepath.Join("..", "..", "examples",
+		"gearbox-2-speed.json"))
+	parts, err := ldr.Decode(strings.NewReader(res.Model.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := Inspect(parts)
+	got, _ := read.Mechanism(deps.Shadow)
+
+	// The shafts are all there and named: what is missing is only a selection.
+	drive := lineNamed(t, res, read, got, "input")
+	got.Drive(drive, 1)
+	if _, ok := got.Solve(""); ok {
+		t.Error("the model read back solves for a ratio; a box in neutral " +
+			"drives nothing, and one that does was written in gear")
+	}
+
+	// And concretely: the ring sits the same distance from each of the two
+	// gears it can engage, which is what neutral means.
+	var ring Found
+	var gears []Found
+	for _, f := range read.Parts {
+		switch {
+		case f.Class == classRing:
+			ring = f
+		case f.Teeth > 0 && f.Class == classGear:
+			gears = append(gears, f)
+		}
+	}
+	if ring.Name == "" {
+		t.Fatal("no driving ring in what was written")
+	}
+	var near []float64
+	for _, g := range gears {
+		if d := g.Pos.Sub(ring.Pos).Len(); d < 60 {
+			near = append(near, d)
+		}
+	}
+	if len(near) == 2 && math.Abs(near[0]-near[1]) > 1 {
+		t.Errorf("the ring is %.0f from one gear and %.0f from the other; "+
+			"neutral is the same distance from each", near[0], near[1])
 	}
 }

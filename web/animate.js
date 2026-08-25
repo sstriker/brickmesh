@@ -175,9 +175,18 @@ function createAnimator(anim, groups) {
 // shaft-parallel axle does not, and says so with a speed of zero.
 function slide(s, where, gone) {
   const e = toView(s.engaged), d = toView(s.disengaged);
-  const move = [(d[0] - e[0]) * where, (d[1] - e[1]) * where, (d[2] - e[2]) * where];
+  // From where the part is DRAWN, not from the engaged end. A ring serving two
+  // gears is drawn in neutral, halfway along its travel, so starting from
+  // engaged put it out by half a shift — and the catch with it, since a catch
+  // that slides is given the same two positions.
+  const r = s.rest ? toView(s.rest) : e;
+  const move = [
+    e[0] + (d[0] - e[0]) * where - r[0],
+    e[1] + (d[1] - e[1]) * where - r[1],
+    e[2] + (d[2] - e[2]) * where - r[2],
+  ];
   if (!s.speed) return mat4Move(move);
-  const m = mat4Turn(toView(s.axis), -gone * 2 * Math.PI, e);
+  const m = mat4Turn(toView(s.axis), -gone * 2 * Math.PI, r);
   m[12] += move[0]; m[13] += move[1]; m[14] += move[2];
   return m;
 }

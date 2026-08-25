@@ -327,3 +327,29 @@ track, so it indexes eight times in a turn — 45 degrees a step. 110 degrees is
 not a multiple of 45, so the two positions measured are not two detents, or the
 detents are not evenly spaced, or the drum was simply turned to where the fork
 had to be. One pair of positions cannot tell those apart.
+
+## A gearbox is written in neutral
+
+A ring serving two gears is drawn halfway between them, driving neither. It was
+drawn engaged with the first of them, and that one choice was three faults:
+
+- the ring sat a shift's worth towards the low gears — 30 LDU from that gear
+  where the official sets put it at 40 from each of two 80 apart;
+- the model as built was in gear, so a box handed to a builder was already
+  selected;
+- and the catch, drawn beside it at nought degrees on its cam, was then turned
+  to a seat at plus or minus ninety and walked 10 LDU out of the groove it is
+  meant to be holding.
+
+All three read as one thing to anyone looking at it: the selector ring is in the
+wrong place and its catch is not in it.
+
+Two consequences worth knowing. Reading such a model back finds no gear engaged,
+because none is — a driving ring shows the gear it is IN, and in neutral it is
+in none. That is the honest answer and a test says so rather than treating it as
+a gap.
+
+And a renderer that moves parts by transforms has to know where they were drawn.
+LDCad sets an absolute position and does not care; the page moves a part from
+where it is, so a ring drawn in neutral and moved as though it started engaged
+lands half a shift out. The animation carries the rest position for that reason.
