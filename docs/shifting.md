@@ -305,6 +305,22 @@ comes back within one turn has no way to give it. So for a shared ring the drum
 is placed beside it and not made to drive it, and the report says which case it
 is in.
 
+There is a reading of the part that fits that. At the radius the ball touches,
+most angles round the drum show TWO marks rather than one:
+
+```text
+angle   material at radius 22, along z: -20 ......... 0 ......... +20
+ -145   ...o...o............
+  -65   ..........o...o.....
+ +115   ..........o....o....
+```
+
+Two tracks. A sequential barrel drives one fork per track, each fork doing one
+shift of its own, and that is a mechanism whose forks each travel 10 LDU rather
+than one fork travelling 40. The refusal above and the two tracks are the same
+fact seen from either end: this drum is built to move several forks a little,
+not one fork a long way.
+
 **What is still not known is which lettered step is which gear.** 4158 is catalogued as "Gear Shifter with
 Groove, 8 Steps, Letter Markings", and the letters A to H are moulded beside the
 track, so it indexes eight times in a turn — 45 degrees a step. 110 degrees is
