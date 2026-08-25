@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sstriker/brickmesh/internal/clutch"
 	"github.com/sstriker/brickmesh/internal/ldr"
 )
 
@@ -73,3 +74,65 @@ func TestABallInsideTheDrumIsNotExcused(t *testing.T) {
 
 // partNamed is a part with nothing but its name, which is all classOf reads.
 func partNamed(name string) ldr.Part { return ldr.Part{Name: name} }
+
+// Every coupling a state claims is one the ring can actually grip.
+//
+// The other half of checking a gearbox where it moves. Clearance catches parts
+// that overlap; this catches the opposite, which is what a clutch gear turned
+// back to front looks like — nothing overlaps anywhere, and a ratio is solved
+// through a coupling that in metal would slip.
+func TestEveryStateActuallyEngagesWhatItClaims(t *testing.T) {
+	deps := requireLibraries(t)
+	for _, name := range []string{
+		"gearbox-2-speed", "gearbox-first-system", "gearbox-early-system",
+		"gearbox-4-speed-compound",
+	} {
+		t.Run(name, func(t *testing.T) {
+			doc, err := os.ReadFile(filepath.Join("..", "..", "examples", name+".json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := Run(context.Background(), build(t, string(doc)), deps,
+				Options{Restarts: 8, Seed: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var said string
+			for _, f := range res.Findings {
+				if f.Check != "engagement" {
+					continue
+				}
+				if f.Level == "FAIL" {
+					t.Errorf("%s", f.Detail)
+				}
+				said = f.Detail
+			}
+			if said == "" {
+				t.Error("nothing checked that the couplings engage; a check that " +
+					"quietly does nothing is the fault it exists to catch")
+			}
+		})
+	}
+}
+
+// And it is asked with the fit that system was measured at.
+//
+// The first system's dogs meet the gear face to face, so any slack at all
+// separates them: swept at the blanket quarter-LDU tolerance it engages at no
+// distance whatever. Asked that way, this check called a perfectly good
+// two-speed broken in both its states.
+func TestEngagementIsAskedAtEachSystemsOwnFit(t *testing.T) {
+	for _, s := range clutch.Systems {
+		if s.Ring == "" {
+			continue
+		}
+		if s.EngageFit < 0 {
+			t.Errorf("%s has a negative fit", s.Name)
+		}
+	}
+	if clutch.First.EngageFit != 0 {
+		t.Errorf("the first system's fit is %v; it was measured at nothing "+
+			"forgiven, and forgiving a quarter LDU loses its engagement "+
+			"entirely", clutch.First.EngageFit)
+	}
+}

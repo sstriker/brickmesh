@@ -402,6 +402,13 @@ func Run(ctx context.Context, m *mech.Mechanism, deps Deps, opts Options) (*Resu
 	if err := checkClearanceInEveryState(ctx, res, deps, m); err != nil {
 		return res, err
 	}
+	// And the other half of the same question. Clearance catches parts that
+	// overlap; this catches a ring that grips nothing, which is what a gear
+	// turned the wrong way round looks like — no overlap anywhere, and a ratio
+	// solved through a coupling that would slip.
+	if err := checkEngagementInEveryState(ctx, res, deps, m); err != nil {
+		return res, err
+	}
 	if opts.Animate {
 		opts.Progress.Report(progress.Report{Stage: progress.StageAnimation})
 		animate(m, res, opts)

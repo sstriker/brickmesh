@@ -1985,3 +1985,29 @@ could be told a ball may sit in its catch — and the drum, being a selector too
 was covered by the same permission. An exemption written for one pair had
 quietly licensed another. The drum has a class of its own now, and the case is
 in a test: a ball inside its catch is a fit, a ball inside a barrel is not.
+
+### The other half: a ring that grips nothing
+
+Clearance catches parts that overlap. Two of the five faults were the opposite —
+a clutch gear turned to present its closed face overlaps nothing at all, and the
+model goes on solving a ratio through a coupling that in metal would slip.
+
+So every state is also asked whether the ring it positions can actually grip the
+gear that state selects, swept with the instrument that measured the engaged
+distances in the first place: count the windows the dogs leave. Turn a 6542a
+back to front and it says so, naming the state and the gear.
+
+It has to be asked at each system's OWN fit, which cost a false alarm to learn.
+Swept at the blanket quarter-LDU tolerance, the first system engages at no
+distance whatever:
+
+| distance | fit 0 | fit 0.25 |
+| --- | --- | --- |
+| 29.5 | 12 windows | 12 |
+| 30.0 | 12 windows | **0** |
+| 30.5 | 0 | 0 |
+
+Its dogs meet the gear face to face and any slack at all separates them, which
+is why its EngageFit is nought and says so. Asked with a tolerance it did not
+have, the check called a perfectly good two-speed broken in both its states —
+which is how a check earns distrust, and worth more care than it was given.
