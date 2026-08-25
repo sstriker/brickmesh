@@ -674,3 +674,58 @@ func TestTheBarrelSelectorLandsWhereTheModelPutsIt(t *testing.T) {
 			"wrong way puts it outside the groove entirely", near)
 	}
 }
+
+// The barrel turns to move its ring, and refuses what it cannot reach.
+//
+// 11 degrees a LDU, from a model with the drum at two positions. A single shift
+// of 10 LDU is 110 degrees of drum, which it can do. A ring shared between two
+// gears travels four times that, and 440 degrees is more than once round — a
+// track that goes out and comes back within a turn has no way to deliver it, so
+// the drum is placed beside that ring rather than made to drive it.
+func TestTheBarrelTurnsOnlyAsFarAsItsTrackReaches(t *testing.T) {
+	deps := requireLibraries(t)
+	for _, c := range []struct {
+		name    string
+		spec    string
+		animate bool
+	}{
+		{"a shared ring travels too far", "gearbox-early-system.json", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			doc, err := os.ReadFile(filepath.Join("..", "..", "examples", c.spec))
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := Run(context.Background(), build(t, string(doc)), deps,
+				Options{Restarts: 8, Seed: 1, Animate: true, ScriptName: "x.lua"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			turned := false
+			for _, a := range res.Script.Animations {
+				for _, w := range a.Swinging {
+					if strings.HasPrefix(w.Group, "drum_") {
+						turned = true
+					}
+				}
+			}
+			if turned != c.animate {
+				t.Errorf("the drum is turned=%v, want %v", turned, c.animate)
+			}
+			// Whether it turns or not, a group the script names has to be one
+			// the model declares, or LDCad looks for it and finds nothing.
+			declared := map[string]bool{}
+			for _, g := range res.Model.Groups {
+				declared[g.Name] = true
+			}
+			for _, a := range res.Script.Animations {
+				for _, w := range a.Swinging {
+					if !declared[w.Group] {
+						t.Errorf("the script turns %q and the model never "+
+							"declares it", w.Group)
+					}
+				}
+			}
+		})
+	}
+}

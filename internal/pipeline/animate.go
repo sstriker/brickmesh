@@ -56,6 +56,14 @@ func animate(m *mech.Mechanism, res *Result, opts Options) {
 				Name: r.catchGroup, Center: r.engaged.Add(r.catchAt),
 			})
 		}
+		// And the barrel. A group the script names and the model never declares
+		// is a group LDCad cannot find: the animation asks for drum_1 and
+		// nothing answers.
+		if r.drumGroup != "" {
+			res.Model.Groups = append(res.Model.Groups, ldr.Group{
+				Name: r.drumGroup, Center: r.drumAt,
+			})
+		}
 	}
 	tagRings(m, res)
 
@@ -168,8 +176,9 @@ func animationFor(m *mech.Mechanism, res *Result, groupOf map[string]string,
 		name = m.Name
 	}
 	ani := ldcad.Animation{Name: name,
-		Sliding:  slidingIn(rings, speeds, state),
-		Swinging: swingingIn(rings, state)}
+		Sliding: slidingIn(rings, speeds, state),
+		Swinging: append(swingingIn(rings, state),
+			turningDrums(rings, state)...)}
 	// Which shafts nothing reaches while every ring is between gears. Those
 	// hold still rather than turning at a ratio no engagement is delivering.
 	always := alwaysDriven(m)
@@ -215,6 +224,15 @@ type ringGroup struct {
 	// catchGroup names its group. Empty when no catch was placed.
 	catchAt    geom.Vec3
 	catchGroup string
+	// drumGroup names the barrel selector's group, empty when there is none.
+	// It turns in place while the ring and the catch slide, so it needs a group
+	// of its own and a rotation rather than a translation.
+	drumGroup string
+	// drumAt is where the drum sits and drumAxis which way it points, both in
+	// the model's coordinates, and drumHalf how far it turns either side of
+	// where it was drawn.
+	drumAt, drumAxis geom.Vec3
+	drumHalf         float64
 	// catchSlides is a catch that travels with its ring instead of turning.
 	catchSlides bool
 	// How the catch moves: about swingAxis through swingPivot, by swingHalf
@@ -239,9 +257,12 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 		if site.mate != nil {
 			mateStates = site.mate.coupling.States
 		}
-		catchGroup := ""
+		catchGroup, drumGroup := "", ""
 		if site.catchAt != (geom.Vec3{}) {
 			catchGroup = fmt.Sprintf("catch_%d", i+1)
+			if site.system.Drum != "" && site.system.DrumPerLDU > 0 {
+				drumGroup = fmt.Sprintf("drum_%d", i+1)
+			}
 		}
 		// Where the catch's own axle points and sits, once placed: the column
 		// of its orientation for the axis the part's hole runs along, and the
@@ -280,8 +301,40 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 				swingHalf = travel / 2 * sys.CatchPerLDU
 			}
 		}
+		// Where the barrel sits, and how far it turns: the fork's whole travel
+		// at the rate the model measured, half either side of where it was
+		// drawn.
+		var drumAt, drumAxis geom.Vec3
+		var drumHalf float64
+		if drumGroup != "" {
+			out2 := site.catchAt
+			if side := site.system.CatchSide; side != 0 {
+				third := geom.Vec3{X: site.catchRot[0][0], Y: site.catchRot[1][0],
+					Z: site.catchRot[2][0]}
+				out2 = out2.Sub(third.Scale(side))
+			}
+			if out2.Len() > 1e-9 {
+				drumAt = base.Add(place.Direction.Scale(site.engaged * synth.HalfStud)).
+					Add(site.catchAt).Add(out2.Unit().Scale(site.system.DrumReach))
+				drumAxis = place.Direction.Unit()
+				travel := math.Abs(site.disengaged-site.engaged) * synth.HalfStud
+				drumHalf = travel / 2 * site.system.DrumPerLDU
+				// A barrel that would have to turn more than once round cannot
+				// be the thing moving this fork. Its track goes out and comes
+				// back within one revolution, so its whole throw is bounded,
+				// and a shared ring between two gears asks for four times what
+				// one shift does. Placed, then, and not turned.
+				if 2*drumHalf > 360 {
+					drumGroup, drumHalf = "", 0
+				}
+			}
+		}
 		out = append(out, ringGroup{
 			group:        fmt.Sprintf("ring_%d", i+1),
+			drumGroup:    drumGroup,
+			drumAt:       drumAt,
+			drumAxis:     drumAxis,
+			drumHalf:     drumHalf,
 			catchSlides:  sys.CatchSlides,
 			swingAxis:    swingAxis,
 			swingPivot:   swingPivot,
@@ -305,21 +358,34 @@ func ringGroups(m *mech.Mechanism, res *Result) []ringGroup {
 // be moved on its own.
 func tagRings(m *mech.Mechanism, res *Result) {
 	rings := ringGroups(m, res)
-	k, c := 0, 0
+	k, c, dr := 0, 0, 0
 	for i := range res.Model.Parts {
 		p := &res.Model.Parts[i]
 		switch {
 		case isRing(p.Name) && k < len(rings):
 			p.Group = rings[k].group
 			k++
-		case isSelector(p.Name):
+		case isDrum(p.Name):
+			// The barrel turns in place while everything else slides, so it
+			// cannot share a group with any of them.
+			for dr < len(rings) && rings[dr].drumGroup == "" {
+				dr++
+			}
+			if dr < len(rings) {
+				p.Group = rings[dr].drumGroup
+				dr++
+			}
+		case isSelector(p.Name) || isBall(p.Name):
 			// Its own group: it moves with its ring and does not turn with it.
+			// The ball goes with it, being in its hole.
 			for c < len(rings) && rings[c].catchGroup == "" {
 				c++
 			}
 			if c < len(rings) {
 				p.Group = rings[c].catchGroup
-				c++
+				if !isBall(p.Name) {
+					c++
+				}
 			}
 		}
 	}
@@ -377,6 +443,30 @@ func swingingIn(rings []ringGroup, state string) []ldcad.Swinging {
 			Engaged: -r.swingHalf, Clear: r.swingHalf,
 			At:      atFor(r, state),
 			Assumed: r.swingAssumed,
+		})
+	}
+	return out
+}
+
+// turningDrums is the barrel selector: it turns in place, and its angle is what
+// carries the fork.
+//
+// Separate from swingingIn because a drum is there whether its catch swings or
+// slides — the early system's fork slides, and it still has a barrel turning it.
+func turningDrums(rings []ringGroup, state string) []ldcad.Swinging {
+	var out []ldcad.Swinging
+	for _, r := range rings {
+		if r.drumGroup == "" {
+			continue
+		}
+		out = append(out, ldcad.Swinging{
+			Group: r.drumGroup, Axis: r.drumAxis, Pivot: r.drumAt,
+			Rest:    r.drumAt,
+			Engaged: -r.drumHalf, Clear: r.drumHalf,
+			At: atFor(r, state),
+			// The rate came from a model whose ball is not properly seated in
+			// the groove, so the angle is near enough and not exact.
+			Assumed: true,
 		})
 	}
 	return out

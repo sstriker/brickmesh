@@ -285,16 +285,29 @@ runs from -18 to +20 of its own origin along its own x, so which way round it
 goes decides whether it reaches 22 or 32 — and at 32 it is resting on the drum's
 skin, holding nothing. The first attempt did exactly that.
 
-**What is not known is how far one step carries the fork.** 4158 is catalogued
-as "Gear Shifter with Groove, 8 Steps, Letter Markings", and the letters A to H
-are moulded beside the track, so the drum indexes eight times in a turn: 45
-degrees a step, from the catalogue rather than from any reading here. But the
-track itself is raw triangles — the part's only primitives are cylinders, rings
-and an axle hole — so there is nothing to read a law off the way 2473a's groove
-could be read straight out of a `4-4cylo`.
+**How far it turns is measured now**, from a third model with the drum at two
+positions. The fork sits 10.01 LDU further along the shaft in one than in the
+other, and the drum is turned 110.00 degrees between them — the same angle
+whichever of the drum's own axes it is measured from. So 11 degrees a LDU. The
+10.01 corroborates itself: it is the ring's own travel, 2.0 half studs engaged
+to 3.0 clear, arrived at from a different direction entirely.
 
-Four attempts at reading it from the mesh produced nothing worth keeping. The
-drum is placed, its step count is recorded, and the report says plainly that
-turning it is not animated. Two models with the drum at two lettered positions
-would settle it in one measurement: travel against angle, with the letters
-naming the positions.
+It is near enough rather than exact, and the builder said so before it was
+measured. In the second position the ball is not seated in the groove — its tip
+sits 4.33 LDU clear of any surface of the drum, against 1.77 in the first — so
+the drum was turned by eye. The angle carries whatever that is worth, and the
+animation labels itself assumed.
+
+What that rate then says is worth having. A single shift of 10 LDU is 110
+degrees of drum, which it can deliver. A ring shared between two clutch gears
+travels 40, and 440 degrees is more than once round: a track that goes out and
+comes back within one turn has no way to give it. So for a shared ring the drum
+is placed beside it and not made to drive it, and the report says which case it
+is in.
+
+**What is still not known is which lettered step is which gear.** 4158 is catalogued as "Gear Shifter with
+Groove, 8 Steps, Letter Markings", and the letters A to H are moulded beside the
+track, so it indexes eight times in a turn — 45 degrees a step. 110 degrees is
+not a multiple of 45, so the two positions measured are not two detents, or the
+detents are not evenly spaced, or the drum was simply turned to where the fork
+had to be. One pair of positions cannot tell those apart.

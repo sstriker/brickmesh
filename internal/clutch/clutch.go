@@ -74,9 +74,12 @@ type System struct {
 	// measured from the part: 4158 is catalogued as "Gear Shifter with Groove,
 	// 8 Steps, Letter Markings", and the letters A to H are moulded beside the
 	// track.
+	//
+	// DrumPerLDU is how far it turns to carry the fork one LDU, in degrees.
 	Drum, Ball string
 	DrumReach  float64
 	DrumSteps  int
+	DrumPerLDU float64
 	// CatchSide is how far the catch's origin sits from the point where it
 	// grips, along the third axis of its own frame — square to both the shaft
 	// and the way out — in LDU. Zero for a catch whose origin is on that line,
@@ -292,12 +295,19 @@ var Early = System{
 	// 80 from the shaft, with a towball in the fork's pin hole exactly 40.000
 	// from that axis and reaching in to 22.00 against a groove floor of 22.11.
 	//
-	// What is NOT measured is how far one step carries the fork. The track is
-	// raw triangles with no primitive to read a law off, and four goes at
-	// reading it from the mesh produced nothing worth keeping. Eight steps is
-	// the catalogue's, and one step per shift is an assumption — labelled as
-	// one wherever it shows.
+	// How far it turns comes from a second model with the drum at two
+	// positions: the fork sits 10.01 LDU further along the shaft in one than
+	// the other, and the drum is turned 110.00 degrees between them — the same
+	// angle whichever of its own axes it is measured from. So 11 degrees a
+	// LDU, and the 10.01 is corroborated by being the ring's own travel.
+	//
+	// APPROXIMATE, and the builder said so before it was measured: the ball is
+	// not properly seated in the second position, sitting 4.33 LDU clear of any
+	// surface of the drum rather than down in the groove. The angle carries
+	// however much that is worth. Eight steps is the catalogue's; which of them
+	// these two are is not known.
 	Drum: "4158.dat", Ball: "6628.dat", DrumReach: 40, DrumSteps: 8,
+	DrumPerLDU: 11,
 }
 
 var Systems = []System{First, Second, Early}

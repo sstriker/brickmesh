@@ -107,6 +107,26 @@ func isSelector(name string) bool {
 	return false
 }
 
+// isDrum is the barrel selector a hand turns, and isBall the towball on the
+// catch that rides its groove.
+func isDrum(name string) bool {
+	for _, s := range clutch.Systems {
+		if s.Drum != "" && s.Drum == name {
+			return true
+		}
+	}
+	return false
+}
+
+func isBall(name string) bool {
+	for _, s := range clutch.Systems {
+		if s.Ball != "" && s.Ball == name {
+			return true
+		}
+	}
+	return false
+}
+
 // SlipPart is the 24-tooth gear with a friction centre.
 //
 // A torque limiter, and the other kind of clutch entirely from the one a
@@ -1854,13 +1874,32 @@ func placeBarrel(res *Result, model *ldr.Model, site ringSite, at, d geom.Vec3,
 		"barrel selector for %s, %d steps; which step is which gear is not "+
 			"worked out, only that turning it moves the catch", label,
 		sys.DrumSteps))
+
+	// Whether it can be the thing that moves this ring, or only sit beside it.
+	turn := math.Abs(site.disengaged-site.engaged) * synth.HalfStud * sys.DrumPerLDU
+	detail := fmt.Sprintf("a %d-step barrel selector is placed for %s, with the "+
+		"ball on the catch riding its groove", sys.DrumSteps, label)
+	level := "OK"
+	switch {
+	case sys.DrumPerLDU <= 0:
+		detail += ". How far one step carries the fork is not measured, so it " +
+			"is placed and not turned"
+	case turn > 360:
+		level = "WARN"
+		detail += fmt.Sprintf(". Moving this ring its whole %0.f LDU would turn "+
+			"the drum %.0f degrees, more than once round, and a track that goes "+
+			"out and comes back within one turn cannot do that. It is placed "+
+			"and not turned: a ring shared between two gears asks four times "+
+			"what a single shift does",
+			math.Abs(site.disengaged-site.engaged)*synth.HalfStud, turn)
+	default:
+		detail += fmt.Sprintf(", and turns %.0f degrees to move it. That rate is "+
+			"11 degrees per LDU, from a model with the drum at two positions — "+
+			"and the ball is not properly seated in the second, so it is near "+
+			"enough rather than exact", turn)
+	}
 	res.Findings = append(res.Findings, mech.Finding{
-		Level: "OK", Check: "parts", Detail: fmt.Sprintf(
-			"a %d-step barrel selector is placed for %s, with the ball on the "+
-				"catch riding its groove. How far one step carries the fork is "+
-				"NOT measured — the track is raw triangles with no primitive to "+
-				"read a law from — so the drum is placed and not animated",
-			sys.DrumSteps, label)})
+		Level: level, Check: "parts", Detail: detail})
 }
 
 // settleCatches works out where every catch goes, before anything is drawn.

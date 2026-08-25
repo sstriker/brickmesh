@@ -610,14 +610,24 @@ third kind of motion. See docs/findings.md.
 
 ## The barrel selector — placed, not animated
 
-- [ ] how far one step of the drum carries the fork. 4158 is catalogued as
-      "Gear Shifter with Groove, 8 Steps, Letter Markings" and the letters A to
-      H are moulded beside the track, so the step is 45 degrees and that much is
-      known. The travel is not: the track is raw triangles with no primitive to
-      read a law from, and four attempts at reading it out of the mesh produced
-      nothing worth keeping. Two models with the drum at two lettered positions
-      settle it in one measurement — travel against angle, the letters naming
-      the positions. See docs/shifting.md.
+- [x] how far the drum carries the fork. Measured from a model with it at two
+      positions: 10.01 LDU of travel for 110.00 degrees of drum, so 11 degrees
+      a LDU. The travel corroborates itself by being the ring's own, arrived at
+      from a different direction. Near enough rather than exact — the ball is
+      not seated in the second position, sitting 4.33 LDU clear of the drum
+      against 1.77 in the first — so the animation labels itself assumed.
+
+      It pays for itself immediately: a shared ring travels 40 LDU, which would
+      be 440 degrees of drum, more than once round. A track that goes out and
+      comes back within a turn cannot deliver that, so for a shared ring the
+      drum is placed and not turned, and the report says so.
+
+- [ ] which lettered step is which gear. 110 degrees is not a multiple of the
+      45 that eight steps implies, so the two positions measured are not two
+      detents, or the detents are not evenly spaced, or the drum was turned to
+      where the fork had to be rather than to a letter. One pair cannot tell
+      those apart. A model with the drum at A and at B — named, not just
+      turned — would.
 
 ## What code cannot settle
 
