@@ -402,3 +402,28 @@ And a renderer that moves parts by transforms has to know where they were drawn.
 LDCad sets an absolute position and does not care; the page moves a part from
 where it is, so a ring drawn in neutral and moved as though it started engaged
 lands half a shift out. The animation carries the rest position for that reason.
+
+## Which way round a clutch gear goes
+
+6542a has its dogs on one face and a closed face on the other. Laid along the
+shaft like any other gear it presents whichever face the shaft direction
+happens to give, and half the time that is the wrong one: the ring slides up,
+meets a flat face and stops.
+
+Which face is which came from the sweep that measures engagement in the first
+place. A 6539 beside a 6542a:
+
+| face offered | best result |
+| --- | --- |
+| +z | 16 windows at 29.5 LDU |
+| -z | none at any distance |
+
+So the dogs are on +z, and the gear is turned about when its ring sits the other
+way. The gears with a clutch on BOTH sides do not care and measure the same
+either way — 2471 and 18946 each engage at the same distance whichever face is
+offered, which is what says the asymmetry is real and not an artefact.
+
+The test for it asks the question that matters. Not which way the part points,
+which is arithmetic, but whether the ring can engage it where it stands: slide
+the ring along and count windows. Before the fix, a 6542a in a four-speed's
+early stage never engaged at any distance.

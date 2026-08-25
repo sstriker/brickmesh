@@ -666,6 +666,7 @@ func buildModel(m *mech.Mechanism, res *Result, deps Deps) (*ldr.Model, error) {
 		// Shaft points are in half studs; stations are along the shaft.
 		pos := place.Point.Scale(synth.HalfStud).
 			Add(place.Direction.Scale(st.Axial * synth.HalfStud))
+		rot = facingItsRing(rot, name, st, sites)
 		model.Add(name, colour(name), rot, pos,
 			fmt.Sprintf("%dt on shaft '%s'", st.Teeth, st.Shaft))
 	}
@@ -2235,4 +2236,56 @@ func mechanismParts(res *Result) []onShaft {
 		}
 	}
 	return out
+}
+
+// oneSidedClutch names the gears whose dogs are on one face only, and says
+// which face that is in the part's own frame.
+//
+// A gear with a clutch on BOTH sides can go in either way round and most of
+// them do — 2471 and 18946 engage at the same distance whichever face is
+// offered. 6542a does not: swept against a 6539, its +z face gives sixteen
+// windows at 29.5 and its -z face gives none at all. Put in backwards it
+// presents a closed face to the ring, which meets it and stops.
+var oneSidedClutch = map[string]float64{
+	"6542a.dat": +1,
+	"6542b.dat": +1, // the smooth variant, same shape
+	"3590.dat":  +1, // 12 tooth with clutch on one side, not placed yet
+}
+
+// facingItsRing turns a one-sided clutch gear so its dogs face the ring that
+// engages it.
+//
+// Gears are laid along the shaft by alignZTo, which points their own z the way
+// the shaft runs. That is the whole story for a symmetric gear and half of it
+// for this kind: the ring may be on either side, and if it is on the other one
+// the gear has to be turned about.
+func facingItsRing(rot geom.Mat3, name string, st layout.Station,
+	sites []ringSite) geom.Mat3 {
+
+	face, ok := oneSidedClutch[name]
+	if !ok {
+		return rot
+	}
+	for _, site := range sites {
+		on := site.station.Shaft == st.Shaft && site.station.Axial == st.Axial
+		if site.mate != nil && site.mate.station.Shaft == st.Shaft &&
+			site.mate.station.Axial == st.Axial {
+			on = true
+		}
+		if !on {
+			continue
+		}
+		// Which side of this gear the ring sits on, along the shaft.
+		toward := 1.0
+		if site.engaged < st.Axial {
+			toward = -1
+		}
+		if toward*face < 0 {
+			// About its own x: the dogs swing from one face to the other and
+			// the teeth, being symmetric about that axis, do not care.
+			return rot.Mul(interfere.RotAbout(geom.Vec3{X: 1}, 180))
+		}
+		return rot
+	}
+	return rot
 }

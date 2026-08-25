@@ -21,6 +21,7 @@ import (
 	"github.com/sstriker/brickmesh/internal/mech"
 	"github.com/sstriker/brickmesh/internal/shadow"
 	"github.com/sstriker/brickmesh/internal/spec"
+	"github.com/sstriker/brickmesh/internal/synth"
 	"github.com/sstriker/brickmesh/internal/voxel"
 )
 
@@ -851,5 +852,84 @@ func TestTheBallStaysInTheDrumsTrackThroughAShift(t *testing.T) {
 			t.Errorf("%s: the ball is inside the drum rather than in its track",
 				c.name)
 		}
+	}
+}
+
+// A one-sided clutch gear faces its ring.
+//
+// 6542a has its dogs on one face only. Laid along the shaft like any other gear
+// it presents whichever face the shaft direction gives, and half the time that
+// is the closed one: the ring slides up, meets a flat face and stops. Swept
+// against a 6539 its +z face gives sixteen windows and its -z face gives none
+// at all, so it is turned about when the ring is on the other side.
+//
+// The check is the one that matters — not which way the part points, but
+// whether the ring can engage it where it stands.
+func TestAOneSidedClutchGearFacesItsRing(t *testing.T) {
+	deps := requireLibraries(t)
+	for _, name := range []string{"gearbox-early-system", "gearbox-first-system"} {
+		t.Run(name, func(t *testing.T) {
+			doc, err := os.ReadFile(filepath.Join("..", "..", "examples", name+".json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := Run(context.Background(), build(t, string(doc)), deps,
+				Options{Restarts: 8, Seed: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ring ldr.Part
+			var gears []ldr.Part
+			for _, p := range res.Model.Parts {
+				switch {
+				case isRing(p.Name):
+					ring = p
+				case p.Name == "6542a.dat":
+					gears = append(gears, p)
+				}
+			}
+			if ring.Name == "" || len(gears) == 0 {
+				t.Skip("no one-sided clutch gear here")
+			}
+			var engaged float64
+			for _, s := range clutch.Systems {
+				if s.Ring == ring.Name {
+					engaged = s.Engaged * synth.HalfStud
+				}
+			}
+			rm, err := interfere.MeshFor(deps.Lib, ring.Name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			axis := geom.Vec3{X: ring.Rot[0][2], Y: ring.Rot[1][2],
+				Z: ring.Rot[2][2]}.Unit()
+
+			for _, g := range gears {
+				gm, err := interfere.MeshFor(deps.Lib, g.Name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				toward := 1.0
+				if g.Pos.Sub(ring.Pos).Dot(axis) < 0 {
+					toward = -1
+				}
+				best := 0
+				for d := engaged - 2; d <= engaged+6; d += 0.5 {
+					got, err := interfere.MeshLock(context.Background(),
+						gm, collide.Transform{Rot: g.Rot, Pos: g.Pos},
+						rm, collide.Transform{Rot: ring.Rot,
+							Pos: g.Pos.Sub(axis.Scale(toward * d))},
+						8, interfere.Options{Steps: 36, SpinAxis: principal(axis)})
+					if err == nil && got.Windows > best {
+						best = got.Windows
+					}
+				}
+				if best == 0 {
+					t.Errorf("the ring never engages the %s at %v, at any "+
+						"distance: it is presenting its closed face",
+						g.Name, g.Pos)
+				}
+			}
+		})
 	}
 }
